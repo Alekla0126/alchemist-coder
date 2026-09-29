@@ -29,6 +29,8 @@ function setup() {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'arena-app-')));
   const git = (...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
+  // Git for Windows turns LF into CRLF on checkout by default; the test compares exact bytes.
+  git('config', 'core.autocrlf', 'false');
   git('config', 'user.email', 'dev@example.com');
   git('config', 'user.name', 'Dev');
   writeFileSync(join(root, 'README.md'), '# demo\n');
