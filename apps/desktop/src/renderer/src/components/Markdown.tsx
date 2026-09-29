@@ -91,6 +91,50 @@ function inline(text: string, keyBase: string): ReactNode[] {
 const HEADING = /^(#{1,6})\s+(.*)$/;
 const RULE = /^\s*([-*_])(\s*\1){2,}\s*$/;
 const ITEM = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/;
+
+interface ListItem {
+  indent: number;
+  ordered: boolean;
+  start: number;
+  text: string;
+  children: ListItem[];
+}
+
+/** Flat items into a tree: each goes under the closest item before it that is indented less. */
+export function nestItems(flat: ListItem[]): ListItem[] {
+  const top: ListItem[] = [];
+  const stack: ListItem[] = [];
+  for (const item of flat) {
+    while (stack.length && stack[stack.length - 1]!.indent >= item.indent) stack.pop();
+    (stack.length ? stack[stack.length - 1]!.children : top).push(item);
+    stack.push(item);
+  }
+  return top;
+}
+
+function renderList(items: ListItem[], k: string, inline: (text: string, key: string) => ReactNode): ReactNode {
+  const first = items[0]!;
+  const Tag = first.ordered ? 'ol' : 'ul';
+  return (
+    <Tag key={k} start={first.ordered && first.start !== 1 ? first.start : undefined}>
+      {items.map((it, j) => {
+        const task = /^\[([ xX])\]\s+(.*)$/.exec(it.text);
+        return (
+          <li key={j} className={task ? 'task' : undefined}>
+            {task ? (
+              <>
+                <span className="md-check">{task[1] === ' ' ? '☐' : '☑'}</span> {inline(task[2]!, `${k}-${j}`)}
+              </>
+            ) : (
+              inline(it.text, `${k}-${j}`)
+            )}
+            {it.children.length > 0 && renderList(it.children, `${k}-${j}c`, inline)}
+          </li>
+        );
+      })}
+    </Tag>
+  );
+}
 const QUOTE = /^\s*>\s?(.*)$/;
 const TABLE_SEP = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;
 
@@ -178,36 +222,17 @@ function blocks(text: string, keyBase: string): ReactNode[] {
     }
     if (ITEM.test(line)) {
       flush();
-      const ordered = /^\s*\d/.test(line);
-      const items: Array<{ depth: number; text: string }> = [];
+      // Items nest by indentation: a "- " under "1. " is a bullet inside that item, not item 2.
+      const flat: ListItem[] = [];
       while (i < lines.length) {
         const m = ITEM.exec(lines[i]!);
-        if (m) items.push({ depth: Math.min(Math.floor(m[1]!.replace(/\t/g, '  ').length / 2), 3), text: m[3]! });
-        else if (lines[i]!.trim() && /^\s{2,}/.test(lines[i]!) && items.length) items[items.length - 1]!.text += ` ${lines[i]!.trim()}`;
+        if (m) flat.push({ indent: m[1]!.replace(/\t/g, '    ').length, ordered: /^\d/.test(m[2]!), start: parseInt(m[2]!, 10) || 1, text: m[3]!, children: [] });
+        else if (lines[i]!.trim() && /^\s{2,}/.test(lines[i]!) && flat.length) flat[flat.length - 1]!.text += ` ${lines[i]!.trim()}`;
         else break;
         i++;
       }
       i--;
-      const k = key();
-      const Tag = ordered ? 'ol' : 'ul';
-      out.push(
-        <Tag key={k}>
-          {items.map((it, j) => {
-            const task = /^\[([ xX])\]\s+(.*)$/.exec(it.text);
-            return (
-              <li key={j} className={`d${it.depth}${task ? ' task' : ''}`}>
-                {task ? (
-                  <>
-                    <span className="md-check">{task[1] === ' ' ? '☐' : '☑'}</span> {inline(task[2]!, `${k}-${j}`)}
-                  </>
-                ) : (
-                  inline(it.text, `${k}-${j}`)
-                )}
-              </li>
-            );
-          })}
-        </Tag>,
-      );
+      out.push(renderList(nestItems(flat), key(), inline));
       continue;
     }
     if (QUOTE.test(line)) {

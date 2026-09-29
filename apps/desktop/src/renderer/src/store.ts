@@ -328,6 +328,9 @@ export const useStore = create<State>((set, get) => ({
     const capture = info.capture?.select;
     if (capture) {
       await indexed;
+      // The conversation only shows in Agents (or Split): a profile left in another mode would never capture.
+      const mode = get().settings.mode;
+      if (!info.capture?.mode && mode !== 'agents' && mode !== 'split') set((s) => ({ settings: { ...s.settings, mode: 'agents' } }));
       await get().select(capture.sessionId, capture.agentId);
     }
     if (info.capture?.project || info.capture?.openFile) {

@@ -134,9 +134,6 @@ function Turn({ turn, run, isLast }: { turn: LiveTurn; run: RunState; isLast: bo
     <>
       {turn.prompt && (
         <div className="entry user live-entry">
-          <div className="entry-head">
-            <span className="who user">›</span>
-          </div>
           <div className="entry-body">
             <Markdown text={turn.prompt} />
             {!!turn.images?.length && (
@@ -157,10 +154,6 @@ function Turn({ turn, run, isLast }: { turn: LiveTurn; run: RunState; isLast: bo
       )}
       {(turn.blocks.length > 0 || working) && (
         <div className="entry assistant live-entry">
-          <div className="entry-head">
-            <span className="who assistant">⚗</span>
-            {working && <span className="live-working">{t(run.status === 'waiting' ? 'run.waiting' : 'run.running')}</span>}
-          </div>
           <div className="entry-body">
             {turn.blocks.map((b, i) =>
               // The question card stands for the agent's AskUserQuestion call: no second row for it.
@@ -168,7 +161,11 @@ function Turn({ turn, run, isLast }: { turn: LiveTurn; run: RunState; isLast: bo
                 <Block key={i} b={b} run={run} last={i === turn.blocks.length - 1} />
               ),
             )}
-            {working && !turn.blocks.length && <span className="spin" />}
+            {working && (
+              <span className={`live-working ${run.status === 'waiting' ? 'waiting' : ''}`} role="status">
+                <span className="live-dot" aria-hidden /> {t(run.status === 'waiting' ? 'run.waiting' : 'run.running')}
+              </span>
+            )}
           </div>
         </div>
       )}

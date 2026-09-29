@@ -476,9 +476,7 @@ input { font: inherit; color: inherit; }
 
 /* ---------- markdown blocks ---------- */
 .md ul, .md ol { margin: 0 0 8px; padding-left: 20px; line-height: 1.6; }
-.md li.d1 { margin-left: 16px; }
-.md li.d2 { margin-left: 32px; }
-.md li.d3 { margin-left: 48px; }
+.md li > ul, .md li > ol { margin: 2px 0 2px; }
 .md li.task { list-style: none; margin-left: -16px; }
 .md-check { color: var(--teal); }
 .md .h2 { font-size: 14px; }
@@ -1363,3 +1361,32 @@ code.md-path:hover { color: var(--accent-2); }
 .new-project .np-note { margin: 0; min-height: 1.3em; font-size: 12px; color: var(--fg-2); overflow-wrap: anywhere; white-space: normal; }
 .new-project .np-note.err { color: var(--red); }
 .start-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+
+/* ---------- transcript as one continuous document (Nimbalyst-style) ----------
+   Your messages are quiet blocks; the agent's replies flow as text with no card or header. Time and
+   model live in the tooltip, actions appear on hover, and turns off screen aren't laid out at all. */
+.entries { gap: 18px; max-width: 860px; }
+.entry { position: relative; border: 0; border-radius: 0; background: transparent; }
+/* Turns far above aren't laid out until you scroll to them; the last few always are. */
+.entries > .entry:not(:nth-last-child(-n + 6)) { content-visibility: auto; contain-intrinsic-size: auto 120px; }
+.entry.user { background: var(--bg-user); border: 1px solid color-mix(in srgb, var(--blue) 14%, var(--line)); border-radius: 12px; }
+.entry.user .entry-body { padding: 10px 14px; }
+.entry.assistant .entry-body { padding: 0 2px; }
+.entry.brief { background: color-mix(in srgb, var(--accent) 7%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); border-radius: 12px; }
+.entry.brief .entry-body { padding: 10px 14px; }
+.entry .brief-label { display: block; margin-bottom: -2px; }
+.entry > .entry-actions { position: absolute; top: 4px; right: 6px; align-items: center; z-index: 2; margin: 0; padding: 2px; background: var(--bg-card); border: 1px solid var(--line-2); border-radius: 7px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25); }
+.entry:hover > .entry-actions, .entry:focus-within > .entry-actions { opacity: 1; }
+.entry.live-entry { content-visibility: visible; }
+.model-switch { display: flex; align-items: center; gap: 10px; font-size: 11px; color: var(--fg-3); }
+.model-switch::before, .model-switch::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.live-working { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--fg-3); }
+.live-working .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: live-pulse 1.4s ease-in-out infinite; }
+.live-working.waiting .live-dot { background: var(--amber); animation: none; }
+@keyframes live-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .live-working .live-dot { animation: none; } }
+/* Tool calls read as compact lines inside the reply, not boxes. */
+.entry.assistant .tool, .entry.assistant .tool-group { border-color: transparent; background: color-mix(in srgb, var(--fg) 3%, transparent); }
+.entry.assistant .tool:hover, .entry.assistant .tool-group:hover { border-color: var(--line); }
+.entry.assistant .tool.failed, .entry.assistant .tool-group.failed { border-color: color-mix(in srgb, var(--red) 45%, transparent); }
+.entry-when { font-size: 11px; color: var(--fg-3); padding: 0 6px 0 4px; white-space: nowrap; }

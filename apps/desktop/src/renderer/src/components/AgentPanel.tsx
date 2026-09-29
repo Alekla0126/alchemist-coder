@@ -128,7 +128,18 @@ export function AgentPanel() {
     const p = pendingScroll.current;
     if (!el || !p) return;
     pendingScroll.current = null;
-    if (p.kind === 'bottom') el.scrollTop = el.scrollHeight;
+    if (p.kind === 'bottom') {
+      // Turns off screen aren't laid out (content-visibility), so their heights settle as they
+      // render: stay pinned to the end for a couple of frames.
+      el.scrollTop = el.scrollHeight;
+      let frames = 3;
+      const pin = () => {
+        if (frames-- <= 0) return;
+        el.scrollTop = el.scrollHeight;
+        requestAnimationFrame(pin);
+      };
+      requestAnimationFrame(pin);
+    }
     // Older messages were added above: keep what you were reading where it was.
     else el.scrollTop = p.top + (el.scrollHeight - p.height);
   }, [entries]);

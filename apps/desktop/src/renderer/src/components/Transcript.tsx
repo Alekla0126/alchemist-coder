@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import type { FileDiff, TranscriptBlock, TranscriptEntry } from '@alchemist-coder/core';
 import { clockTime, modelLabel } from '../format';
 import { useStore, useT } from '../store';
@@ -27,7 +27,8 @@ function fileOf(block: ToolUse): string | null {
   try {
     const input = JSON.parse(block.input) as Record<string, unknown>;
     const p = input.file_path ?? input.path ?? input.notebook_path;
-    return typeof p === 'string' && p.startsWith('/') ? p : null;
+    // Absolute on macOS/Linux (/…) or Windows (C:\… or \\server\…).
+    return typeof p === 'string' && /^(\/|[A-Za-z]:[\\/]|\\\\)/.test(p) ? p : null;
   } catch {
     return null;
   }
@@ -192,7 +193,9 @@ function ToolRow({ block, result, sessionId }: { block: ToolUse; result: ToolRes
   // Write replaces a whole file: it's only "new" when Claude Code says it created it.
   const created = block.name === 'Write' && result ? /created/i.test(result.preview) : undefined;
   const shown = displaySummary(block.name, block.input, block.summary);
-  const summary = file && shown.includes(file) ? shown.replace(file, relativeTo(file, root)) : shown;
+  // Paths inside the project read relative; the stored summary may have been cut short (160 characters).
+  const rel = file ? relativeTo(file, root) : null;
+  const summary = file && rel && rel !== file ? (shown.includes(file) ? shown.replace(file, rel) : file.startsWith(shown.replace(/…$/, '')) ? rel : shown) : shown;
   if (block.ask?.length) return <QuestionCard block={block} result={result} />;
   return (
     <div
@@ -372,13 +375,17 @@ const textOf = (turn: Turn) =>
     .join('\n\n')
     .trim();
 
-function TurnActions({ turn, last }: { turn: Turn; last: boolean }) {
+/** Shown on hover: when it was said (and by which model), then copy, reuse, retry and fork. */
+function TurnActions({ turn, last, meta }: { turn: Turn; last: boolean; meta: string }) {
   const t = useT();
   const fillComposer = useStore((s) => s.fillComposer);
   const text = textOf(turn);
-  if (!text) return null;
+  if (!text && !meta) return null;
   return (
     <span className="entry-actions">
+      {meta && <span className="entry-when">{meta}</span>}
+      {text && (
+        <>
       <button
         title={t('transcript.copy')}
         onClick={() => {
@@ -403,6 +410,8 @@ function TurnActions({ turn, last }: { turn: Turn; last: boolean }) {
           ⑂
         </button>
       )}
+        </>
+      )}
     </span>
   );
 }
@@ -422,6 +431,8 @@ export function TranscriptEntries({ entries, sessionId, isSubagent }: { entries:
   const turns = buildTurns(entries);
   const firstUser = turns.findIndex((x) => x.role === 'user');
   const lastUser = turns.findLastIndex((x) => x.role === 'user');
+  // The conversation header names the model; a switch halfway through gets a quiet divider.
+  let lastModel: string | null = null;
   return (
     <div className="entries">
       {turns.map((turn, i) => {
@@ -451,9 +462,17 @@ export function TranscriptEntries({ entries, sessionId, isSubagent }: { entries:
         const text = textOf(turn);
         const start = clockTime(turn.ts, locale);
         const end = clockTime(turn.endTs, locale);
+        const when = start && end && start !== end ? `${start}–${end}` : start;
+        const switched = turn.role === 'assistant' && turn.model && lastModel && turn.model !== lastModel ? turn.model : null;
+        if (turn.role === 'assistant' && turn.model) lastModel = turn.model;
         return (
+          <Fragment key={turn.key}>
+          {switched && (
+            <div className="model-switch" role="separator">
+              <span>{modelLabel(switched)}</span>
+            </div>
+          )}
           <div
-            key={turn.key}
             className={`entry ${turn.role} ${brief ? 'brief' : ''}`}
             onContextMenu={
               text
@@ -474,19 +493,15 @@ export function TranscriptEntries({ entries, sessionId, isSubagent }: { entries:
                 : undefined
             }
           >
-            <div className="entry-head">
-              <span className={`who ${turn.role}`}>{turn.role === 'assistant' ? '⚗' : '›'}</span>
-              {brief && <span className="brief-label">{t('agent.brief')}</span>}
-              {turn.model && <span className="model" title={turn.model}>{modelLabel(turn.model)}</span>}
-              <TurnActions turn={turn} last={i === lastUser && !isSubagent} />
-              <span className="time">{start && end && start !== end ? `${start}–${end}` : start}</span>
-            </div>
+            <TurnActions turn={turn} last={i === lastUser && !isSubagent} meta={[when, turn.role === 'assistant' && turn.model ? modelLabel(turn.model) : ''].filter(Boolean).join(' · ')} />
             <div className="entry-body">
+              {brief && <span className="brief-label">{t('agent.brief')}</span>}
               {turn.blocks.map((b, j) => (
                 <RenderBlockView key={j} b={b} sessionId={sessionId} />
               ))}
             </div>
           </div>
+          </Fragment>
         );
       })}
     </div>

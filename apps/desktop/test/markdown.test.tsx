@@ -15,15 +15,21 @@ describe('Markdown', () => {
   it('renders headings, lists, task lists, quotes, rules and inline styles', () => {
     const out = html('# Plan\n\n1. First **bold**\n2. Second `code`\n   continued\n\n- [x] done\n- [ ] todo\n  - nested *soft*\n\n> quoted\n\n---\n\nSee [docs](https://example.com).');
     expect(out).toContain('<p class="h h1">Plan</p>');
-    expect(out).toContain('<ol><li class="d0">First <strong>bold</strong></li><li class="d0">Second <code>code</code> continued</li></ol>');
+    expect(out).toContain('<ol><li>First <strong>bold</strong></li><li>Second <code>code</code> continued</li></ol>');
     expect(out).toContain('<span class="md-check">☑</span> done');
     expect(out).toContain('<span class="md-check">☐</span> todo');
-    expect(out).toContain('<li class="d1">nested <em>soft</em></li>');
+    expect(out).toContain('<span class="md-check">☐</span> todo<ul><li>nested <em>soft</em></li></ul></li>');
     expect(out).toContain('<blockquote><p>quoted</p></blockquote>');
     expect(out).toContain('<hr/>');
     // http(s) links open in the browser (the main process only lets those out); other schemes stay text.
     expect(out).toContain('<a class="md-link" href="https://example.com" target="_blank" rel="noreferrer noopener" title="https://example.com">docs</a>');
     expect(out.match(/<a /g)).toHaveLength(1);
+  });
+
+  it('nests bullets under numbered items instead of numbering them, and keeps the start number', () => {
+    const out = html('1. **Does not build.** 10 errors:\n   - a missing import\n   - two missing strings\n2. No tests.\n\n3. third\n4. fourth');
+    expect(out).toContain('<ol><li><strong>Does not build.</strong> 10 errors:<ul><li>a missing import</li><li>two missing strings</li></ul></li><li>No tests.</li></ol>');
+    expect(out).toContain('<ol start="3"><li>third</li><li>fourth</li></ol>');
   });
 
   it('renders tables', () => {
