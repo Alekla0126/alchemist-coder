@@ -1,7 +1,7 @@
 {
   "name": "@alchemist-coder/desktop",
   "productName": "Alchemist Coder",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "The lab for your coding agents",
   "license": "AGPL-3.0-only",
