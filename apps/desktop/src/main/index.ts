@@ -59,6 +59,7 @@ function appInfo(): AppInfo {
     personal: personalBuild,
     platform: process.platform,
     systemLocale: app.getLocale(),
+    home: app.getPath('home'),
     capture: capturePath
       ? {
           select: sessionId ? { sessionId, agentId: agentId || 'main' } : null,
@@ -96,6 +97,7 @@ function appInfo(): AppInfo {
               }
             : null,
           locale: arg('locale') === 'es' || arg('locale') === 'en' ? (arg('locale') as 'es' | 'en') : null,
+          newProject: process.argv.includes('--new-project'),
         }
       : null,
   };

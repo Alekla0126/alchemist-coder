@@ -51,12 +51,12 @@ export function editMenu(contents: WebContents) {
 
 const LABELS = {
   en: {
-    settings: 'Settings…', file: 'File', newConversation: 'New Conversation', newTerminal: 'New Terminal', openProject: 'Open Project…', closeTab: 'Close Tab',
+    settings: 'Settings…', file: 'File', newConversation: 'New Conversation', newProject: 'New Project…', openFolder: 'Open Folder…', newTerminal: 'New Terminal', openProject: 'Open Project…', closeTab: 'Close Tab',
     view: 'View', agents: 'Agents', arena: 'Arena', code: 'Code', split: 'Split', terminal: 'Terminal', history: 'History', bots: 'Organization', sidebar: 'Toggle Sidebar',
     palette: 'Command Palette…', search: 'Search Conversations', website: 'Alchemist Coder Website', issue: 'Report an Issue',
   },
   es: {
-    settings: 'Ajustes…', file: 'Archivo', newConversation: 'Nueva conversación', newTerminal: 'Nueva terminal', openProject: 'Abrir proyecto…', closeTab: 'Cerrar pestaña',
+    settings: 'Ajustes…', file: 'Archivo', newConversation: 'Nueva conversación', newProject: 'Proyecto nuevo…', openFolder: 'Abrir carpeta…', newTerminal: 'Nueva terminal', openProject: 'Abrir proyecto…', closeTab: 'Cerrar pestaña',
     view: 'Ver', agents: 'Agentes', arena: 'Arena', code: 'Código', split: 'Dividido', terminal: 'Terminal', history: 'Historial', bots: 'Organización', sidebar: 'Mostrar u ocultar barra lateral',
     palette: 'Paleta de comandos…', search: 'Buscar conversaciones', website: 'Sitio de Alchemist Coder', issue: 'Reportar un problema',
   },
@@ -80,8 +80,11 @@ export function appMenu(send: (command: string) => void, options: { debug: boole
       label: L.file,
       submenu: [
         { label: L.newConversation, accelerator: 'CmdOrCtrl+N', click: cmd('new-conversation') },
+        { label: L.newProject, accelerator: 'CmdOrCtrl+Shift+N', click: cmd('new-project') },
         { label: L.newTerminal, accelerator: 'CmdOrCtrl+T', click: cmd('new-terminal') },
+        { type: 'separator' },
         { label: L.openProject, accelerator: 'CmdOrCtrl+O', click: cmd('open-project') },
+        { label: L.openFolder, click: cmd('open-folder') },
         { type: 'separator' },
         { label: L.closeTab, accelerator: 'CmdOrCtrl+W', click: cmd('close-tab') },
         ...(mac ? [] : [{ type: 'separator' as const }, { label: L.settings, accelerator: 'CmdOrCtrl+,', click: cmd('settings') }, { role: 'quit' as const }]),

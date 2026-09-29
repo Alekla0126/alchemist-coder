@@ -2,7 +2,7 @@ import { BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron';
 import { slashCommands } from './slash-commands';
 import type { BotManager } from './bots';
 import { readFile, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { installFromOpenVsx, parseJsonc, searchThemes, themesFromVsix } from '@alchemist-coder/themes';
 import type { IndexReader } from '@alchemist-coder/indexer';
 import type { IndexProgress, QuestionAnswer } from '@alchemist-coder/core';
@@ -18,7 +18,8 @@ import type { UsageService } from './usage';
 import { showMenu } from './menus';
 import { conversationFiles } from './session-files';
 import type { TerminalManager } from './terminals';
-import type { Workspace } from './workspace';
+import { browsableRoot, type Workspace } from './workspace';
+import { createProjectFolder } from './new-project';
 
 const text = (value: unknown, name: string, max = 512): string => {
   if (typeof value !== 'string' || value.length === 0 || value.length > max) throw new Error(`Invalid ${name}`);
@@ -65,6 +66,27 @@ export function registerIpc(deps: IpcDeps): void {
     return result;
   });
   ipcMain.handle(Channels.projects, () => withReader([], (r) => r.listProjects()));
+  const addProject = (cwd: string) => {
+    const r = deps.reader();
+    if (!r) throw new Error('The index is still loading; try again in a moment');
+    return r.addProject(cwd, basename(cwd) || cwd);
+  };
+  const pickFolder = async (e: Electron.IpcMainInvokeEvent, title: unknown, defaultPath?: unknown) => {
+    const options = { title: typeof title === 'string' ? title.slice(0, 120) : undefined, defaultPath: typeof defaultPath === 'string' ? defaultPath : undefined, properties: ['openDirectory', 'createDirectory'] as Array<'openDirectory' | 'createDirectory'> };
+    const win = BrowserWindow.fromWebContents(e.sender);
+    const choice = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
+    return choice.canceled ? null : (choice.filePaths[0] ?? null);
+  };
+  ipcMain.handle(Channels.openFolder, async (e, title: unknown) => {
+    const path = await pickFolder(e, title);
+    if (!path) return null;
+    if (!browsableRoot(path)) throw new Error("Alchemist doesn't open your whole home folder or system folders; choose a project inside them");
+    return addProject(path);
+  });
+  ipcMain.handle(Channels.chooseFolder, (e, title: unknown, defaultPath: unknown) => pickFolder(e, title, defaultPath));
+  ipcMain.handle(Channels.createProject, async (_e, parent: unknown, name: unknown, git: unknown) =>
+    addProject(await createProjectFolder(text(parent, 'folder', 4096), text(name, 'project name', 200), git === true)),
+  );
   ipcMain.handle(Channels.sessions, (_e, projectId: unknown, favoritesOnly: unknown) =>
     // History lists everything (it pages as you scroll); the old cap of 500 hid the rest.
     withReader([], (r) => r.listSessions({ projectId: optionalId(projectId), favoritesOnly: favoritesOnly === true, limit: 5000 })),

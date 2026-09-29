@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { baseName, isInside, joinPath, parentOf, relativePath, samePath, tailOf, withoutRoot } from '../src/renderer/src/paths';
+import { baseName, isInside, joinPath, parentOf, relativePath, samePath, tailOf, tildify, withoutRoot } from '../src/renderer/src/paths';
 
 describe('renderer paths', () => {
   it('reads macOS and Linux paths', () => {
@@ -15,6 +15,8 @@ describe('renderer paths', () => {
     expect(relativePath('/users/me/proj/a.ts', '/Users/me/proj')).toBeNull();
     expect(tailOf('/Users/me/proj', 2)).toBe('me/proj');
     expect(withoutRoot('Read /Users/me/proj/src/a.ts', '/Users/me/proj')).toBe('Read src/a.ts');
+    expect(tildify('/Users/me/proj', '/Users/me')).toBe('~/proj');
+    expect(tildify('/Users/meg/proj', '/Users/me')).toBe('/Users/meg/proj');
   });
 
   it('reads Windows paths, whatever the separator or case', () => {
@@ -28,5 +30,6 @@ describe('renderer paths', () => {
     expect(samePath('C:\\Users\\me\\proj\\a.ts', 'C:/Users/me/proj/a.ts')).toBe(true);
     expect(tailOf('D:\\a\\alchemist-coder\\alchemist-coder', 2)).toBe('alchemist-coder\\alchemist-coder');
     expect(withoutRoot('Edit C:\\proj\\src\\a.ts', 'C:\\proj')).toBe('Edit src\\a.ts');
+    expect(tildify('C:\\Users\\me\\proj', 'C:\\Users\\me')).toBe('~\\proj');
   });
 });

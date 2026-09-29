@@ -163,3 +163,19 @@ describe('pictures', () => {
     expect(reader.image(SESSION, 'main', ref!.offset, 0)).toBeNull();
   });
 });
+
+// Last: it adds a project to the shared index.
+describe('projects opened in the app', () => {
+  it('lists a folder opened in the app before its first conversation, then keeps its id', () => {
+    const before = reader.listProjects().length;
+    const id = reader.addProject('/tmp/brand-new', 'brand-new', now);
+    const added = reader.listProjects().find((p) => p.id === id);
+    expect(added).toMatchObject({ cwd: '/tmp/brand-new', name: 'brand-new', sessionCount: 0, lastTs: now });
+    expect(reader.listProjects()).toHaveLength(before + 1);
+    // Opening it again, or the indexer finding its first conversation, keeps the same project.
+    expect(reader.addProject('/tmp/brand-new', 'brand-new', now + 1)).toBe(id);
+    const existing = reader.listProjects().find((p) => p.cwd === CWD)!;
+    expect(reader.addProject(CWD, 'demo-proj')).toBe(existing.id);
+    expect(reader.listProjects().find((p) => p.cwd === CWD)!.sessionCount).toBe(existing.sessionCount);
+  });
+});

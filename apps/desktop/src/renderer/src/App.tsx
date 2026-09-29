@@ -4,6 +4,7 @@ import { ArenaList, ArenaView } from './components/Arena';
 import { OrgSidebar, OrgView } from './components/Org';
 import { HistoryView } from './components/HistoryView';
 import { ProjectPicker } from './components/ProjectPicker';
+import { NewProjectDialog } from './components/NewProject';
 import { ProjectRail } from './components/ProjectRail';
 import { Sidebar } from './components/Sidebar';
 // Monaco and xterm are large: load them only when a mode needs them.
@@ -25,6 +26,7 @@ export function App() {
   const info = useStore((s) => s.info);
   const mode = useStore((s) => s.settings.mode);
   const pickerOpen = useStore((s) => s.pickerOpen);
+  const newProjectOpen = useStore((s) => s.newProjectOpen);
   const indexReady = useStore((s) => s.progress.phase === 'ready');
   const captureReady = useStore((s) => s.captureReady);
   const locale = useStore((s) => s.locale);
@@ -123,6 +125,7 @@ export function App() {
       </div>
       <StatusBar />
       {pickerOpen && <ProjectPicker />}
+      {newProjectOpen && <NewProjectDialog />}
       {settingsOpen && <Settings />}
       {paletteOpen && <CommandPalette />}
       <Overlays />

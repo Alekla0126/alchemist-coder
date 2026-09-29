@@ -1,3 +1,4 @@
+import { openFolderAsProject, openNewProject } from './components/NewProject';
 import { create } from 'zustand';
 import type { AgentNode, AgentOption, FileDiff, PromptImage, SlashCommand, IndexProgress, PermissionChoice, PlanEntry, ProjectSummary, QuestionAnswer, SearchHit, SessionSummary, ToolState } from '@alchemist-coder/core';
 import type { AgentReview, AppInfo, ArenaTask, BotConfig, BotTeam, Locale, Mode, OrgSettings, PlanUsage, RunnerCatalog, RunnerEventMessage, Settings, StartRunRequest } from '@shared/api';
@@ -105,6 +106,8 @@ interface State {
   selection: Selection | null;
   filter: SessionFilter;
   pickerOpen: boolean;
+  /** The "New project" dialog is showing. */
+  newProjectOpen: boolean;
   query: string;
   results: SearchHit[] | null;
   /** Bumped when files change on disk, so open transcripts refresh. */
@@ -254,6 +257,7 @@ export const useStore = create<State>((set, get) => ({
   selection: null,
   filter: 'all',
   pickerOpen: false,
+  newProjectOpen: false,
   query: '',
   results: null,
   revision: 0,
@@ -317,6 +321,7 @@ export const useStore = create<State>((set, get) => ({
     api.onRunnerEvent((m) => applyRunnerEvent(m));
     api.onAppCommand((command) => runAppCommand(command));
     if (info.capture?.settings) set({ settingsOpen: true });
+    if (info.capture?.newProject) set({ newProjectOpen: true });
     api.onTaskChanged((task) => get().upsertTask(task));
     api.onBotTeamChanged((team) => get().upsertTeam(team));
     await get().refreshProjects();
@@ -846,6 +851,12 @@ function runAppCommand(command: string) {
       return;
     case 'new-terminal':
       if (projectId != null) void s.openTerminalWith(projectId, '', undefined);
+      return;
+    case 'new-project':
+      openNewProject();
+      return;
+    case 'open-folder':
+      void openFolderAsProject((key, vars) => translate(s.locale, key, vars));
       return;
     case 'open-project':
       s.setPickerOpen(true);

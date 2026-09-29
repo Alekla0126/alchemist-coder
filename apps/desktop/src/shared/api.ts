@@ -42,12 +42,16 @@ export interface AppInfo {
   personal: boolean;
   platform: string;
   systemLocale: string;
+  /** The user's home folder (where a first project goes by default). */
+  home: string;
   /** Set when the app was launched with --capture (automated screenshots). */
   capture: {
     select: { sessionId: string; agentId: string } | null;
     mode: Mode | null;
     query: string | null;
     locale: Locale | null;
+    /** Opens the New project dialog. */
+    newProject?: boolean;
     compose: boolean;
     /** Typed into the new-conversation composer (shows @ / suggestions). */
     composeText: string | null;
@@ -481,6 +485,12 @@ export interface AlchemistApi {
   getSettings(): Promise<Settings>;
   setSettings(patch: Partial<Settings>): Promise<Settings>;
   projects(): Promise<ProjectSummary[]>;
+  /** Picks a folder and adds it as a project (null when cancelled). */
+  openFolder(title: string): Promise<number | null>;
+  /** Picks a folder, for example where a new project goes (null when cancelled). */
+  chooseFolder(title: string, defaultPath?: string): Promise<string | null>;
+  /** Creates `name` inside `parent` (with `git init` if asked) and adds it as a project. */
+  createProject(parent: string, name: string, git: boolean): Promise<number>;
   sessions(projectId: number | null, favoritesOnly?: boolean): Promise<SessionSummary[]>;
   session(id: string): Promise<SessionSummary | null>;
   agentTree(sessionId: string): Promise<AgentNode | null>;
@@ -640,6 +650,9 @@ export const Channels = {
   getSettings: 'settings:get',
   setSettings: 'settings:set',
   projects: 'index:projects',
+  openFolder: 'projects:open-folder',
+  chooseFolder: 'projects:choose-folder',
+  createProject: 'projects:create',
   sessions: 'index:sessions',
   session: 'index:session',
   agentTree: 'index:agent-tree',

@@ -52,6 +52,13 @@ export const samePath = (a: string, b: string) => relativePath(a, b) === '';
 /** The last `n` parts of a long path, for showing it. */
 export const tailOf = (p: string, n: number) => trimSep(p).split(SEPS).slice(-n).join(sepOf(p));
 
+/** `p` with the home folder written as ~ (macOS and Linux style, also on Windows). */
+export function tildify(p: string, home: string): string {
+  if (!home) return p;
+  const rel = relativePath(p, home);
+  return rel === null ? p : rel ? `~${sepOf(p)}${rel.split('/').join(sepOf(p))}` : '~';
+}
+
 /** Text with every mention of `root/` taken out ("Read /proj/src/a.ts" → "Read src/a.ts"). */
 export const withoutRoot = (text: string, root: string) => {
   const r = trimSep(root);

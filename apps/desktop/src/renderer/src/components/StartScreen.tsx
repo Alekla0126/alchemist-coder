@@ -1,3 +1,5 @@
+import { tildify } from '../paths';
+import { openFolderAsProject, openNewProject } from './NewProject';
 import { keys } from '../keys';
 import { relativeTime } from '../format';
 import { showSessionMenu } from '../actions/session';
@@ -24,6 +26,8 @@ export function StartScreen() {
   const select = useStore((s) => s.select);
   const setCompose = useStore((s) => s.setCompose);
   const setPickerOpen = useStore((s) => s.setPickerOpen);
+  const projects = useStore((s) => s.projects);
+  const home = useStore((s) => s.info?.home ?? '');
   const running = (sessions ?? []).filter((s) => s.runningAgents > 0 || s.status === 'running');
   const recent = [...(sessions ?? [])]
     .filter((s) => !running.includes(s))
@@ -36,9 +40,19 @@ export function StartScreen() {
           <LogoMark size={72} />
         </div>
         <h2>{t('start.noProject')}</h2>
-        <button className="btn-send" onClick={() => setPickerOpen(true)}>
-          {t('palette.openProject')} <kbd>{keys('⌘O')}</kbd>
-        </button>
+        <div className="start-actions">
+          <button className="btn-send" onClick={openNewProject}>
+            ＋ {t('plus.newProject')} <kbd>{keys('⌘⇧N')}</kbd>
+          </button>
+          <button className="btn-ghost" onClick={() => void openFolderAsProject(t)}>
+            {t('plus.openFolder')}
+          </button>
+          {projects.length > 0 && (
+            <button className="btn-ghost" onClick={() => setPickerOpen(true)}>
+              {t('plus.find')} <kbd>{keys('⌘O')}</kbd>
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -58,7 +72,7 @@ export function StartScreen() {
         </div>
       <h2>{project.name}</h2>
       <p className="start-path" title={project.cwd}>
-        {middle(project.cwd.replace(/^\/Users\/[^/]+/, '~'), 72)}
+        {middle(tildify(project.cwd, home), 72)}
       </p>
       <button className="btn-send start-new" onClick={() => setCompose(project.id)}>
         ＋ {t('run.new')} <kbd>{keys('⌘N')}</kbd>

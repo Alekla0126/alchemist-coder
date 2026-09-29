@@ -1350,3 +1350,16 @@ code.md-path:hover { color: var(--accent-2); }
 .org-also-preview { color: var(--fg-3); font-size: 11px; margin-left: auto; }
 .org-also[open] .org-also-preview { display: none; }
 :root[data-theme-type='light'] .org-here.st-waiting, :root[data-theme-type='light'] .org-result.st-waiting { color: #8a4b00; }
+
+/* New project dialog */
+.new-project { display: flex; flex-direction: column; gap: 12px; }
+.new-project h3 { margin: 0 0 2px; }
+.np-field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--fg-2); }
+.new-project .np-field input { font-size: 14px; margin-bottom: 0; }
+.np-where { display: flex; gap: 8px; align-items: center; }
+.np-where code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; font-size: 12px; color: var(--fg); background: var(--bg-input); border: 1px solid var(--line-2); border-radius: 6px; padding: 6px 8px; }
+.np-check { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+.new-project .np-check input { width: auto; margin: 0; accent-color: var(--accent); }
+.new-project .np-note { margin: 0; min-height: 1.3em; font-size: 12px; color: var(--fg-2); overflow-wrap: anywhere; white-space: normal; }
+.new-project .np-note.err { color: var(--red); }
+.start-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }

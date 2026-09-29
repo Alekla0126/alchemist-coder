@@ -35,9 +35,11 @@ export class IndexReader {
       .all(this.now() - RECENT_MS) as Row[]) {
       running.set(r.pid, r.n);
     }
+    // Projects with a real conversation, plus folders the user opened or created here (still empty).
     return (this.db
-      .prepare(`SELECT p.id, p.cwd, p.name, COUNT(s.id) AS sessions, MAX(s.last_ts) AS last_ts, GROUP_CONCAT(DISTINCT s.source) AS sources
-                FROM project p JOIN session s ON s.project_id = p.id WHERE s.has_prompt = 1 GROUP BY p.id ORDER BY last_ts DESC`)
+      .prepare(`SELECT p.id, p.cwd, p.name, COUNT(s.id) AS sessions, COALESCE(MAX(s.last_ts), p.added_at) AS last_ts, GROUP_CONCAT(DISTINCT s.source) AS sources
+                FROM project p LEFT JOIN session s ON s.project_id = p.id AND s.has_prompt = 1
+                GROUP BY p.id HAVING COUNT(s.id) > 0 OR p.added_at IS NOT NULL ORDER BY last_ts DESC`)
       .all() as Row[]).map((r) => ({
       id: r.id,
       cwd: r.cwd,
@@ -277,6 +279,14 @@ export class IndexReader {
   }
 
   /** A title of your own for a conversation; empty goes back to the CLI's title. */
+  /** A folder the user opened or created in the app: a project from now on, even before any conversation. */
+  addProject(cwd: string, name: string, now = this.now()): number {
+    const row = this.db
+      .prepare('INSERT INTO project(cwd, name, added_at) VALUES (?, ?, ?) ON CONFLICT(cwd) DO UPDATE SET added_at = COALESCE(project.added_at, excluded.added_at) RETURNING id')
+      .get(cwd, name, now) as { id: number };
+    return row.id;
+  }
+
   setTitle(sessionId: string, title: string | null): void {
     this.db
       .prepare('INSERT INTO session_meta(session_id, title) VALUES (?, ?) ON CONFLICT(session_id) DO UPDATE SET title = excluded.title')

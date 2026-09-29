@@ -121,6 +121,9 @@ export function migrate(db: DatabaseSync): void {
   if (!columns.some((c) => c.name === 'context_tokens')) {
     db.exec("ALTER TABLE session ADD COLUMN context_tokens INTEGER NOT NULL DEFAULT 0; ALTER TABLE session ADD COLUMN context_window INTEGER; ALTER TABLE session ADD COLUMN edited_files TEXT NOT NULL DEFAULT '[]'; DELETE FROM indexed_file;");
   }
+  // Folders the user opened or created in the app: listed as projects before their first conversation.
+  const projectColumns = db.prepare('PRAGMA table_info(project)').all() as Array<{ name: string }>;
+  if (!projectColumns.some((c) => c.name === 'added_at')) db.exec('ALTER TABLE project ADD COLUMN added_at INTEGER');
   // A title the user gave a conversation (the CLI's own title stays in session.title).
   const metaColumns = db.prepare('PRAGMA table_info(session_meta)').all() as Array<{ name: string }>;
   if (!metaColumns.some((c) => c.name === 'title')) db.exec('ALTER TABLE session_meta ADD COLUMN title TEXT');

@@ -1,3 +1,4 @@
+import { openFolderAsProject, openNewProject } from './NewProject';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SearchHit } from '@alchemist-coder/core';
 import type { Mode } from '@shared/api';
@@ -55,6 +56,8 @@ export function CommandPalette() {
         .filter((th) => th.id !== s.settings.theme)
         .map((th) => ({ id: `theme:${th.id}`, label: `${t('settings.theme')}: ${th.label}`, hint: th.type === 'light' ? '☀' : '☾', run: () => void s.setTheme(th.id) })),
       { id: 'open-project', label: t('palette.openProject'), hint: '⌘O', run: () => s.setPickerOpen(true) },
+      { id: 'new-project', label: t('plus.newProject'), hint: '⌘⇧N', run: openNewProject },
+      { id: 'open-folder', label: t('plus.openFolder'), run: () => void openFolderAsProject(t) },
       ...s.settings.openProjectIds
         .map((id) => s.projects.find((p) => p.id === id))
         .filter((p) => p != null)

@@ -1,3 +1,4 @@
+import { showNewMenu } from './NewProject';
 import { keys } from '../keys';
 import type { ProjectSummary } from '@alchemist-coder/core';
 import { initials, projectGradient } from '../format';
@@ -79,7 +80,7 @@ export function ProjectRail() {
           </button>
         </div>
       ))}
-      <button className="proj add" title={t('projects.add')} onClick={() => setPickerOpen(true)}>
+      <button className="proj add" title={t('plus.tip')} aria-label={t('plus.tip')} aria-haspopup="menu" onClick={() => void showNewMenu(t)}>
         +
       </button>
       <span className="rail-sp" />

@@ -1,45 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- A round flask: the bubbles are the agents, the big glowing one the coordinator. -->
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#211a14"/>
-      <stop offset="1" stop-color="#0b0a0c"/>
-    </linearGradient>
-    <radialGradient id="glow" cx="0.5" cy="0.47" r="0.5">
-      <stop offset="0" stop-color="#d97a4a" stop-opacity=".38"/>
-      <stop offset=".6" stop-color="#d97a4a" stop-opacity=".08"/>
-      <stop offset="1" stop-color="#d97a4a" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="gold" gradientUnits="userSpaceOnUse" x1="330" y1="230" x2="700" y2="820">
-      <stop offset="0" stop-color="#ffe0a8"/>
-      <stop offset=".38" stop-color="#f0b27a"/>
-      <stop offset=".75" stop-color="#d97a4a"/>
-      <stop offset="1" stop-color="#b0552d"/>
-    </linearGradient>
-    <radialGradient id="crown" cx=".4" cy=".35" r=".7">
-      <stop offset="0" stop-color="#fff1d2"/>
-      <stop offset=".55" stop-color="#f6c68c"/>
-      <stop offset="1" stop-color="#d98a52"/>
-    </radialGradient>
-    <filter id="halo" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="18"/>
-    </filter>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#211a14"/><stop offset="1" stop-color="#0b0a0c"/></linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#d97a4a" stop-opacity=".34"/><stop offset=".6" stop-color="#d97a4a" stop-opacity=".07"/><stop offset="1" stop-color="#d97a4a" stop-opacity="0"/></radialGradient>
+    <linearGradient id="gold" gradientUnits="userSpaceOnUse" x1="300" y1="200" x2="720" y2="840"><stop offset="0" stop-color="#ffe0a8"/><stop offset=".4" stop-color="#f0b27a"/><stop offset=".78" stop-color="#d97a4a"/><stop offset="1" stop-color="#b0552d"/></linearGradient>
+    <radialGradient id="core" cx=".38" cy=".34" r=".72"><stop offset="0" stop-color="#fff3d8"/><stop offset=".55" stop-color="#f6c68c"/><stop offset="1" stop-color="#d98a52"/></radialGradient>
+    <filter id="halo" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="20"/></filter>
   </defs>
-  <!-- macOS icon body: 824 px squircle-ish rounded square on the 1024 grid -->
   <rect x="100" y="100" width="824" height="824" rx="186" fill="url(#bg)"/>
   <rect x="100" y="100" width="824" height="824" rx="186" fill="url(#glow)"/>
-  <rect x="101.5" y="101.5" width="821" height="821" rx="184.5" fill="none" stroke="#ffffff" stroke-opacity=".09" stroke-width="3"/>
-  <g fill="none" stroke="url(#gold)" stroke-linecap="round" stroke-linejoin="round">
-    <!-- the circle that binds the organization -->
-    <circle cx="512" cy="530" r="262" stroke-width="26"/>
-    <!-- the A: coordinator on top, agents at the base -->
-    <path d="M512 268 L285 661 L739 661 Z" stroke-width="30"/>
-    <path d="M362 528 L662 528" stroke-width="30"/>
-  </g>
-  <!-- the coordinator glows -->
-  <circle cx="512" cy="268" r="58" fill="#f0b27a" opacity=".55" filter="url(#halo)"/>
-  <g stroke="#120e0b" stroke-width="12">
-    <circle cx="512" cy="268" r="50" fill="url(#crown)"/>
-    <circle cx="285" cy="661" r="40" fill="url(#gold)"/>
-    <circle cx="739" cy="661" r="40" fill="url(#gold)"/>
-  </g>
+  <rect x="101.5" y="101.5" width="821" height="821" rx="184.5" fill="none" stroke="#fff" stroke-opacity=".09" stroke-width="3"/>
+  <clipPath id="inside"><circle cx="512" cy="600" r="166"/></clipPath>
+  <path clip-path="url(#inside)" d="M300 640 C 380 610, 440 668, 512 640 S 640 612, 724 640 V 800 H 300 Z" fill="url(#gold)" opacity=".92"/>
+  <path d="M470 262 V 419 A 188 188 0 1 0 554 419 V 262" fill="none" stroke="url(#gold)" stroke-width="30" stroke-linejoin="round"/>
+  <path d="M428 256 H 596" stroke="url(#gold)" stroke-width="30" stroke-linecap="round"/>
+  <circle cx="512" cy="520" r="44" fill="#f0b27a" opacity=".55" filter="url(#halo)"/>
+  <circle cx="512" cy="522" r="34" fill="url(#core)"/>
+  <circle cx="452" cy="584" r="16" fill="#f6c68c"/>
+  <circle cx="574" cy="570" r="13" fill="#f6c68c"/>
+  <circle cx="512" cy="382" r="11" fill="#f6c68c" opacity=".85"/>
 </svg>
