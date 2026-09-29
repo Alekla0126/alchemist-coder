@@ -3,6 +3,7 @@ import { lazy, Suspense, useEffect } from 'react';
 import { AgentPanel } from './components/AgentPanel';
 import { ArenaList, ArenaView } from './components/Arena';
 import { OrgSidebar, OrgView } from './components/Org';
+import { MarketingView } from './components/Marketing';
 import { HistoryView } from './components/HistoryView';
 import { ProjectPicker } from './components/ProjectPicker';
 import { NewProjectDialog } from './components/NewProject';
@@ -54,7 +55,7 @@ export function App() {
 
   useEffect(() => {
     if (!info?.capture || !ready || !indexReady) return;
-    if ((info.capture.select || info.capture.compose || info.capture.project || info.capture.openFile || info.capture.settings || info.capture.arena || info.capture.themeSearch || info.capture.usage || info.capture.team) && !captureReady) return;
+    if ((info.capture.select || info.capture.compose || info.capture.project || info.capture.openFile || info.capture.settings || info.capture.arena || info.capture.themeSearch || info.capture.usage || info.capture.team || info.capture.mode === 'marketing') && !captureReady) return;
     window.alchemist.rendered();
   }, [info, ready, indexReady, captureReady]);
 
@@ -65,6 +66,12 @@ export function App() {
         <ProjectRail />
         {mode === 'history' ? (
           <HistoryView />
+        ) : mode === 'marketing' ? (
+          <main className="center center-marketing">
+            <PanelBoundary label="Marketing">
+              <MarketingView />
+            </PanelBoundary>
+          </main>
         ) : mode === 'bots' ? (
           <>
             <OrgSidebar />

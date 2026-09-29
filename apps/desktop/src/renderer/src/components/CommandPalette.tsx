@@ -24,6 +24,7 @@ const MODES: Array<[Mode, string]> = [
   ['terminal', '⌘5'],
   ['history', '⌘6'],
   ['bots', '⌘7'],
+  ['marketing', '⌘8'],
 ];
 
 /** Accent-insensitive "every word appears" match. */

@@ -2,7 +2,56 @@ import type { AgentNode, IndexProgress, ModelSpec, PermissionMode, ProjectSummar
 
 export type { PermissionMode };
 
-export type Mode = 'agents' | 'arena' | 'bots' | 'code' | 'split' | 'terminal' | 'history';
+export type Mode = 'agents' | 'arena' | 'bots' | 'code' | 'split' | 'terminal' | 'history' | 'marketing';
+
+/** Marketing mode: where a piece goes. */
+export type MarketingChannel = 'x' | 'thread' | 'instagram' | 'linkedin' | 'tiktok' | 'email' | 'landing' | 'blog' | 'appstore' | 'play' | 'seo';
+export type MarketingStatus = 'idea' | 'draft' | 'approved' | 'scheduled' | 'published';
+
+/** The project's brand, written to marketing/BRAND.md for every agent. */
+export interface MarketingBrand {
+  product: string;
+  pitch: string;
+  audience: string;
+  tone: string;
+  say: string;
+  avoid: string;
+  /** What may be claimed (and nothing else): features that exist, numbers that are true. */
+  claims: string;
+  links: string;
+  languages: string;
+}
+
+export interface MarketingPiece {
+  id: string;
+  channel: MarketingChannel;
+  title: string;
+  /** What it should say, for whoever writes it (you or an agent). */
+  brief: string;
+  body: string;
+  status: MarketingStatus;
+  /** When it goes out (YYYY-MM-DD). */
+  date: string | null;
+  language: string;
+  createdAt: number;
+  updatedAt: number;
+  /** The team's draft file it came from (marketing/drafts/…). */
+  source?: string | null;
+}
+
+export interface MarketingData {
+  version: 1;
+  brand: MarketingBrand;
+  pieces: MarketingPiece[];
+}
+
+/** A draft the marketing team wrote in marketing/drafts/. */
+export interface MarketingDraft {
+  file: string;
+  title: string;
+  channel: MarketingChannel | null;
+  body: string;
+}
 export type Locale = 'en' | 'es';
 
 export interface Settings {
@@ -54,6 +103,10 @@ export interface AppInfo {
     newProject?: boolean;
     /** The Agents view scope to show. */
     scope?: 'project' | 'all' | null;
+    /** Marketing mode's tab to show. */
+    mkTab?: string | null;
+    /** Writes the first piece with this agent, then captures. */
+    mkGenerate?: AgentChoice | null;
     compose: boolean;
     /** Typed into the new-conversation composer (shows @ / suggestions). */
     composeText: string | null;
@@ -493,6 +546,12 @@ export interface AlchemistApi {
   chooseFolder(title: string, defaultPath?: string): Promise<string | null>;
   /** Creates `name` inside `parent` (with `git init` if asked) and adds it as a project. */
   createProject(parent: string, name: string, git: boolean): Promise<number>;
+  /** The project's marketing (brand and pieces), from its marketing/ folder. */
+  marketingLoad(cwd: string): Promise<MarketingData>;
+  /** Saves the marketing and rewrites marketing/BRAND.md. */
+  marketingSave(cwd: string, data: MarketingData): Promise<MarketingData>;
+  /** Drafts the marketing team left in marketing/drafts/. */
+  marketingDrafts(cwd: string): Promise<MarketingDraft[]>;
   sessions(projectId: number | null, favoritesOnly?: boolean): Promise<SessionSummary[]>;
   /** The latest `perProject` conversations of each project, for the all-projects view. */
   recentSessions(projectIds: number[], perProject: number): Promise<Record<number, SessionSummary[]>>;
@@ -657,6 +716,9 @@ export const Channels = {
   openFolder: 'projects:open-folder',
   chooseFolder: 'projects:choose-folder',
   createProject: 'projects:create',
+  marketingLoad: 'marketing:load',
+  marketingSave: 'marketing:save',
+  marketingDrafts: 'marketing:drafts',
   sessions: 'index:sessions',
   recentSessions: 'index:recent-sessions',
   session: 'index:session',

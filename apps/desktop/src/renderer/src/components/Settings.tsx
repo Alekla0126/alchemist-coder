@@ -246,7 +246,7 @@ const SHORTCUTS: Array<[string, string]> = [
   ['⌘T', 'shortcut.newTerminal'],
   ['⌘O', 'shortcut.openProject'],
   ['⌘W', 'shortcut.closeTab'],
-  ['⌘1 … ⌘6', 'shortcut.modes'],
+  ['⌘1 … ⌘8', 'shortcut.modes'],
   ['⌘⇧F', 'shortcut.search'],
   ['⌘,', 'shortcut.settings'],
   ['⌘S', 'shortcut.save'],

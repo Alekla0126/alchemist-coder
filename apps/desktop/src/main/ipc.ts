@@ -20,6 +20,7 @@ import { conversationFiles } from './session-files';
 import type { TerminalManager } from './terminals';
 import { browsableRoot, type Workspace } from './workspace';
 import { createProjectFolder } from './new-project';
+import { loadMarketing, readDrafts, saveMarketing } from './marketing';
 
 const text = (value: unknown, name: string, max = 512): string => {
   if (typeof value !== 'string' || value.length === 0 || value.length > max) throw new Error(`Invalid ${name}`);
@@ -84,6 +85,13 @@ export function registerIpc(deps: IpcDeps): void {
     return addProject(path);
   });
   ipcMain.handle(Channels.chooseFolder, (e, title: unknown, defaultPath: unknown) => pickFolder(e, title, defaultPath));
+  // Marketing lives in each project's marketing/ folder; only folders of your projects are touched.
+  ipcMain.handle(Channels.marketingLoad, (_e, cwd: unknown) => loadMarketing(deps.workspace.projectFolder(cwd)));
+  ipcMain.handle(Channels.marketingSave, (_e, cwd: unknown, data: unknown) => {
+    if (JSON.stringify(data ?? null).length > 8_000_000) throw new Error('Too much marketing content to save at once');
+    return saveMarketing(deps.workspace.projectFolder(cwd), data);
+  });
+  ipcMain.handle(Channels.marketingDrafts, (_e, cwd: unknown) => readDrafts(deps.workspace.projectFolder(cwd)));
   ipcMain.handle(Channels.createProject, async (_e, parent: unknown, name: unknown, git: unknown) =>
     addProject(await createProjectFolder(text(parent, 'folder', 4096), text(name, 'project name', 200), git === true)),
   );

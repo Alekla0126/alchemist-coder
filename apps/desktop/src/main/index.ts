@@ -99,6 +99,11 @@ function appInfo(): AppInfo {
           locale: arg('locale') === 'es' || arg('locale') === 'en' ? (arg('locale') as 'es' | 'en') : null,
           newProject: process.argv.includes('--new-project'),
           scope: arg('scope') === 'all' || arg('scope') === 'project' ? (arg('scope') as 'all' | 'project') : null,
+          mkTab: arg('mk-tab') ?? null,
+          mkGenerate: (() => {
+            const [h, p, m] = (arg('mk-generate') ?? '').split(',');
+            return h && p && m ? { harnessId: h, providerId: p, model: m } : null;
+          })(),
         }
       : null,
   };

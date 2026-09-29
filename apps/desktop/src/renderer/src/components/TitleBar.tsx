@@ -5,7 +5,7 @@ import { useStore, useT, waitingRuns } from '../store';
 import { needsYou } from './Bots';
 import { LogoMark } from './Logo';
 
-const MODES: Mode[] = ['agents', 'arena', 'code', 'split', 'terminal', 'history', 'bots'];
+const MODES: Mode[] = ['agents', 'arena', 'code', 'split', 'terminal', 'history', 'bots', 'marketing'];
 
 export function TitleBar() {
   const t = useT();

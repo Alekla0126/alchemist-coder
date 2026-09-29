@@ -349,7 +349,8 @@ export const useStore = create<State>((set, get) => ({
       if (p) await get().openProject(p.id);
       const pid = get().settings.activeProjectId;
       if (pid != null && info.capture.openFile) get().openFile(pid, info.capture.openFile);
-      setTimeout(() => set({ captureReady: true }), 2500);
+      // A piece being written (--mk-generate) says when it's ready itself.
+      if (!info.capture.mkGenerate) setTimeout(() => set({ captureReady: true }), 2500);
     } else if (info.capture?.settings) {
       // The panel reads what the index found (agents, usage): wait for it.
       await indexed;
@@ -856,7 +857,7 @@ export const useStore = create<State>((set, get) => ({
   },
 }));
 
-const MODES: Mode[] = ['agents', 'arena', 'bots', 'code', 'split', 'terminal', 'history'];
+const MODES: Mode[] = ['agents', 'arena', 'bots', 'code', 'split', 'terminal', 'history', 'marketing'];
 
 /** Menu bar commands. */
 /** How many of each project's latest conversations the all-projects view lists. */
