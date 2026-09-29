@@ -21,6 +21,7 @@ mac:
     - target: zip
       arch: [arm64, x64]
   hardenedRuntime: true
+  artifactName: Alchemist-Coder-${version}-${arch}.${ext}
   # Signing and notarization need an Apple Developer ID; community builds are unsigned.
   identity: null
 dmg:

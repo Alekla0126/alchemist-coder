@@ -1,9 +1,12 @@
 name: Package
 
-# Builds the Linux and Windows installers, opens the packaged app and takes screenshots of it, so a
-# build can be checked before it is published. Run it from the Actions tab or with
+# Builds the macOS, Linux and Windows installers, opens each packaged app on a real machine and
+# takes screenshots of it. A version tag (v1.2.3) also gathers the installers into a draft GitHub
+# release, to publish once the screenshots look right. Without a tag, run it from the Actions tab or
 #   gh workflow run package.yml -f ref=main
 on:
+  push:
+    tags: ['v*']
   workflow_dispatch:
     inputs:
       ref:
@@ -20,11 +23,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, windows-latest]
+        os: [macos-latest, ubuntu-22.04, windows-latest]
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ inputs.ref || github.ref }}
       - uses: pnpm/action-setup@v4
         with:
           version: 8.15.9
@@ -37,20 +40,28 @@ jobs:
         working-directory: apps/desktop
         shell: bash
         run: |
-          if [ "$RUNNER_OS" = Linux ]; then pnpm package:linux; else pnpm package:win; fi
+          case "$RUNNER_OS" in
+            macOS) pnpm package:mac ;;
+            Linux) pnpm package:linux ;;
+            Windows) pnpm package:win ;;
+          esac
 
       - name: Smoke test (open the packaged app and take screenshots)
         shell: bash
         run: |
           set -uo pipefail
-          if [ "$RUNNER_OS" = Linux ]; then
-            sudo apt-get update -qq && sudo apt-get install -y -qq xvfb >/dev/null
-            APP=(xvfb-run -a -s "-screen 0 1600x1000x24" "$PWD/apps/desktop/release/linux-unpacked/alchemist-coder" --no-sandbox)
-            WS="$PWD"; OUT="$PWD/smoke"; PROFILES="$RUNNER_TEMP"; SEP=/
-          else
-            APP=("$PWD/apps/desktop/release/win-unpacked/Alchemist Coder.exe")
-            WS="$(cygpath -w "$PWD")"; OUT="$(cygpath -w "$PWD/smoke")"; PROFILES="$(cygpath -w "$RUNNER_TEMP")"; SEP='\'
-          fi
+          case "$RUNNER_OS" in
+            macOS)
+              APP=("$PWD/apps/desktop/release/mac-arm64/Alchemist Coder.app/Contents/MacOS/Alchemist Coder")
+              WS="$PWD"; OUT="$PWD/smoke"; PROFILES="$RUNNER_TEMP"; SEP=/ ;;
+            Linux)
+              sudo apt-get update -qq && sudo apt-get install -y -qq xvfb >/dev/null
+              APP=(xvfb-run -a -s "-screen 0 1600x1000x24" "$PWD/apps/desktop/release/linux-unpacked/alchemist-coder" --no-sandbox)
+              WS="$PWD"; OUT="$PWD/smoke"; PROFILES="$RUNNER_TEMP"; SEP=/ ;;
+            Windows)
+              APP=("$PWD/apps/desktop/release/win-unpacked/Alchemist Coder.exe")
+              WS="$(cygpath -w "$PWD")"; OUT="$(cygpath -w "$PWD/smoke")"; PROFILES="$(cygpath -w "$RUNNER_TEMP")"; SEP='\' ;;
+          esac
           mkdir -p smoke
 
           # One short Claude Code conversation in this folder, so the app has a project to open.
@@ -98,6 +109,32 @@ jobs:
           name: installers-${{ runner.os }}
           if-no-files-found: error
           path: |
+            apps/desktop/release/*.dmg
+            apps/desktop/release/*.zip
             apps/desktop/release/*.AppImage
             apps/desktop/release/*.deb
             apps/desktop/release/*.exe
+
+  release:
+    name: draft release
+    needs: package
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: installers-*
+          path: dist
+          merge-multiple: true
+      - name: Draft the release with every installer and their checksums
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          cd dist
+          v="${TAG#v}"
+          ls -la
+          sha256sum * > SHA256SUMS
+          gh release create "$TAG" -R "$GITHUB_REPOSITORY" --draft --prerelease --title "Alchemist Coder $v (beta)" --notes "Installers for macOS, Windows and Linux. SHA256SUMS lists the checksums." *
