@@ -27,11 +27,17 @@ dmg:
   title: Alchemist Coder ${version}
 win:
   target: [nsis]
+  artifactName: Alchemist-Coder-${version}-setup.${ext}
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
 linux:
   executableName: alchemist-coder
+  artifactName: Alchemist-Coder-${version}-${arch}.${ext}
+  syncDesktopName: true
   target: [AppImage, deb]
   category: Development
   maintainer: The Alchemist Code
+deb:
+  # Debian package names are lowercase, without spaces.
+  packageName: alchemist-coder

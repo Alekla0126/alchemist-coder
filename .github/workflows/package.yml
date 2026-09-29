@@ -46,10 +46,10 @@ jobs:
           if [ "$RUNNER_OS" = Linux ]; then
             sudo apt-get update -qq && sudo apt-get install -y -qq xvfb >/dev/null
             APP=(xvfb-run -a -s "-screen 0 1600x1000x24" "$PWD/apps/desktop/release/linux-unpacked/alchemist-coder" --no-sandbox)
-            WS="$PWD"; OUT="$PWD/smoke"; PROFILE="$RUNNER_TEMP/ac-profile"
+            WS="$PWD"; OUT="$PWD/smoke"; PROFILES="$RUNNER_TEMP"; SEP=/
           else
             APP=("$PWD/apps/desktop/release/win-unpacked/Alchemist Coder.exe")
-            WS="$(cygpath -w "$PWD")"; OUT="$(cygpath -w "$PWD/smoke")"; PROFILE="$(cygpath -w "$RUNNER_TEMP/ac-profile")"
+            WS="$(cygpath -w "$PWD")"; OUT="$(cygpath -w "$PWD/smoke")"; PROFILES="$(cygpath -w "$RUNNER_TEMP")"; SEP='\'
           fi
           mkdir -p smoke
 
@@ -74,16 +74,18 @@ jobs:
 
           PROJECT="$(basename "$PWD")"
           FAILED=0
+          # Each screenshot gets its own profile: on Windows a closing app can still hold the last one's index.
           cap() {
             local name=$1; shift
-            timeout 180 "${APP[@]}" --capture="$OUT/$name.png" --profile="$PROFILE" "$@" > "smoke/$name.log" 2>&1
+            timeout 180 "${APP[@]}" --capture="$OUT$SEP$name.png" --profile="$PROFILES${SEP}ac-$name" "$@" > "smoke/$name.log" 2>&1
             if [ -f "smoke/$name.png" ]; then echo "ok $name"; else echo "::error::no screenshot for $name"; cat "smoke/$name.log"; FAILED=1; fi
           }
           cap start
           cap session --select="$SESSION:main"
-          cap code --project="$PROJECT" --mode=code --open-file=README.md
+          cap code --project="$PROJECT" --mode=code --open-file="$WS${SEP}README.md"
           cap terminal --project="$PROJECT" --mode=terminal
           cap settings --settings=about
+          cap shortcuts --settings=shortcuts
           exit $FAILED
 
       - uses: actions/upload-artifact@v4

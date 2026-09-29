@@ -51,5 +51,6 @@
     "zustand": "5.0.15"
   },
   "homepage": "https://coder.alekla.com",
+  "desktopName": "alchemist-coder.desktop",
   "repository": "https://github.com/Alekla0126/alchemist-coder"
 }
