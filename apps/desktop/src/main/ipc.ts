@@ -91,6 +91,14 @@ export function registerIpc(deps: IpcDeps): void {
     // History lists everything (it pages as you scroll); the old cap of 500 hid the rest.
     withReader([], (r) => r.listSessions({ projectId: optionalId(projectId), favoritesOnly: favoritesOnly === true, limit: 5000 })),
   );
+  // A handful per project (the index has them by project and date): cheap even with many projects open.
+  ipcMain.handle(Channels.recentSessions, (_e, projectIds: unknown, perProject: unknown) =>
+    withReader({}, (r) => {
+      const ids = Array.isArray(projectIds) ? projectIds.filter((id): id is number => Number.isInteger(id)).slice(0, 60) : [];
+      const limit = count(perProject, 8, 40);
+      return Object.fromEntries(ids.map((id) => [id, r.listSessions({ projectId: id, limit })]));
+    }),
+  );
   ipcMain.handle(Channels.session, (_e, id: unknown) => withReader(null, (r) => r.getSession(text(id, 'session id'))));
   ipcMain.handle(Channels.agentTree, (_e, id: unknown) => withReader(null, (r) => r.getAgentTree(text(id, 'session id'))));
   ipcMain.handle(Channels.transcript, (_e, sessionId: unknown, agentId: unknown, offset: unknown, limit: unknown) =>

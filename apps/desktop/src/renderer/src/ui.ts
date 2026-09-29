@@ -65,6 +65,24 @@ export async function confirmAction(opts: { title: string; message?: string; con
 }
 
 /** Shows a native context menu at the pointer and returns the chosen id. */
+/**
+ * Runs `fn` every `ms` while the window is visible; a hidden or minimized window costs nothing,
+ * and `fn` runs once when it's shown again. Returns the cleanup for useEffect.
+ */
+export function whileVisible(fn: () => void, ms: number): () => void {
+  const timer = setInterval(() => {
+    if (!document.hidden) fn();
+  }, ms);
+  const onShow = () => {
+    if (!document.hidden) fn();
+  };
+  document.addEventListener('visibilitychange', onShow);
+  return () => {
+    clearInterval(timer);
+    document.removeEventListener('visibilitychange', onShow);
+  };
+}
+
 export function openMenu(items: MenuItem[]): Promise<string | null> {
   return window.alchemist.showMenu(items);
 }

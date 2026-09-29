@@ -105,6 +105,10 @@ interface State {
   expanded: Record<string, boolean>;
   selection: Selection | null;
   filter: SessionFilter;
+  /** The Agents sidebar and home: the open project, or every open project at once. */
+  agentsScope: 'project' | 'all';
+  /** The latest conversations of each open project (all-projects view). */
+  recent: Record<number, SessionSummary[]>;
   pickerOpen: boolean;
   /** The "New project" dialog is showing. */
   newProjectOpen: boolean;
@@ -222,6 +226,8 @@ interface State {
   setActiveProject(projectId: number): Promise<void>;
   toggle(key: string): void;
   setFilter(filter: SessionFilter): void;
+  setAgentsScope(scope: 'project' | 'all'): void;
+  loadRecent(): Promise<void>;
   setPickerOpen(open: boolean): void;
   search(query: string): Promise<void>;
   setLocale(locale: Locale): void;
@@ -256,6 +262,8 @@ export const useStore = create<State>((set, get) => ({
   expanded: {},
   selection: null,
   filter: 'all',
+  agentsScope: localStorage.getItem('alchemist.agentsScope') === 'all' ? 'all' : 'project',
+  recent: {},
   pickerOpen: false,
   newProjectOpen: false,
   query: '',
@@ -314,7 +322,7 @@ export const useStore = create<State>((set, get) => ({
       if (wasReady) return;
       if (p.phase === 'ready') {
         // Anything fetched while the first index was filling up may be incomplete.
-        void Promise.all([get().refreshProjects(), ...Object.keys(get().trees).map((id) => get().loadTree(id))]).then(() => resolveIndexed());
+        void Promise.all([get().refreshProjects(), ...Object.keys(get().trees).map((id) => get().loadTree(id)), ...(get().agentsScope === 'all' ? [get().loadRecent()] : [])]).then(() => resolveIndexed());
       } else if (p.done % 60 === 0) void get().refreshProjects();
     });
     api.onSessionsChanged((ids) => void get().onChanged(ids));
@@ -322,9 +330,11 @@ export const useStore = create<State>((set, get) => ({
     api.onAppCommand((command) => runAppCommand(command));
     if (info.capture?.settings) set({ settingsOpen: true });
     if (info.capture?.newProject) set({ newProjectOpen: true });
+    if (info.capture?.scope) set({ agentsScope: info.capture.scope });
     api.onTaskChanged((task) => get().upsertTask(task));
     api.onBotTeamChanged((team) => get().upsertTeam(team));
     await get().refreshProjects();
+    if (get().agentsScope === 'all') void get().loadRecent();
     const capture = info.capture?.select;
     if (capture) {
       await indexed;
@@ -535,6 +545,7 @@ export const useStore = create<State>((set, get) => ({
     const open = settings.openProjectIds.includes(projectId) ? settings.openProjectIds : [...settings.openProjectIds, projectId];
     set({ settings: await api.setSettings({ openProjectIds: open, activeProjectId: projectId }), pickerOpen: false, provisionalOpen: false });
     await get().loadSessions(projectId);
+    if (get().agentsScope === 'all' && !(projectId in get().recent)) reloadRecentSoon();
   },
 
   closeProject(projectId) {
@@ -544,6 +555,7 @@ export const useStore = create<State>((set, get) => ({
     set({ settings: { ...settings, openProjectIds: open, activeProjectId: active }, provisionalOpen: false });
     void api.setSettings({ openProjectIds: open, activeProjectId: active });
     if (active != null) void get().loadSessions(active);
+    if (get().agentsScope === 'all') set((s) => ({ recent: Object.fromEntries(Object.entries(s.recent).filter(([id]) => Number(id) !== projectId)) }));
   },
 
   async setActiveProject(projectId) {
@@ -558,6 +570,18 @@ export const useStore = create<State>((set, get) => ({
 
   setFilter(filter) {
     set({ filter });
+  },
+
+  setAgentsScope(scope) {
+    localStorage.setItem('alchemist.agentsScope', scope);
+    set({ agentsScope: scope });
+    if (scope === 'all') void get().loadRecent();
+  },
+
+  async loadRecent() {
+    const ids = get().settings.openProjectIds ?? [];
+    if (!ids.length) return set({ recent: {} });
+    set({ recent: await api.recentSessions(ids, RECENT_PER_PROJECT) });
   },
 
   setPickerOpen(open) {
@@ -615,6 +639,7 @@ export const useStore = create<State>((set, get) => ({
     const projects = await api.projects();
     set((s) => ({ projects, revision: s.revision + 1, changedSessions: ids }));
     if (settings.activeProjectId != null) await get().loadSessions(settings.activeProjectId);
+    if (get().agentsScope === 'all') reloadRecentSoon();
   },
 
   markCaptureReady() {
@@ -834,6 +859,18 @@ export const useStore = create<State>((set, get) => ({
 const MODES: Mode[] = ['agents', 'arena', 'bots', 'code', 'split', 'terminal', 'history'];
 
 /** Menu bar commands. */
+/** How many of each project's latest conversations the all-projects view lists. */
+const RECENT_PER_PROJECT = 8;
+let recentTimer: ReturnType<typeof setTimeout> | null = null;
+/** Transcripts change in bursts while agents work: refresh the all-projects lists at most every second or so. */
+function reloadRecentSoon() {
+  if (recentTimer) return;
+  recentTimer = setTimeout(() => {
+    recentTimer = null;
+    void useStore.getState().loadRecent();
+  }, 1200);
+}
+
 function runAppCommand(command: string) {
   const s = useStore.getState();
   const projectId = s.settings.activeProjectId;

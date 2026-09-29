@@ -52,6 +52,8 @@ export interface AppInfo {
     locale: Locale | null;
     /** Opens the New project dialog. */
     newProject?: boolean;
+    /** The Agents view scope to show. */
+    scope?: 'project' | 'all' | null;
     compose: boolean;
     /** Typed into the new-conversation composer (shows @ / suggestions). */
     composeText: string | null;
@@ -492,6 +494,8 @@ export interface AlchemistApi {
   /** Creates `name` inside `parent` (with `git init` if asked) and adds it as a project. */
   createProject(parent: string, name: string, git: boolean): Promise<number>;
   sessions(projectId: number | null, favoritesOnly?: boolean): Promise<SessionSummary[]>;
+  /** The latest `perProject` conversations of each project, for the all-projects view. */
+  recentSessions(projectIds: number[], perProject: number): Promise<Record<number, SessionSummary[]>>;
   session(id: string): Promise<SessionSummary | null>;
   agentTree(sessionId: string): Promise<AgentNode | null>;
   transcript(sessionId: string, agentId: string, offset?: number, limit?: number): Promise<TranscriptPage>;
@@ -654,6 +658,7 @@ export const Channels = {
   chooseFolder: 'projects:choose-folder',
   createProject: 'projects:create',
   sessions: 'index:sessions',
+  recentSessions: 'index:recent-sessions',
   session: 'index:session',
   agentTree: 'index:agent-tree',
   transcript: 'index:transcript',

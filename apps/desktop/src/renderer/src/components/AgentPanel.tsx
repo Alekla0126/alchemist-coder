@@ -1,3 +1,4 @@
+import { AgentsHome } from './AgentsHome';
 import { keys } from '../keys';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { SessionSummary, TranscriptEntry } from '@alchemist-coder/core';
@@ -29,6 +30,7 @@ export function AgentPanel() {
   const select = useStore((s) => s.select);
   const markCaptureReady = useStore((s) => s.markCaptureReady);
   const composeProjectId = useStore((s) => s.composeProjectId);
+  const scope = useStore((s) => s.agentsScope);
   const composeProject = useStore((s) => s.projects.find((p) => p.id === s.composeProjectId));
   // A live run knows more than the index (e.g. it is waiting for your permission right now).
   const liveStatus = useStore((s) => {
@@ -175,7 +177,7 @@ export function AgentPanel() {
   }
 
   if (!selection || !node) {
-    if (!selection) return <StartScreen />;
+    if (!selection) return scope === 'all' ? <AgentsHome /> : <StartScreen />;
     return <div className="panel-empty">{tree === undefined ? <span className="spin" /> : t('agent.select')}</div>;
   }
 

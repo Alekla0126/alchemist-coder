@@ -98,6 +98,7 @@ function appInfo(): AppInfo {
             : null,
           locale: arg('locale') === 'es' || arg('locale') === 'en' ? (arg('locale') as 'es' | 'en') : null,
           newProject: process.argv.includes('--new-project'),
+          scope: arg('scope') === 'all' || arg('scope') === 'project' ? (arg('scope') as 'all' | 'project') : null,
         }
       : null,
   };

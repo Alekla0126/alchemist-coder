@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { SessionSummary } from '@alchemist-coder/core';
 import { showSessionMenu } from '../actions/session';
-import { relativeTime } from '../format';
+import { initials, projectGradient, relativeTime } from '../format';
 import { useStore, useT, type SessionFilter } from '../store';
 import { isUnread, useViewed } from '../attention';
 import { contextMenu, toast } from '../ui';
@@ -52,7 +52,7 @@ function RepeatedRow({ title, items }: { title: string; items: SessionSummary[] 
   );
 }
 
-function SessionRow({ session }: { session: SessionSummary }) {
+export function SessionRow({ session }: { session: SessionSummary }) {
   const t = useT();
   const locale = useStore((s) => s.locale);
   const key = `s:${session.id}`;
@@ -138,6 +138,83 @@ function SessionRow({ session }: { session: SessionSummary }) {
 }
 
 const FILTERS: SessionFilter[] = ['all', 'running', 'favorites'];
+const isLive = (s: SessionSummary) => s.runningAgents > 0 || s.status === 'running';
+const passes = (s: SessionSummary, filter: SessionFilter, query: string) =>
+  (filter === 'running' ? isLive(s) : filter === 'favorites' ? s.favorite : true) && matchesQuery(s, query);
+
+const collapsedKey = 'alchemist.allCollapsed';
+const readCollapsed = (): number[] => {
+  try {
+    return JSON.parse(localStorage.getItem(collapsedKey) ?? '[]') as number[];
+  } catch {
+    return [];
+  }
+};
+
+/**
+ * Every open project at once, centered on the agents: each project's latest conversations (the ones
+ * working first), without switching projects. Only a few per project are loaded.
+ */
+function AllProjects({ filter, query }: { filter: SessionFilter; query: string }) {
+  const t = useT();
+  const openIds = useStore((s) => s.settings.openProjectIds);
+  const projects = useStore((s) => s.projects);
+  const recent = useStore((s) => s.recent);
+  const openProject = useStore((s) => s.openProject);
+  const setCompose = useStore((s) => s.setCompose);
+  const setScope = useStore((s) => s.setAgentsScope);
+  const [collapsed, setCollapsed] = useState<number[]>(readCollapsed);
+  const toggle = (id: number) => {
+    const next = collapsed.includes(id) ? collapsed.filter((x) => x !== id) : [...collapsed, id];
+    setCollapsed(next);
+    localStorage.setItem(collapsedKey, JSON.stringify(next));
+  };
+  const open = openIds.map((id) => projects.find((p) => p.id === id)).filter((p): p is NonNullable<typeof p> => !!p);
+  if (!open.length) return <p className="empty">{t('all.empty')}</p>;
+  return (
+    <div className="tree all-projects">
+      {open.map((p) => {
+        const list = (recent[p.id] ?? []).filter((s) => passes(s, filter, query)).sort((a, b) => Number(isLive(b)) - Number(isLive(a)) || (b.lastTs ?? 0) - (a.lastTs ?? 0));
+        const live = (recent[p.id] ?? []).filter(isLive).length;
+        const shut = collapsed.includes(p.id);
+        // A filter or search leaves out projects with nothing to show.
+        if ((filter !== 'all' || query) && !list.length) return null;
+        return (
+          <div key={p.id} className="all-group" role="group" aria-label={p.name}>
+            <div className="all-head">
+              <button className="all-toggle" aria-expanded={!shut} onClick={() => toggle(p.id)} title={p.cwd}>
+                <span className="car">{shut ? '▸' : '▾'}</span>
+                <span className="avatar sm" style={{ background: projectGradient(p.name) }}>{initials(p.name)}</span>
+                <b>{p.name}</b>
+                {live > 0 && <span className="all-live" title={t('filter.running')}>● {live}</span>}
+              </button>
+              <button
+                className="all-new"
+                title={t('plus.conversation', { name: p.name })}
+                aria-label={t('plus.conversation', { name: p.name })}
+                onClick={() => void openProject(p.id).then(() => setCompose(p.id))}
+              >
+                ＋
+              </button>
+            </div>
+            {!shut && (
+              <>
+                {collapseRepeats(list).map((c) => (c.kind === 'one' ? <SessionRow key={c.item.id} session={c.item} /> : <RepeatedRow key={`r:${c.items[0]!.id}`} title={c.title} items={c.items} />))}
+                {recent[p.id] === undefined && <p className="empty sm">…</p>}
+                {recent[p.id] !== undefined && !list.length && <p className="empty sm">{t('side.noSessions')}</p>}
+                {filter === 'all' && !query && p.sessionCount > list.length && (
+                  <button className="all-more" onClick={() => void openProject(p.id).then(() => setScope('project'))}>
+                    {t('all.seeAll', { n: p.sessionCount })}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 /** Conversations hidden in this project, to bring back. */
 function HiddenSessions({ projectId }: { projectId: number }) {
@@ -175,14 +252,17 @@ export function Sidebar() {
   const sessions = useStore((s) => (activeId != null ? s.sessions[activeId] : undefined));
   const filter = useStore((s) => s.filter);
   const setFilter = useStore((s) => s.setFilter);
+  const scope = useStore((s) => s.agentsScope);
+  const setScope = useStore((s) => s.setAgentsScope);
+  const recent = useStore((s) => s.recent);
   const setCompose = useStore((s) => s.setCompose);
   const tab = useStore((s) => s.sidebarTab);
   const setTab = useStore((s) => s.setSidebarTab);
   const [query, setQuery] = useState('');
   useEffect(() => setQuery(''), [activeId]);
-  const shown = (sessions ?? []).filter((s) => (filter === 'running' ? s.runningAgents > 0 || s.status === 'running' : filter === 'favorites' ? s.favorite : true) && matchesQuery(s, query));
+  const shown = (sessions ?? []).filter((s) => passes(s, filter, query));
   const groups = groupSessions(shown);
-  const running = (sessions ?? []).filter((s) => s.runningAgents > 0 || s.status === 'running').length;
+  const running = scope === 'all' ? Object.values(recent).flat().filter(isLive).length : (sessions ?? []).filter(isLive).length;
   return (
     <aside className="side">
       <div className="stabs">
@@ -202,6 +282,13 @@ export function Sidebar() {
         <ExtensionsHub />
       ) : (
         <>
+      <div className="scope" role="tablist" aria-label={t('scope.label')}>
+        {(['project', 'all'] as const).map((sc) => (
+          <button key={sc} role="tab" aria-selected={scope === sc} className={scope === sc ? 'on' : ''} onClick={() => setScope(sc)}>
+            {t(`scope.${sc}`)}
+          </button>
+        ))}
+      </div>
       <div className="filters">
         {FILTERS.map((f) => (
           <button key={f} className={`f ${f === filter ? 'on' : ''}`} onClick={() => setFilter(f)}>
@@ -210,6 +297,22 @@ export function Sidebar() {
           </button>
         ))}
       </div>
+      {scope === 'all' ? (
+        <>
+          <div className="side-filter">
+            <input
+              type="search"
+              value={query}
+              placeholder={t('side.filter')}
+              aria-label={t('side.filter')}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Escape' && setQuery('')}
+            />
+          </div>
+          <AllProjects filter={filter} query={query} />
+        </>
+      ) : (
+        <>
       <div className="sec sec-row">
         <span>
           {project?.name ?? ''} · {t('side.conversations')}
@@ -243,6 +346,8 @@ export function Sidebar() {
         {sessions && shown.length === 0 && <p className="empty">{query ? t('side.noMatches') : t('side.noSessions')}</p>}
         {activeId != null && <HiddenSessions projectId={activeId} />}
       </div>
+        </>
+      )}
         </>
       )}
     </aside>

@@ -1,3 +1,4 @@
+import { whileVisible } from './ui';
 import { lazy, Suspense, useEffect } from 'react';
 import { AgentPanel } from './components/AgentPanel';
 import { ArenaList, ArenaView } from './components/Arena';
@@ -48,8 +49,7 @@ export function App() {
   // "Running" ages out after a quiet period, so poll while something runs.
   useEffect(() => {
     if (!anyRunning) return;
-    const timer = setInterval(() => void refreshProjects(), 15_000);
-    return () => clearInterval(timer);
+    return whileVisible(() => void refreshProjects(), 15_000);
   }, [anyRunning, refreshProjects]);
 
   useEffect(() => {

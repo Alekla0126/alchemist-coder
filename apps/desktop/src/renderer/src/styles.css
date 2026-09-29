@@ -875,6 +875,8 @@ body.resizing iframe, body.resizing webview, body.resizing .xterm { pointer-even
 .start-logo { display: grid; place-items: center; margin-bottom: 6px; filter: drop-shadow(0 12px 28px rgba(217, 122, 74, 0.35)); }
 .start h2 { font-size: 19px; font-weight: 650; }
 .start-path { color: var(--fg-3); font-size: 12px; max-width: 560px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A long page scrolls; nothing in it shrinks (the path, with overflow hidden, would squash to nothing). */
+.start > * { flex-shrink: 0; }
 .start-new { margin: 10px 0 14px; padding: 7px 16px; font-size: 13px; }
 .start kbd { font-family: var(--mono); font-size: 10.5px; opacity: 0.75; margin-left: 6px; }
 .start-sec { width: 100%; max-width: 560px; margin-top: 8px; }
@@ -1390,3 +1392,34 @@ code.md-path:hover { color: var(--accent-2); }
 .entry.assistant .tool:hover, .entry.assistant .tool-group:hover { border-color: var(--line); }
 .entry.assistant .tool.failed, .entry.assistant .tool-group.failed { border-color: color-mix(in srgb, var(--red) 45%, transparent); }
 .entry-when { font-size: 11px; color: var(--fg-3); padding: 0 6px 0 4px; white-space: nowrap; }
+
+/* ---------- all projects at once ---------- */
+.scope { display: flex; margin: 10px 10px 0; padding: 2px; border: 1px solid var(--line-2); border-radius: 8px; background: var(--bg); }
+.scope button { flex: 1; font-size: 11.5px; padding: 3px 6px; border-radius: 6px; color: var(--fg-2); white-space: nowrap; }
+.scope button.on { color: var(--fg); background: var(--bg-hl); }
+.avatar.sm { width: 20px; height: 20px; border-radius: 6px; font-size: 8.5px; }
+.avatar.xs { width: 16px; height: 16px; border-radius: 5px; font-size: 7.5px; }
+.all-group { margin-bottom: 6px; }
+.all-head { display: flex; align-items: center; gap: 4px; padding: 6px 8px 2px 6px; position: sticky; top: 0; z-index: 1; background: var(--bg-side); }
+.all-toggle { flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px; text-align: left; padding: 3px 4px; border-radius: 6px; color: var(--fg); font-size: 12.5px; }
+.all-toggle:hover { background: var(--bg-hl); }
+.all-toggle b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.all-toggle .car { color: var(--fg-3); width: 10px; font-size: 10px; }
+.all-live { color: var(--green); font-size: 11px; white-space: nowrap; }
+.all-new { width: 22px; height: 22px; border-radius: 6px; color: var(--fg-3); opacity: 0; }
+.all-head:hover .all-new, .all-new:focus-visible { opacity: 1; }
+.all-new:hover { color: var(--accent-2); background: var(--bg-hl); }
+.all-more { display: block; margin: 2px 0 0 34px; font-size: 11.5px; color: var(--fg-3); padding: 2px 6px; border-radius: 5px; }
+.all-more:hover { color: var(--fg); background: var(--bg-hl); }
+.empty.sm { padding: 4px 14px 4px 34px; font-size: 11.5px; }
+.agents-home .start-sec { max-width: 680px; }
+.home-row { display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; padding: 7px 10px; border-radius: 8px; color: var(--fg-2); }
+.home-row:hover { background: var(--bg-hl); color: var(--fg); }
+.home-row.is-needs { background: color-mix(in srgb, var(--amber) 8%, transparent); }
+.home-proj { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; max-width: 34%; font-size: 11.5px; color: var(--fg-3); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.home-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-projects { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+.home-project { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 9px; text-align: left; }
+.home-project:hover { background: var(--bg-hl); border-color: var(--line-2); }
+.home-project b { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-project small { font-size: 11px; color: var(--fg-3); white-space: nowrap; }

@@ -19,6 +19,7 @@ const api: AlchemistApi = {
   chooseFolder: (title, defaultPath) => ipcRenderer.invoke(Channels.chooseFolder, title, defaultPath),
   createProject: (parent, name, git) => ipcRenderer.invoke(Channels.createProject, parent, name, git),
   sessions: (projectId, favoritesOnly) => ipcRenderer.invoke(Channels.sessions, projectId, favoritesOnly),
+  recentSessions: (projectIds, perProject) => ipcRenderer.invoke(Channels.recentSessions, projectIds, perProject),
   session: (id) => ipcRenderer.invoke(Channels.session, id),
   agentTree: (id) => ipcRenderer.invoke(Channels.agentTree, id),
   transcript: (sessionId, agentId, offset, limit) => ipcRenderer.invoke(Channels.transcript, sessionId, agentId, offset, limit),

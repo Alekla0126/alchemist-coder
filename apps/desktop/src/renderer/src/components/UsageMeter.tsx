@@ -1,3 +1,4 @@
+import { whileVisible } from '../ui';
 import { useEffect, useRef } from 'react';
 import type { LimitWindow } from '@shared/api';
 import { compactNumber, money, relativeTime } from '../format';
@@ -182,8 +183,7 @@ export function UsageMeter() {
   }, [captureUsage, usage]);
   useEffect(() => {
     void load();
-    const timer = setInterval(() => void load(), 5 * 60_000);
-    return () => clearInterval(timer);
+    return whileVisible(() => void load(), 5 * 60_000);
   }, [load]);
   useEffect(() => {
     if (open) void load();
