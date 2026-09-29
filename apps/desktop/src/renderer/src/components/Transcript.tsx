@@ -1,0 +1,494 @@
+import { useEffect, useState } from 'react';
+import type { FileDiff, TranscriptBlock, TranscriptEntry } from '@alchemist-coder/core';
+import { clockTime, modelLabel } from '../format';
+import { useStore, useT } from '../store';
+import { contextMenu, toast } from '../ui';
+import { Markdown } from './Markdown';
+import { DiffPreview, relativeTo, useProjectRoot } from './LiveRun';
+import { lineDiff } from '../diff';
+import { INTERRUPTED_NOTICE, buildTurns, displaySummary, shortToolName, toolSummary, type RenderBlock, type TaskItem, type ToolResult, type ToolUse, type Turn } from '../transcript-model';
+
+const TOOL_ICONS: Record<string, string> = { Bash: '$', Read: '▤', Edit: '✎', Write: '✎', MultiEdit: '✎', Grep: '⌕', Glob: '⌕', Agent: '⚗', Task: '⚗', WebFetch: '↗', WebSearch: '⌕', shell: '$', exec: '$' };
+const MAX_TEXT = 6000;
+
+function LongText({ text }: { text: string }) {
+  const [full, setFull] = useState(false);
+  if (text.length <= MAX_TEXT || full) return <Markdown text={text} />;
+  return (
+    <>
+      <Markdown text={`${text.slice(0, MAX_TEXT)}…`} />
+      <button className="link" onClick={() => setFull(true)}>+{Math.round((text.length - MAX_TEXT) / 1000)}k</button>
+    </>
+  );
+}
+
+/** The file a Read / Edit / Write call worked on, when its input says. */
+function fileOf(block: ToolUse): string | null {
+  try {
+    const input = JSON.parse(block.input) as Record<string, unknown>;
+    const p = input.file_path ?? input.path ?? input.notebook_path;
+    return typeof p === 'string' && p.startsWith('/') ? p : null;
+  } catch {
+    return null;
+  }
+}
+
+const parseInput = (use: ToolUse): Record<string, any> => {
+  try {
+    const v = JSON.parse(use.input);
+    return v && typeof v === 'object' ? v : {};
+  } catch {
+    return {};
+  }
+};
+
+/** A tool's input as people read it: the command for a shell, the path and pattern for a search; JSON otherwise. */
+export function ToolInput({ use }: { use: ToolUse }) {
+  const t = useT();
+  const [raw, setRaw] = useState(false);
+  const input = parseInput(use);
+  const command = Array.isArray(input.command) ? String(input.command.at(-1) ?? '') : typeof input.command === 'string' ? input.command : typeof input.cmd === 'string' ? input.cmd : null;
+  const fields: Array<[string, unknown]> =
+    use.name === 'Read' ? [['path', input.file_path], ['from line', input.offset], ['lines', input.limit]]
+    : use.name === 'Grep' ? [['pattern', input.pattern], ['in', input.path ?? input.glob], ['type', input.type]]
+    : use.name === 'Glob' ? [['pattern', input.pattern], ['in', input.path]]
+    : use.name === 'WebFetch' || use.name === 'WebSearch' ? [['url', input.url], ['query', input.query], ['prompt', input.prompt]]
+    : [];
+  const shown = fields.filter(([, v]) => v != null && v !== '');
+  if (raw || (!command && !shown.length)) return use.input ? <pre className="tool-body">{use.input}</pre> : null;
+  return (
+    <div className="tool-input">
+      {command != null ? (
+        <>
+          {typeof input.description === 'string' && <div className="tool-cap">{input.description}</div>}
+          <pre className="tool-body shell">
+            <span className="prompt-sign">$ </span>
+            {command}
+          </pre>
+        </>
+      ) : (
+        <dl className="tool-fields">
+          {shown.map(([k, v]) => (
+            <div key={k}>
+              <dt>{k}</dt>
+              <dd>{String(v)}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      <button className="link small" onClick={() => setRaw(true)}>
+        {t('transcript.showJson')}
+      </button>
+    </div>
+  );
+}
+
+/** AskUserQuestion: the questions, their options, and what you picked. */
+function QuestionCard({ block, result }: { block: ToolUse; result: ToolResult | undefined }) {
+  const t = useT();
+  const answers: Record<string, string> = { ...(result?.answers ?? {}) };
+  if (!result?.answers && result?.preview) for (const m of result.preview.matchAll(/"([^"]+)"="([^"]*)"/g)) answers[m[1]!] = m[2]!;
+  return (
+    <div className="ask-card">
+      {block.ask!.map((q, i) => {
+        const answer = answers[q.question];
+        const picked = (label: string) => !!answer && (answer === label || answer.split(', ').includes(label));
+        const custom = answer && !q.options.some((o) => picked(o.label));
+        return (
+          <div key={i} className="ask-q">
+            <div className="ask-top">
+              {q.header && <span className="ask-h">{q.header}</span>}
+              <b>{q.question}</b>
+            </div>
+            <ul className="ask-opts" aria-label={q.question}>
+              {q.options.map((o) => (
+                <li key={o.label} className={`ask-opt ${picked(o.label) ? 'on' : ''}`}>
+                  <span className="ask-radio" aria-hidden>
+                    {picked(o.label) ? (q.multiSelect ? '☑' : '◉') : q.multiSelect ? '☐' : '○'}
+                  </span>
+                  <span>
+                    <b>{o.label}</b>
+                    {o.description && <small>{o.description}</small>}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {custom && <div className="ask-answer">↳ {answer}</div>}
+          </div>
+        );
+      })}
+      {!result && <div className="ask-wait">{t('transcript.askNoAnswer')}</div>}
+      {result && !Object.keys(answers).length && <div className="ask-wait">{result.isError ? t('transcript.askSkipped') : result.preview.slice(0, 200)}</div>}
+    </div>
+  );
+}
+
+/** The task list after a run of task calls: done, in progress, waiting. */
+function TaskList({ items, ops }: { items: TaskItem[]; ops: number }) {
+  const t = useT();
+  const done = items.filter((x) => x.status === 'completed').length;
+  const [open, setOpen] = useState(items.length <= 8);
+  const current = items.find((x) => x.status === 'in_progress');
+  return (
+    <div className="task-list">
+      <div className="task-head" onClick={() => setOpen(!open)}>
+        <span className="ic">☑</span>
+        <span className="nm">{t('transcript.tasks', { done, n: items.length })}</span>
+        {!open && current && <span className="sum">◐ {current.subject}</span>}
+        <span className="task-ops">{t('transcript.taskOps', { n: ops })}</span>
+      </div>
+      {open && (
+        <ul>
+          {items.map((x) => (
+            <li key={x.id} className={x.status}>
+              <span className="task-ic">{x.status === 'completed' ? '✓' : x.status === 'in_progress' ? '◐' : '○'}</span>
+              {x.subject}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** Loading tools or a skill: bookkeeping, one dim line. */
+export function QuietRow({ use, result }: { use: ToolUse; result: ToolResult | undefined }) {
+  const t = useT();
+  const input = parseInput(use);
+  const text =
+    use.name === 'Skill'
+      ? t('transcript.usedSkill', { name: String(input.skill ?? input.command ?? '') })
+      : t('transcript.loadedTools', { names: String(input.query ?? '').replace(/^select:/, '').split(',').map((x) => shortToolName(x.trim())).filter(Boolean).slice(0, 6).join(', ') });
+  return (
+    <div className={`quiet-row ${result?.isError ? 'failed' : ''}`} title={use.input}>
+      <span className="ic">{use.name === 'Skill' ? '✦' : '⌕'}</span> {text}
+    </div>
+  );
+}
+
+/** Lines added and removed by an edit call. */
+export function editStats(edits: FileDiff[] | undefined): { added: number; removed: number } | null {
+  if (!edits?.length) return null;
+  let added = 0;
+  let removed = 0;
+  for (const d of edits) for (const l of lineDiff(d.oldText, d.newText, 0)) l.kind === 'add' ? added++ : l.kind === 'del' && removed++;
+  return { added, removed };
+}
+
+/** One tool call with its result folded in: a single row that opens to show input and output. */
+function ToolRow({ block, result, sessionId }: { block: ToolUse; result: ToolResult | undefined; sessionId: string }) {
+  const t = useT();
+  const select = useStore((s) => s.select);
+  const projectId = useStore((s) => s.settings.activeProjectId);
+  const openFileAt = useStore((s) => s.openFileAt);
+  // Failures open by themselves: they're what you want to read.
+  const [open, setOpen] = useState(!!result?.isError);
+  const [raw, setRaw] = useState(false);
+  const root = useProjectRoot();
+  const file = fileOf(block);
+  const lines = result?.preview ? result.preview.split('\n').length : 0;
+  const name = block.name.startsWith('mcp__') ? block.name.split('__').slice(1).join(' · ') : block.name;
+  const stats = editStats(block.edits);
+  // Write replaces a whole file: it's only "new" when Claude Code says it created it.
+  const created = block.name === 'Write' && result ? /created/i.test(result.preview) : undefined;
+  const shown = displaySummary(block.name, block.input, block.summary);
+  const summary = file && shown.includes(file) ? shown.replace(file, relativeTo(file, root)) : shown;
+  if (block.ask?.length) return <QuestionCard block={block} result={result} />;
+  return (
+    <div
+      className={`tool ${block.spawnsAgentId ? 'spawn' : ''} ${result?.isError ? 'failed' : ''}`}
+      onContextMenu={contextMenu(
+        () => [
+          { id: 'copy-input', label: t('transcript.copyInput') },
+          { id: 'copy-output', label: t('transcript.copyOutput'), enabled: !!result?.preview },
+          ...(file && projectId != null ? [{ id: 'open-file', label: t('transcript.openFile') }] : []),
+        ],
+        (id) => {
+          if (id === 'copy-input') void window.alchemist.copyText(block.input);
+          if (id === 'copy-output' && result) void window.alchemist.copyText(result.preview);
+          if (id === 'open-file' && file && projectId != null) openFileAt(projectId, file);
+        },
+      )}
+    >
+      <div className={`tool-head ${open ? 'open' : ''}`} onClick={() => setOpen(!open)}>
+        <span className="ic">{TOOL_ICONS[block.name] ?? (block.name.startsWith('mcp__') ? '◇' : '•')}</span>
+        <span className="nm">{name}</span>
+        <span className="sum" title={block.summary}>{summary}</span>
+        <span className="tool-status">
+          {stats && created === false ? (
+            <small className="tool-stats">{t('transcript.rewrote', { n: stats.added })}</small>
+          ) : (
+            stats && (
+              <small className="tool-stats">
+                <span className="plus">+{stats.added}</span> <span className="minus">−{stats.removed}</span>
+              </small>
+            )
+          )}
+          {result ? (result.isError ? <span className="bad">✕</span> : <span className="ok">✓</span>) : <span className="pending">…</span>}
+          {!stats && lines > 1 && <small>{t('transcript.lines', { n: lines })}</small>}
+        </span>
+        {file && projectId != null && (
+          <button
+            className="link open-agent"
+            title={t('transcript.openFile')}
+            onClick={(e) => {
+              e.stopPropagation();
+              openFileAt(projectId, file);
+            }}
+          >
+            ↗
+          </button>
+        )}
+        {block.spawnsAgentId && (
+          <button
+            className="link open-agent"
+            onClick={(e) => {
+              e.stopPropagation();
+              void select(sessionId, block.spawnsAgentId!);
+            }}
+          >
+            {t('transcript.openAgent')} →
+          </button>
+        )}
+      </div>
+      {open && (
+        <div className="tool-open">
+          {block.edits && !raw ? (
+            <>
+              {block.edits.map((d, i) => (
+                <DiffPreview key={i} diff={d} newFile={created ?? d.oldText == null} />
+              ))}
+              {result?.isError && <pre className="tool-body tool-out error">{result.preview || '∅'}</pre>}
+              <button className="link small" onClick={() => setRaw(true)}>
+                {t('transcript.showInput')}
+              </button>
+            </>
+          ) : (
+            <>
+              {raw ? block.input && <pre className="tool-body">{block.input}</pre> : <ToolInput use={block} />}
+              {result && <pre className={`tool-body tool-out ${result.isError ? 'error' : ''}`}>{result.preview || '∅'}</pre>}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** "Ran 7 tools · Bash ×3, Read ×2 · 1 failed", opening to the rows; opens by itself on a failure or a call still running. */
+function ToolGroup({ tools, sessionId }: { tools: Array<{ use: ToolUse; result: ToolResult | undefined }>; sessionId: string }) {
+  const t = useT();
+  const failed = tools.filter((x) => x.result?.isError).length;
+  const pending = tools.some((x) => !x.result);
+  const [open, setOpen] = useState(failed > 0 || pending);
+  const stats = editStats(tools.flatMap((x) => x.use.edits ?? []));
+  return (
+    <div className={`tool-group ${failed ? 'failed' : ''}`}>
+      <div className="tool-head" onClick={() => setOpen(!open)}>
+        <span className="ic">⋮</span>
+        <span className="nm">{t('transcript.ranTools', { n: tools.length })}</span>
+        <span className="sum">{toolSummary(tools)}</span>
+        <span className="tool-status">
+          {stats && (
+            <small className="tool-stats">
+              <span className="plus">+{stats.added}</span> <span className="minus">−{stats.removed}</span>
+            </small>
+          )}
+          {failed > 0 ? <span className="bad">✕ {t('transcript.failed', { n: failed })}</span> : pending ? <span className="pending">…</span> : <span className="ok">✓</span>}
+        </span>
+      </div>
+      {open && (
+        <div className="tool-group-body">
+          {tools.map((x) => (
+            <ToolRow key={x.use.id} block={x.use} result={x.result} sessionId={sessionId} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** A picture from the conversation, loaded from its file when shown; a chip when it can't be. */
+function TranscriptImage({ block, sessionId }: { block: Extract<TranscriptBlock, { kind: 'image' }>; sessionId: string }) {
+  const t = useT();
+  const [src, setSrc] = useState<string | null>(null);
+  const [big, setBig] = useState(false);
+  const ref = block.ref;
+  useEffect(() => {
+    if (!ref) return;
+    let alive = true;
+    void window.alchemist.transcriptImage(sessionId, ref.agentId, ref.offset, ref.n).then((url) => alive && setSrc(url));
+    return () => {
+      alive = false;
+    };
+  }, [sessionId, ref?.agentId, ref?.offset, ref?.n]);
+  if (!src)
+    return (
+      <span className="image-chip">
+        ▣ {t('transcript.image')} · {block.mediaType.replace('image/', '')} · {Math.max(1, Math.round(block.bytes / 1024))} KB
+      </span>
+    );
+  return <img className={`turn-image ${big ? 'big' : ''}`} src={src} alt={t('transcript.image')} onClick={() => setBig(!big)} />;
+}
+
+function Block({ block, sessionId }: { block: TranscriptBlock; sessionId: string }) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  switch (block.kind) {
+    case 'text':
+      return <LongText text={block.text} />;
+    case 'thinking':
+      return (
+        <details className="thinking">
+          <summary>
+            {t('transcript.thinking')} <span className="thinking-first">{block.text.trim().split('\n')[0]?.slice(0, 90)}</span>
+          </summary>
+          <Markdown text={block.text} />
+        </details>
+      );
+    case 'tool_use':
+      return <ToolRow block={block} result={undefined} sessionId={sessionId} />;
+    case 'tool_result':
+      // Results whose call isn't on this page (the call is on an earlier one) still show on their own.
+      return (
+        <div className={`result ${block.isError ? 'error' : ''}`} onClick={() => setOpen(!open)}>
+          <span className="label">{block.isError ? t('transcript.error') : t('transcript.result')}</span>
+          <pre className={open ? 'open' : ''}>{block.preview || '∅'}</pre>
+        </div>
+      );
+    case 'image':
+      return <TranscriptImage block={block} sessionId={sessionId} />;
+    case 'notice':
+      return block.text === INTERRUPTED_NOTICE ? <span className="interrupted-note">⏹ {t('transcript.interrupted')}</span> : <span>{block.text}</span>;
+  }
+}
+
+/** The text of a turn, for copying. */
+const textOf = (turn: Turn) =>
+  turn.entries
+    .flatMap((e) => e.blocks)
+    .filter((b): b is Extract<TranscriptBlock, { kind: 'text' }> => b.kind === 'text')
+    .map((b) => b.text)
+    .join('\n\n')
+    .trim();
+
+function TurnActions({ turn, last }: { turn: Turn; last: boolean }) {
+  const t = useT();
+  const fillComposer = useStore((s) => s.fillComposer);
+  const text = textOf(turn);
+  if (!text) return null;
+  return (
+    <span className="entry-actions">
+      <button
+        title={t('transcript.copy')}
+        onClick={() => {
+          void window.alchemist.copyText(text);
+          toast(t('transcript.copied'), undefined, 1800);
+        }}
+      >
+        ⧉
+      </button>
+      {turn.role === 'user' && (
+        <button title={t('transcript.reuse')} onClick={() => fillComposer(text)}>
+          ✎
+        </button>
+      )}
+      {turn.role === 'user' && last && (
+        <button title={t('transcript.retry')} onClick={() => fillComposer(text, true)}>
+          ⟳
+        </button>
+      )}
+      {turn.role === 'user' && (
+        <button title={t('transcript.editFork')} onClick={() => fillComposer(text, false, true)}>
+          ⑂
+        </button>
+      )}
+    </span>
+  );
+}
+
+function RenderBlockView({ b, sessionId }: { b: RenderBlock; sessionId: string }) {
+  if (b.kind === 'tool') return <ToolRow block={b.use} result={b.result} sessionId={sessionId} />;
+  if (b.kind === 'tasks') return <TaskList items={b.items} ops={b.ops} />;
+  if (b.kind === 'quiet') return <QuietRow use={b.use} result={b.result} />;
+  if (b.kind === 'group') return <ToolGroup tools={b.tools} sessionId={sessionId} />;
+  return <Block block={b.block} sessionId={sessionId} />;
+}
+
+export function TranscriptEntries({ entries, sessionId, isSubagent }: { entries: TranscriptEntry[]; sessionId: string; isSubagent: boolean }) {
+  const t = useT();
+  const locale = useStore((s) => s.locale);
+  const fillComposer = useStore((s) => s.fillComposer);
+  const turns = buildTurns(entries);
+  const firstUser = turns.findIndex((x) => x.role === 'user');
+  const lastUser = turns.findLastIndex((x) => x.role === 'user');
+  return (
+    <div className="entries">
+      {turns.map((turn, i) => {
+        if (turn.role === 'system') {
+          const text = textOf(turn);
+          const first = text.split('\n').find((l) => l.trim() && !/^<\/?[\w-]+>$/.test(l.trim())) ?? text;
+          return (
+            <details key={turn.key} className="system-line">
+              <summary>
+                <span className="system-ic">⚙</span> {first.replace(/^\[|\]$/g, '').replace(/<[^>]+>/g, '').trim().slice(0, 140)}
+                <span className="time">{clockTime(turn.ts, locale)}</span>
+              </summary>
+              <pre>{text}</pre>
+            </details>
+          );
+        }
+        if (turn.role === 'notice') {
+          return (
+            <div key={turn.key} className={`notice-line ${turn.entries[0]!.role}`}>
+              {turn.blocks.map((b, j) => (
+                <RenderBlockView key={j} b={b} sessionId={sessionId} />
+              ))}
+            </div>
+          );
+        }
+        const brief = isSubagent && i === firstUser;
+        const text = textOf(turn);
+        const start = clockTime(turn.ts, locale);
+        const end = clockTime(turn.endTs, locale);
+        return (
+          <div
+            key={turn.key}
+            className={`entry ${turn.role} ${brief ? 'brief' : ''}`}
+            onContextMenu={
+              text
+                ? contextMenu(
+                    () => [
+                      { id: 'copy', label: t('transcript.copy') },
+                      ...(turn.role === 'user' ? [{ id: 'reuse', label: t('transcript.reuse') }] : []),
+                      ...(turn.role === 'user' && i === lastUser && !isSubagent ? [{ id: 'retry', label: t('transcript.retry') }] : []),
+                      ...(turn.role === 'user' && !isSubagent ? [{ id: 'fork', label: t('transcript.editFork') }] : []),
+                    ],
+                    (id) => {
+                      if (id === 'copy') void window.alchemist.copyText(text);
+                      if (id === 'reuse') fillComposer(text);
+                      if (id === 'retry') fillComposer(text, true);
+                      if (id === 'fork') fillComposer(text, false, true);
+                    },
+                  )
+                : undefined
+            }
+          >
+            <div className="entry-head">
+              <span className={`who ${turn.role}`}>{turn.role === 'assistant' ? '⚗' : '›'}</span>
+              {brief && <span className="brief-label">{t('agent.brief')}</span>}
+              {turn.model && <span className="model" title={turn.model}>{modelLabel(turn.model)}</span>}
+              <TurnActions turn={turn} last={i === lastUser && !isSubagent} />
+              <span className="time">{start && end && start !== end ? `${start}–${end}` : start}</span>
+            </div>
+            <div className="entry-body">
+              {turn.blocks.map((b, j) => (
+                <RenderBlockView key={j} b={b} sessionId={sessionId} />
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}

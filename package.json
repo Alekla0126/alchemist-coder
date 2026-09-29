@@ -1,0 +1,25 @@
+{
+  "name": "alchemist-coder",
+  "private": true,
+  "version": "0.1.0",
+  "description": "The lab for your coding agents: explore, resume and run Claude Code and Codex sessions.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "packageManager": "pnpm@8.15.9",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @alchemist-coder/desktop dev",
+    "build": "pnpm --filter @alchemist-coder/desktop build",
+    "test": "vitest run",
+    "typecheck": "pnpm -r --parallel typecheck",
+    "index:smoke": "node --experimental-strip-types packages/indexer/scripts/smoke.ts",
+    "package:mac": "pnpm --filter @alchemist-coder/desktop package:mac"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "7.0.2",
+    "vitest": "4.1.11"
+  }
+}

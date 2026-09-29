@@ -1,0 +1,16 @@
+{
+  "name": "@alchemist-coder/providers-local",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@alchemist-coder/core": "workspace:*"
+  }
+}

@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        # macOS and Windows minutes are expensive on private repos; they run once the repo is public.
+        exclude:
+          - os: ${{ github.event.repository.private && 'macos-latest' || 'none' }}
+          - os: ${{ github.event.repository.private && 'windows-latest' || 'none' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      - run: pnpm typecheck
+      - run: pnpm test
+      - name: Dependency licenses must be permissive
+        if: matrix.os == 'ubuntu-latest'
+        run: npx --yes license-checker-rseidelsohn --production --excludePrivatePackages --onlyAllow "MIT;ISC;BSD-2-Clause;BSD-3-Clause;Apache-2.0;0BSD;BlueOak-1.0.0;CC0-1.0;Unlicense;Python-2.0;CC-BY-4.0"

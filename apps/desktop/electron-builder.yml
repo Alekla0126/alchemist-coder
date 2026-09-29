@@ -1,0 +1,36 @@
+appId: com.alekla.alchemistcoder
+productName: Alchemist Coder
+copyright: Copyright © 2026 The Alchemist Code
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**
+  - package.json
+asarUnpack:
+  - "**/node_modules/node-pty/**"
+npmRebuild: true
+protocols:
+  - name: Alchemist Coder
+    schemes: [alchemistcoder]
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip
+      arch: [arm64, x64]
+  hardenedRuntime: true
+  # Signing and notarization need an Apple Developer ID; community builds are unsigned.
+  identity: null
+dmg:
+  title: Alchemist Coder ${version}
+win:
+  target: [nsis]
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+linux:
+  target: [AppImage, deb]
+  category: Development
+  maintainer: The Alchemist Code

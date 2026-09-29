@@ -1,0 +1,26 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Steps to reproduce, what you expected and what you saw.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Alchemist Coder version and OS
+  - type: input
+    id: clis
+    attributes:
+      label: Claude Code / Codex CLI versions (if relevant)
+      placeholder: "claude --version, codex --version"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Remove API keys, tokens and private code before pasting.
+      render: shell
