@@ -332,6 +332,10 @@ export const useStore = create<State>((set, get) => ({
       const pid = get().settings.activeProjectId;
       if (pid != null && info.capture.openFile) get().openFile(pid, info.capture.openFile);
       setTimeout(() => set({ captureReady: true }), 2500);
+    } else if (info.capture?.settings) {
+      // The panel reads what the index found (agents, usage): wait for it.
+      await indexed;
+      setTimeout(() => set({ captureReady: true }), 1000);
     }
     if (info.capture?.compose) {
       await indexed;

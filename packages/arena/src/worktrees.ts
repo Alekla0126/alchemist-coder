@@ -202,9 +202,11 @@ export function runTests(worktree: string, command: string, timeoutMs = 10 * 60_
   const started = Date.now();
   const win = process.platform === 'win32';
   const shell = win ? 'cmd.exe' : (process.env.SHELL ?? '/bin/sh');
-  const args = win ? ['/d', '/s', '/c', command] : ['-lc', command];
+  // cmd.exe reads its command line as typed: quoted whole, not escaped the way Node quotes arguments
+  // (a "quoted" argument in the test command would reach cmd as \"quoted\"). Node's shell: true does the same.
+  const args = win ? ['/d', '/s', '/c', `"${command}"`] : ['-lc', command];
   return new Promise((resolveResult) => {
-    const child = spawn(shell, args, { cwd: worktree, detached: !win, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, CI: '1', FORCE_COLOR: '0' } });
+    const child = spawn(shell, args, { cwd: worktree, detached: !win, windowsVerbatimArguments: win, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, CI: '1', FORCE_COLOR: '0' } });
     let output = '';
     const keep = (chunk: Buffer) => {
       output = (output + chunk.toString('utf8')).slice(-8000);

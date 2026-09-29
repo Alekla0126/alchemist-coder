@@ -351,6 +351,8 @@ describe('bots with their own copy', { timeout: 30_000 }, () => {
     const repo = realpathSync(mkdtempSync(join(tmpdir(), 'bots-repo-')));
     const run = (...args: string[]) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' });
     run('init', '-q');
+    // Git for Windows turns LF into CRLF on checkout by default; these tests compare exact bytes.
+    run('config', 'core.autocrlf', 'false');
     run('config', 'user.email', 't@example.com');
     run('config', 'user.name', 'T');
     writeFileSync(join(repo, 'app.txt'), 'one\n');
@@ -396,6 +398,8 @@ describe('bots with their own copy', { timeout: 30_000 }, () => {
     const repo = realpathSync(mkdtempSync(join(tmpdir(), 'bots-gone-')));
     const run = (...args: string[]) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' });
     run('init', '-q');
+    // Git for Windows turns LF into CRLF on checkout by default; these tests compare exact bytes.
+    run('config', 'core.autocrlf', 'false');
     run('config', 'user.email', 't@example.com');
     run('config', 'user.name', 'T');
     writeFileSync(join(repo, 'a.txt'), 'a\n');
