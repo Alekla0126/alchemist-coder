@@ -85,10 +85,12 @@ jobs:
 
           PROJECT="$(basename "$PWD")"
           FAILED=0
+          # macOS runners have no `timeout`: perl's alarm does the same.
+          limit() { if command -v timeout >/dev/null; then timeout 180 "$@"; else perl -e 'alarm shift; exec @ARGV' 180 "$@"; fi; }
           # Each screenshot gets its own profile: on Windows a closing app can still hold the last one's index.
           cap() {
             local name=$1; shift
-            timeout 180 "${APP[@]}" --capture="$OUT$SEP$name.png" --profile="$PROFILES${SEP}ac-$name" "$@" > "smoke/$name.log" 2>&1
+            limit "${APP[@]}" --capture="$OUT$SEP$name.png" --profile="$PROFILES${SEP}ac-$name" "$@" > "smoke/$name.log" 2>&1 || true
             if [ -f "smoke/$name.png" ]; then echo "ok $name"; else echo "::error::no screenshot for $name"; cat "smoke/$name.log"; FAILED=1; fi
           }
           cap start
