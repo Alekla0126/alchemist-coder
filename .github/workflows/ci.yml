@@ -14,11 +14,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        # macOS and Windows minutes are expensive on private repos; they run once the repo is public.
-        exclude:
-          - os: ${{ github.event.repository.private && 'macos-latest' || 'none' }}
-          - os: ${{ github.event.repository.private && 'windows-latest' || 'none' }}
+        # Windows joins once the app is ported there (paths, short names, symlinks, locked temp folders).
+        os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
