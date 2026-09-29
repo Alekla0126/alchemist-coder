@@ -75,7 +75,7 @@ export function TitleBar() {
           </button>
         )}
         <button className="title-search" onClick={() => useStore.setState({ paletteOpen: true })} title={t('palette.placeholder')}>
-          <span>⌕</span> {t('title.search')} <kbd>{keys('⌘K')}</kbd>
+          <span>⌕</span> <span className="ts-label">{t('title.search')}</span> <kbd>{keys('⌘K')}</kbd>
         </button>
         <button className="icon-btn title-gear" onClick={() => useStore.setState({ settingsOpen: true })} title={`${t('settings.title')} (${keys('⌘,')})`} aria-label={t('settings.title')}>
           ⚙

@@ -96,7 +96,8 @@ export function SessionRow({ session }: { session: SessionSummary }) {
         </span>
         <span className={`tt ${unread ? 'unread' : ''}`}>{session.title}</span>
         <span className="r">
-          {unread && !waiting && <span className="unread-dot" title={t('attention.unread')} />}
+          {/* One indicator at a time: a working conversation shows its count; unread is the bold title. */}
+          {unread && !waiting && !session.runningAgents && <span className="unread-dot" title={t('attention.unread')} />}
           {session.favorite && <span className="pin-mark" title={t('favorite.remove')}>📌</span>}
           {/* Waiting for you outranks "running": one clear pill instead of a dot and a count. */}
           {waiting ? (
@@ -104,7 +105,7 @@ export function SessionRow({ session }: { session: SessionSummary }) {
               {t('attention.needsYouPill')}
             </span>
           ) : session.runningAgents > 0 ? (
-            <span className="badge-run">● {session.runningAgents}</span>
+            <span className="badge-run" title={t('status.runningAgents', { n: session.runningAgents })}>● {session.runningAgents}</span>
           ) : (
             relativeTime(session.lastTs, locale)
           )}

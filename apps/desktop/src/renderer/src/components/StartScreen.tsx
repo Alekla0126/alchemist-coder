@@ -42,7 +42,7 @@ export function StartScreen() {
         <h2>{t('start.noProject')}</h2>
         <div className="start-actions">
           <button className="btn-send" onClick={openNewProject}>
-            ＋ {t('plus.newProject')} <kbd>{keys('⌘⇧N')}</kbd>
+            + {t('plus.newProject')} <kbd>{keys('⌘⇧N')}</kbd>
           </button>
           <button className="btn-ghost" onClick={() => void openFolderAsProject(t)}>
             {t('plus.openFolder')}

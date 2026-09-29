@@ -56,7 +56,7 @@ const LABELS = {
     palette: 'Command Palette…', search: 'Search Conversations', website: 'Alchemist Coder Website', issue: 'Report an Issue',
   },
   es: {
-    settings: 'Ajustes…', file: 'Archivo', newConversation: 'Nueva conversación', newProject: 'Proyecto nuevo…', openFolder: 'Abrir carpeta…', newTerminal: 'Nueva terminal', openProject: 'Abrir proyecto…', closeTab: 'Cerrar pestaña',
+    settings: 'Ajustes…', file: 'Archivo', newConversation: 'Nueva conversación', newProject: 'Nuevo proyecto…', openFolder: 'Abrir carpeta…', newTerminal: 'Nueva terminal', openProject: 'Abrir proyecto…', closeTab: 'Cerrar pestaña',
     view: 'Ver', agents: 'Agentes', arena: 'Arena', code: 'Código', split: 'Dividido', terminal: 'Terminal', history: 'Historial', bots: 'Organización', marketing: 'Marketing', sidebar: 'Mostrar u ocultar barra lateral',
     palette: 'Paleta de comandos…', search: 'Buscar conversaciones', website: 'Sitio de Alchemist Coder', issue: 'Reportar un problema',
   },

@@ -5,6 +5,8 @@ import { useStore, useT } from '../store';
 import { openMenu, toast } from '../ui';
 
 type T = ReturnType<typeof useT>;
+/** A long path with its middle left out, so both ends stay readable. */
+const middle = (s: string, max: number) => (s.length <= max ? s : `${s.slice(0, Math.floor(max / 2) - 1)}…${s.slice(s.length - Math.ceil(max / 2) + 1)}`);
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e)).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
 
 /** Opens a project and a new conversation in it: what you want right after creating or opening one. */
@@ -109,8 +111,9 @@ export function NewProjectDialog() {
         <div className="np-field">
           <span>{t('newProject.location')}</span>
           <div className="np-where">
-            {/* Right-to-left so a long path shows its end; the marks keep the slashes in place. */}
-            <code title={parent}>{`\u200e${tildify(parent, home)}\u200e`}</code>
+            <span className="np-path" title={parent}>
+              {middle(tildify(parent, home), 40)}
+            </span>
             <button type="button" className="btn-ghost" onClick={() => void choose()}>
               {t('newProject.change')}
             </button>
@@ -121,7 +124,7 @@ export function NewProjectDialog() {
           {t('newProject.git')}
         </label>
         <p className={`np-note ${problem || error ? 'err' : ''}`} role={problem || error ? 'alert' : undefined}>
-          {error ?? (problem ? t(`newProject.err.${problem}` as never) : name.trim() ? t('newProject.will', { path: tildify(joinPath(parent, name.trim()), home) }) : ' ')}
+          {error ?? (problem ? t(`newProject.err.${problem}` as never) : t('newProject.will', { path: middle(tildify(joinPath(parent, name.trim() || t('newProject.namePlaceholder')), home), 64) }))}
         </p>
         <div className="dialog-actions">
           <button type="button" className="btn-ghost" onClick={close}>

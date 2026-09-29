@@ -60,7 +60,9 @@ export function AgentsHome() {
         {kind === 'needs' ? (
           <span className="needs-you-pill">{t('attention.waiting')}</span>
         ) : kind === 'live' ? (
-          <span className="start-live">● {t('status.running')}</span>
+          <span className="start-live" title={t('status.running')}>
+            ● {relativeTime(s.lastTs, locale)}
+          </span>
         ) : (
           <span className="start-when">{relativeTime(s.lastTs, locale)}</span>
         )}
@@ -108,8 +110,10 @@ export function AgentsHome() {
               return (
                 <button key={p.id} className="home-project" title={p.cwd} onClick={() => void openProject(p.id).then(() => setScope('project'))}>
                   <span className="avatar sm" style={{ background: projectGradient(p.name) }}>{initials(p.name)}</span>
-                  <b>{p.name}</b>
-                  <small>{live > 0 ? `● ${live}` : relativeTime(p.lastTs, locale)}</small>
+                  <span className="home-project-text">
+                    <b>{p.name}</b>
+                    <small className={live > 0 ? 'live' : ''}>{live > 0 ? `● ${t('home.working', { n: live })}` : relativeTime(p.lastTs, locale)}</small>
+                  </span>
                 </button>
               );
             })}

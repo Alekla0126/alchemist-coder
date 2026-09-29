@@ -289,7 +289,7 @@ function ToolGroup({ tools, sessionId }: { tools: Array<{ use: ToolUse; result: 
     <div className={`tool-group ${failed ? 'failed' : ''}`}>
       <div className="tool-head" onClick={() => setOpen(!open)}>
         <span className="ic">⋮</span>
-        <span className="nm">{t('transcript.ranTools', { n: tools.length })}</span>
+        <span className="nm group-nm">{t('transcript.ranTools', { n: tools.length })}</span>
         <span className="sum">{toolSummary(tools)}</span>
         <span className="tool-status">
           {stats && (
@@ -339,6 +339,14 @@ function Block({ block, sessionId }: { block: TranscriptBlock; sessionId: string
   const [open, setOpen] = useState(false);
   switch (block.kind) {
     case 'text':
+      // Claude Code writes connection failures into the reply itself: show them as the notice they are.
+      if (/^API Error:/.test(block.text.trim()))
+        return (
+          <div className="api-error" role="note">
+            <b>⚠ {t('transcript.apiError')}</b>
+            <small>{block.text.trim()}</small>
+          </div>
+        );
       return <LongText text={block.text} />;
     case 'thinking':
       return (

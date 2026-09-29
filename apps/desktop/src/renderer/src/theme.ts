@@ -182,14 +182,58 @@ export function onColor(...colors: string[]): string {
   return values.reduce((a, b) => a + b, 0) / values.length > 0.55 ? '#1a0d05' : '#ffffff';
 }
 
+const rgbOf = (hex: string): [number, number, number] | null => {
+  const m = /^#([0-9a-f]{6}|[0-9a-f]{3})(?:[0-9a-f]{2}|[0-9a-f])?$/i.exec(hex.trim());
+  if (!m) return null;
+  const h = m[1]!.length === 3 ? m[1]!.split('').map((c) => c + c).join('') : m[1]!;
+  return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)) as [number, number, number];
+};
+/** WCAG contrast ratio between two opaque colors. */
+export function contrast(a: [number, number, number], b: [number, number, number]): number {
+  const lum = (c: [number, number, number]) => {
+    const [r, g, bl] = c.map((v) => {
+      const x = v / 255;
+      return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r! + 0.7152 * g! + 0.0722 * bl!;
+  };
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+  return (hi! + 0.05) / (lo! + 0.05);
+}
+const toHex = (c: [number, number, number]) => `#${c.map((v) => Math.round(v).toString(16).padStart(2, '0')).join('')}`;
+
+/**
+ * Secondary text (times, hints, inactive tabs) readable on the theme's background: themes often use
+ * a "disabled" gray far too faint to read (1.9:1 on GitHub Light). Below 4.5:1 it's mixed toward the
+ * foreground until it passes.
+ */
+export function readableMuted(muted: string | undefined, fg: string, bg: string): string | null {
+  const f = rgbOf(fg);
+  const b = rgbOf(bg);
+  if (!f || !b) return null;
+  const m = muted ? rgbOf(muted) : null;
+  if (m && contrast(m, b) >= 4.5) return null;
+  for (let p = 0.5; p <= 0.95; p += 0.05) {
+    const mix = f.map((v, i) => v * p + b[i]! * (1 - p)) as [number, number, number];
+    if (contrast(mix, b) >= 4.5) return toHex(mix);
+  }
+  return toHex(f);
+}
+
 export function applyWorkbench(theme: VsTheme): void {
   const colors = theme.colors ?? {};
   const root = document.documentElement.style;
+  const picked: Record<string, string | undefined> = {};
   for (const [cssVar, keys] of WORKBENCH) {
     const value = keys.map((k) => colors[k]).find((v) => typeof v === 'string' && v.length > 0);
+    picked[cssVar] = value;
     if (value) root.setProperty(cssVar, value);
     else if (FALLBACK[cssVar]) root.setProperty(cssVar, FALLBACK[cssVar]!);
     else root.removeProperty(cssVar);
+  }
+  if (picked['--fg'] && picked['--bg']) {
+    const muted = readableMuted(picked['--fg-3'], picked['--fg'], picked['--bg']);
+    if (muted) root.setProperty('--fg-3', muted);
   }
   // Text on accent buttons: the theme's own button text, else dark or light by the accent's brightness.
   // Buttons are a gradient between the two accents: judge by both.

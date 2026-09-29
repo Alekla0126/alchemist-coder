@@ -4,6 +4,7 @@ import { CHANNEL_ORDER, CHANNEL_SPECS, STATUS_ORDER, charCount, extractPiece, fi
 import { useStore, useT } from '../store';
 import { confirmAction, openMenu, promptText, toast } from '../ui';
 import { AgentPicker, defaultChoice } from './AgentPicker';
+import { brandMarkdown } from '@shared/marketing';
 import { Markdown } from './Markdown';
 
 type T = ReturnType<typeof useT>;
@@ -253,13 +254,16 @@ function PieceEditor({ mk, piece, brand, cwd }: { mk: Mk; piece: MarketingPiece;
         >
           {spec.icon} {channelName(t, piece.channel)} ▾
         </button>
-        <select className="mk-chip" value={piece.status} aria-label={t('mk.statusLabel')} onChange={(e) => set({ status: e.target.value as MarketingStatus })}>
-          {STATUS_ORDER.map((s) => (
-            <option key={s} value={s}>
-              {statusName(t, s)}
-            </option>
-          ))}
-        </select>
+        <label className="mk-chip mk-select">
+          <select value={piece.status} aria-label={t('mk.statusLabel')} onChange={(e) => set({ status: e.target.value as MarketingStatus })}>
+            {STATUS_ORDER.map((s) => (
+              <option key={s} value={s}>
+                {statusName(t, s)}
+              </option>
+            ))}
+          </select>
+          ▾
+        </label>
         <label className="mk-chip">
           {t('mk.date')} <input type="date" value={piece.date ?? ''} onChange={(e) => set({ date: e.target.value || null, status: e.target.value && piece.status === 'approved' ? 'scheduled' : piece.status })} />
         </label>
@@ -267,7 +271,10 @@ function PieceEditor({ mk, piece, brand, cwd }: { mk: Mk; piece: MarketingPiece;
           {t('mk.language')} <input className="mk-lang" value={piece.language} maxLength={12} placeholder={firstLanguage(brand) || 'es'} onChange={(e) => set({ language: e.target.value })} />
         </label>
       </div>
-      <textarea className="mk-brief" rows={2} value={piece.brief} placeholder={t('mk.briefPh')} aria-label={t('mk.brief')} onChange={(e) => set({ brief: e.target.value })} />
+      <label className="mk-bfield mk-brief-field">
+        <span>{t('mk.brief')}</span>
+        <textarea className="mk-brief" rows={2} value={piece.brief} placeholder={t('mk.briefPh')} onChange={(e) => set({ brief: e.target.value })} />
+      </label>
       <div className="mk-split">
         <div className="mk-write">
           <textarea className="mk-body" value={piece.body} placeholder={spec.thread ? t('mk.threadPh') : t('mk.bodyPh')} aria-label={t('mk.body')} onChange={(e) => set({ body: e.target.value })} spellCheck />
@@ -344,13 +351,25 @@ function PieceEditor({ mk, piece, brand, cwd }: { mk: Mk; piece: MarketingPiece;
           </button>
         )}
         <button
-          className="btn-ghost danger-text"
+          className="btn-ghost mk-more-btn"
+          aria-label={t('mk.moreActions')}
+          title={t('mk.moreActions')}
           onClick={async () => {
-            if (!(await confirmAction({ title: t('mk.deleteConfirm'), message: piece.title || channelName(t, piece.channel), confirmLabel: t('mk.delete'), cancelLabel: t('dialog.cancel'), danger: true }))) return;
-            mk.update((d) => ({ ...d, pieces: d.pieces.filter((p) => p.id !== piece.id) }));
+            const id = await openMenu([
+              { id: 'duplicate', label: t('mk.duplicate') },
+              { type: 'separator' },
+              { id: 'delete', label: t('mk.delete') },
+            ]);
+            if (id === 'duplicate') {
+              const now = Date.now();
+              mk.update((d) => ({ ...d, pieces: [{ ...piece, id: newPieceId(), title: piece.title ? `${piece.title} (2)` : '', status: 'draft', date: null, createdAt: now, updatedAt: now, source: null }, ...d.pieces] }));
+            } else if (id === 'delete') {
+              if (!(await confirmAction({ title: t('mk.deleteConfirm'), message: piece.title || channelName(t, piece.channel), confirmLabel: t('mk.delete'), cancelLabel: t('dialog.cancel'), danger: true }))) return;
+              mk.update((d) => ({ ...d, pieces: d.pieces.filter((p) => p.id !== piece.id) }));
+            }
           }}
         >
-          {t('mk.delete')}
+          ⋯
         </button>
       </div>
     </div>
@@ -421,7 +440,133 @@ function Studio({ mk, data, cwd, selected, setSelected }: { mk: Mk; data: Market
 
 // ---------- calendar ----------
 
+const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const pieceLabel = (p: MarketingPiece) => p.title || p.body.split('\n').find((l) => l.trim() && !l.startsWith('## '))?.slice(0, 80) || '—';
+
+/** The editorial calendar: a month you drag pieces onto, and a board by status. */
 function Calendar({ mk, data, open }: { mk: Mk; data: MarketingData; open: (id: string) => void }) {
+  const t = useT();
+  const [view, setView] = useState<'month' | 'board'>(() => (localStorage.getItem('alchemist.mkCalView') === 'board' ? 'board' : 'month'));
+  const pick = (v: 'month' | 'board') => {
+    setView(v);
+    localStorage.setItem('alchemist.mkCalView', v);
+  };
+  return (
+    <div className="mk-cal">
+      <div className="mk-cal-bar">
+        <div className="scope mk-cal-views" role="tablist">
+          {(['month', 'board'] as const).map((v) => (
+            <button key={v} role="tab" aria-selected={view === v} className={view === v ? 'on' : ''} onClick={() => pick(v)}>
+              {t(`mk.cal.${v}` as never)}
+            </button>
+          ))}
+        </div>
+      </div>
+      {view === 'month' ? <Month mk={mk} data={data} open={open} /> : <Board mk={mk} data={data} open={open} />}
+    </div>
+  );
+}
+
+function Month({ mk, data, open }: { mk: Mk; data: MarketingData; open: (id: string) => void }) {
+  const t = useT();
+  const locale = useStore((s) => s.locale);
+  const [cursor, setCursor] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
+  const [over, setOver] = useState<string | null>(null);
+  // Weeks start on Monday, except in US English.
+  const mondayFirst = !/^en(-US)?$/i.test(locale === 'en' ? 'en-US' : locale);
+  const lead = (cursor.getDay() + (mondayFirst ? 6 : 0)) % 7;
+  const start = new Date(cursor.getFullYear(), cursor.getMonth(), 1 - lead);
+  const days = Array.from({ length: 42 }, (_, i) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + i));
+  const byDay = new Map<string, MarketingPiece[]>();
+  for (const p of data.pieces) if (p.date) byDay.set(p.date, [...(byDay.get(p.date) ?? []), p]);
+  const undated = data.pieces.filter((p) => !p.date && p.status !== 'published');
+  const today = ymd(new Date());
+  const weekdays = Array.from({ length: 7 }, (_, i) => days[i]!.toLocaleDateString(locale, { weekday: 'short' }));
+  const drop = (date: string | null) => (e: React.DragEvent) => {
+    e.preventDefault();
+    setOver(null);
+    const id = e.dataTransfer.getData('text/x-mk-piece');
+    const piece = data.pieces.find((p) => p.id === id);
+    // A dated approved piece is scheduled; taking its date away puts it back.
+    if (piece) patchPiece(mk, id, { date, status: date && piece.status === 'approved' ? 'scheduled' : !date && piece.status === 'scheduled' ? 'approved' : piece.status });
+  };
+  const chip = (p: MarketingPiece) => (
+    <button key={p.id} className={`mk-chip-piece ${p.status}`} draggable onDragStart={(e) => e.dataTransfer.setData('text/x-mk-piece', p.id)} onClick={() => open(p.id)} title={`${channelName(t, p.channel)} · ${statusName(t, p.status)}`}>
+      <span className="mk-ic">{CHANNEL_SPECS[p.channel].icon}</span>
+      <span>{pieceLabel(p)}</span>
+    </button>
+  );
+  return (
+    <div className="mk-month-wrap">
+      <div className="mk-month">
+        <div className="mk-month-head">
+          <button className="icon-btn" aria-label={t('mk.cal.prev')} onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}>
+            ‹
+          </button>
+          <b>{((m) => m.charAt(0).toUpperCase() + m.slice(1))(cursor.toLocaleDateString(locale, { month: 'long', year: 'numeric' }))}</b>
+          <button className="icon-btn" aria-label={t('mk.cal.next')} onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}>
+            ›
+          </button>
+          <button
+            className="btn-ghost"
+            onClick={() => {
+              const d = new Date();
+              setCursor(new Date(d.getFullYear(), d.getMonth(), 1));
+            }}
+          >
+            {t('mk.cal.today')}
+          </button>
+        </div>
+        <div className="mk-grid" role="grid">
+          {weekdays.map((w) => (
+            <div key={w} className="mk-wd" role="columnheader">
+              {w}
+            </div>
+          ))}
+          {days.map((d) => {
+            const key = ymd(d);
+            return (
+              <div
+                key={key}
+                role="gridcell"
+                className={`mk-day ${d.getMonth() !== cursor.getMonth() ? 'out' : ''} ${key === today ? 'today' : ''} ${over === key ? 'drop' : ''}`}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setOver(key);
+                }}
+                onDragLeave={() => setOver((o) => (o === key ? null : o))}
+                onDrop={drop(key)}
+              >
+                <span className="mk-dn">{d.getDate()}</span>
+                {(byDay.get(key) ?? []).map(chip)}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <aside
+        className={`mk-undated ${over === 'none' ? 'drop' : ''}`}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setOver('none');
+        }}
+        onDragLeave={() => setOver((o) => (o === 'none' ? null : o))}
+        onDrop={drop(null)}
+      >
+        <h4>
+          {t('mk.cal.undated')} <span>{undated.length}</span>
+        </h4>
+        <p className="mk-hint">{t('mk.cal.dragHint')}</p>
+        {undated.map(chip)}
+      </aside>
+    </div>
+  );
+}
+
+function Board({ mk, data, open }: { mk: Mk; data: MarketingData; open: (id: string) => void }) {
   const t = useT();
   const locale = useStore((s) => s.locale);
   const [over, setOver] = useState<MarketingStatus | null>(null);
@@ -470,8 +615,8 @@ function Calendar({ mk, data, open }: { mk: Mk; data: MarketingData; open: (id: 
               <span className="mk-card-top">
                 <span className="mk-ic">{CHANNEL_SPECS[p.channel].icon}</span> {channelName(t, p.channel)}
               </span>
-              <b>{p.title || p.body.split('\n').find((l) => l.trim() && !l.startsWith('## '))?.slice(0, 80) || '—'}</b>
-              <small>{p.date ? new Date(`${p.date}T12:00:00`).toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' }) : t('mk.cal.noDate')}</small>
+              <b>{pieceLabel(p)}</b>
+              <small>{p.date ? new Date(`${p.date}T12:00:00`).toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '') : t('mk.cal.noDate')}</small>
             </button>
           ))}
           {status === 'idea' && (
@@ -502,6 +647,7 @@ const BRAND_FIELDS: Array<{ key: keyof MarketingBrand; rows: number }> = [
 function Brand({ mk, data }: { mk: Mk; data: MarketingData }) {
   const t = useT();
   return (
+    <div className="mk-brand-wrap">
     <div className="mk-brand">
       <p className="mk-intro">{t('mk.brand.intro')}</p>
       {BRAND_FIELDS.map(({ key, rows }) => (
@@ -515,6 +661,11 @@ function Brand({ mk, data }: { mk: Mk; data: MarketingData }) {
           )}
         </label>
       ))}
+    </div>
+    <aside className="mk-brand-preview" aria-label="marketing/BRAND.md">
+      <small>marketing/BRAND.md</small>
+      <Markdown text={brandMarkdown(data.brand)} />
+    </aside>
     </div>
   );
 }
@@ -601,9 +752,12 @@ function Team({ cwd, projectName }: { cwd: string; projectName: string }) {
         <span>{t('mk.team.goal')}</span>
         <textarea rows={3} value={goal} placeholder={t('mk.team.goalPh')} onChange={(e) => setGoal(e.target.value)} />
       </label>
-      <button className="btn-send" disabled={busy || !goal.trim() || missing.length === ROLES.length} onClick={() => void ask()}>
-        {t('mk.team.ask')}
-      </button>
+      <div className="mk-ask">
+        <button className="btn-send" disabled={busy || !goal.trim() || missing.length === ROLES.length} onClick={() => void ask()}>
+          {t('mk.team.ask')}
+        </button>
+        {missing.length === ROLES.length ? <small>{t('mk.team.needTeam')}</small> : !goal.trim() && <small>{t('mk.team.needGoal')}</small>}
+      </div>
     </div>
   );
 }
