@@ -1,0 +1,101 @@
+name: Package
+
+# Builds the Linux and Windows installers, opens the packaged app and takes screenshots of it, so a
+# build can be checked before it is published. Run it from the Actions tab or with
+#   gh workflow run package.yml -f ref=main
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag or commit to build
+        default: main
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: package (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Package
+        working-directory: apps/desktop
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then pnpm package:linux; else pnpm package:win; fi
+
+      - name: Smoke test (open the packaged app and take screenshots)
+        shell: bash
+        run: |
+          set -uo pipefail
+          if [ "$RUNNER_OS" = Linux ]; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq xvfb >/dev/null
+            APP=(xvfb-run -a -s "-screen 0 1600x1000x24" "$PWD/apps/desktop/release/linux-unpacked/alchemist-coder" --no-sandbox)
+            WS="$PWD"; OUT="$PWD/smoke"; PROFILE="$RUNNER_TEMP/ac-profile"
+          else
+            APP=("$PWD/apps/desktop/release/win-unpacked/Alchemist Coder.exe")
+            WS="$(cygpath -w "$PWD")"; OUT="$(cygpath -w "$PWD/smoke")"; PROFILE="$(cygpath -w "$RUNNER_TEMP/ac-profile")"
+          fi
+          mkdir -p smoke
+
+          # One short Claude Code conversation in this folder, so the app has a project to open.
+          SESSION=cccccccc-3333-4333-8333-cccccccccccc
+          WS="$WS" SESSION="$SESSION" node --input-type=module -e '
+            import { mkdirSync, writeFileSync } from "node:fs";
+            import { homedir } from "node:os";
+            import { join } from "node:path";
+            const cwd = process.env.WS, sessionId = process.env.SESSION, t = Date.now();
+            const base = { sessionId, cwd, gitBranch: "main", version: "2.1.257" };
+            const at = (s) => new Date(t - s * 1000).toISOString();
+            const records = [
+              { ...base, type: "user", uuid: "u1", timestamp: at(90), message: { role: "user", content: "Check that the packaged app opens" } },
+              { ...base, type: "assistant", uuid: "a1", parentUuid: "u1", timestamp: at(80), message: { id: "m1", model: "claude-sonnet-5", stop_reason: "end_turn", usage: { input_tokens: 1200, output_tokens: 300 }, content: [{ type: "text", text: "It opens: history, editor and terminal all load." }] } },
+              { type: "ai-title", aiTitle: "Packaged app smoke test", sessionId },
+            ];
+            const dir = join(homedir(), ".claude", "projects", cwd.replace(/[^A-Za-z0-9]/g, "-"));
+            mkdirSync(dir, { recursive: true });
+            writeFileSync(join(dir, sessionId + ".jsonl"), records.map((r) => JSON.stringify(r)).join("\n") + "\n");
+          '
+
+          PROJECT="$(basename "$PWD")"
+          FAILED=0
+          cap() {
+            local name=$1; shift
+            timeout 180 "${APP[@]}" --capture="$OUT/$name.png" --profile="$PROFILE" "$@" > "smoke/$name.log" 2>&1
+            if [ -f "smoke/$name.png" ]; then echo "ok $name"; else echo "::error::no screenshot for $name"; cat "smoke/$name.log"; FAILED=1; fi
+          }
+          cap start
+          cap session --select="$SESSION:main"
+          cap code --project="$PROJECT" --mode=code --open-file=README.md
+          cap terminal --project="$PROJECT" --mode=terminal
+          cap settings --settings=about
+          exit $FAILED
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-${{ runner.os }}
+          path: smoke/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ runner.os }}
+          if-no-files-found: error
+          path: |
+            apps/desktop/release/*.AppImage
+            apps/desktop/release/*.deb
+            apps/desktop/release/*.exe
