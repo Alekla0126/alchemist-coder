@@ -1,3 +1,4 @@
+import { keys } from '../keys';
 import type { ProjectSummary } from '@alchemist-coder/core';
 import { initials, projectGradient } from '../format';
 import { useStore, useT, waitingProjectIds } from '../store';
@@ -82,10 +83,10 @@ export function ProjectRail() {
         +
       </button>
       <span className="rail-sp" />
-      <button className="rail-gear rail-side" title={`${t('shortcut.sidebar')} (⌘B)`} aria-label={t('shortcut.sidebar')} aria-pressed={!sideHidden} onClick={toggleSidebar}>
+      <button className="rail-gear rail-side" title={`${t('shortcut.sidebar')} (${keys('⌘B')})`} aria-label={t('shortcut.sidebar')} aria-pressed={!sideHidden} onClick={toggleSidebar}>
         <span className={`panel-ic ${sideHidden ? 'off' : ''}`} aria-hidden />
       </button>
-      <button className="rail-gear" title={`${t('settings.title')} (⌘,)`} onClick={() => useStore.setState({ settingsOpen: true })}>
+      <button className="rail-gear" title={`${t('settings.title')} (${keys('⌘,')})`} onClick={() => useStore.setState({ settingsOpen: true })}>
         ⚙
       </button>
     </nav>

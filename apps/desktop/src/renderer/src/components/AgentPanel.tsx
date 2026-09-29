@@ -1,3 +1,4 @@
+import { keys } from '../keys';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { SessionSummary, TranscriptEntry } from '@alchemist-coder/core';
 import { compactNumber, duration, money, modelLabel } from '../format';
@@ -14,6 +15,7 @@ import { MarkdownActions } from './Markdown';
 import { toast } from '../ui';
 import { showSessionMenu } from '../actions/session';
 import { openMenu } from '../ui';
+import { relativePath } from '../paths';
 
 const PAGE = 300;
 
@@ -191,9 +193,8 @@ export function AgentPanel() {
     .join(' · ');
   const pickEdited = async () => {
     if (!session || !projectForLinks) return;
-    const root = projectForLinks.cwd.replace(/\/+$/, '');
     const files = session.editedFiles.slice(0, 40);
-    const id = await openMenu(files.map((f, i) => ({ id: `f:${i}`, label: f.startsWith(`${root}/`) ? f.slice(root.length + 1) : f })));
+    const id = await openMenu(files.map((f, i) => ({ id: `f:${i}`, label: relativePath(f, projectForLinks.cwd) || f })));
     if (id) markdownActions.openPath(files[Number(id.slice(2))]!);
   };
   const pickChild = async () => {
@@ -215,7 +216,7 @@ export function AgentPanel() {
             {stats}
           </span>
           {fill && <ContextMeter used={fill.used} size={fill.size} />}
-          <button className="icon-btn" title={`${t('find.title')} (⌘F)`} aria-label={t('find.title')} onClick={() => setFinding(true)}>
+          <button className="icon-btn" title={`${t('find.title')} (${keys('⌘F')})`} aria-label={t('find.title')} onClick={() => setFinding(true)}>
             ⌕
           </button>
           {isMain && session && (

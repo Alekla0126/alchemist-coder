@@ -6,6 +6,7 @@ import { sourceOf } from '../sources';
 import { Preview, previewKind } from './Preview';
 import { ReviewPanel } from './ReviewPanel';
 import { confirmAction, contextMenu } from '../ui';
+import { joinPath, relativePath, samePath } from '../paths';
 
 const fileName = (p: string) => p.split(/[\\/]/).pop() ?? p;
 // Stable empty value: a fresh [] in a selector would re-render forever.
@@ -215,7 +216,7 @@ export function EditorArea({ projectId }: { projectId: number }) {
             ? [
                 { type: 'separator' as const },
                 { id: 'copy-path', label: t('menu.copyPath') },
-                ...(project && f.startsWith(project.cwd + '/') ? [{ id: 'copy-rel', label: t('menu.copyRelative') }] : []),
+                ...(project && relativePath(f, project.cwd) ? [{ id: 'copy-rel', label: t('menu.copyRelative') }] : []),
                 { id: 'reveal', label: t('menu.reveal') },
               ]
             : []),
@@ -236,7 +237,7 @@ export function EditorArea({ projectId }: { projectId: number }) {
   const agentName = (id: string) => catalog?.harnesses.find((h) => h.id === id)?.label ?? sourceOf(id).label;
   const reviewOf = (tab: string) => reviews?.find((r) => r.id === tab.slice(REVIEW_TAB.length));
   // The newest run with unreviewed changes to the open file.
-  const editedBy = active && !isReview ? reviews?.find((r) => r.files.some((f) => `${r.root}/${f.path}` === active)) : undefined;
+  const editedBy = active && !isReview ? reviews?.find((r) => r.files.some((f) => samePath(joinPath(r.root, f.path), active))) : undefined;
 
   return (
     <div className="editor-area">
@@ -278,7 +279,7 @@ export function EditorArea({ projectId }: { projectId: number }) {
         )}
         {flash && <span className="et-flash">{flash}</span>}
       </div>
-      {active && !isReview && <div className="bc">{project ? active.replace(project.cwd + '/', '').split('/').join(' › ') : active}</div>}
+      {active && !isReview && <div className="bc">{project ? (relativePath(active, project.cwd) || active).split(/[\\/]/).join(' › ') : active}</div>}
       {editedBy && (
         <div className="edited-by">
           ✎ {t('review.editedBy', { agent: agentName(editedBy.harnessId) })}

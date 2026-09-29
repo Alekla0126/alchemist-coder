@@ -6,6 +6,7 @@ import { relativeTime } from '../format';
 import { sourceOf } from '../sources';
 import { useStore, useT } from '../store';
 import { confirmAction } from '../ui';
+import { joinPath } from '../paths';
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e)).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
 /** Blocks longer than this are folded to their first lines. */
@@ -34,7 +35,7 @@ function FileReview({ review, file, onChange }: { review: AgentReview; file: Rev
   const [content, setContent] = useState<ReviewFileContent | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const full = `${review.root}/${file.path}`;
+  const full = joinPath(review.root, file.path);
 
   const load = () => {
     setError(null);
@@ -150,7 +151,7 @@ export function ReviewPanel({ reviewId }: { reviewId: string }) {
     let last: AgentReview | null = review;
     try {
       for (const f of review.files) {
-        const full = `${review.root}/${f.path}`;
+        const full = joinPath(review.root, f.path);
         if (undo && dirty[full]) continue;
         last = undo ? await window.alchemist.reviewUndo(review.id, f.path) : await window.alchemist.reviewKeep(review.id, f.path);
         if (undo) await refreshFromDisk(full);

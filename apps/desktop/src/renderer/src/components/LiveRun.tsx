@@ -3,6 +3,7 @@ import type { FileDiff } from '@alchemist-coder/core';
 import { compactNumber, money } from '../format';
 import { lineDiff } from '../diff';
 import { useStore, useT, type PendingPermission, type RunState, type RunTool } from '../store';
+import { relativePath, withoutRoot } from '../paths';
 import { Markdown } from './Markdown';
 import { QuestionForm } from './QuestionForm';
 
@@ -10,7 +11,7 @@ const MAX_DIFF_LINES = 40;
 const TOOL_ICON: Record<string, string> = { pending: '○', running: '◐', done: '✓', failed: '✕' };
 
 /** `path` relative to `root` when it's inside it. */
-export const relativeTo = (path: string, root: string | null | undefined) => (root && path.startsWith(`${root.replace(/\/+$/, '')}/`) ? path.slice(root.replace(/\/+$/, '').length + 1) : path);
+export const relativeTo = (path: string, root: string | null | undefined) => (root && relativePath(path, root)) || path;
 
 /** A project's folder, to show paths relative to it. */
 export const useProjectRoot = () => useStore((s) => s.projects.find((p) => p.id === s.settings.activeProjectId)?.cwd ?? null);
@@ -75,7 +76,7 @@ export function PermissionCard({ runId, request, shortcuts = true }: { runId: st
     };
   }, [request.requestId, runId, shortcuts]);
   // Paths inside the project read shorter.
-  const title = root ? request.title.split(`${root.replace(/\/+$/, '')}/`).join('') : request.title;
+  const title = root ? withoutRoot(request.title, root) : request.title;
   return (
     <div className="perm-card">
       <div className="perm-head">

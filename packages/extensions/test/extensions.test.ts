@@ -118,7 +118,7 @@ describe('install steps', () => {
     expect(installStep('grok', 'remote', remote, { home: '/h' }).kind === 'cli' && (installStep('grok', 'remote', remote, { home: '/h' }) as { args: string[] }).args).toEqual(['mcp', 'add', '--scope', 'user', '--transport', 'http', '-H', 'Authorization: Bearer abc', 'remote', 'https://mcp.example/mcp']);
     const claude = installStep('claude-code', 'remote', remote, { home: '/h' });
     expect(claude).toMatchObject({ command: 'claude', args: ['mcp', 'add-json', '--scope', 'user', 'remote', JSON.stringify({ type: 'http', url: remote.url, headers: remote.headers })] });
-    expect(installStep('gemini', 'github', github, { home: '/h' })).toEqual({ agent: 'gemini', kind: 'json', file: '/h/.gemini/settings.json', key: ['mcpServers', 'github'], value: { command: 'npx', args: ['-y', '@mcp/github'], env: { GITHUB_TOKEN: 'ghp_secret' } } });
+    expect(installStep('gemini', 'github', github, { home: '/h' })).toEqual({ agent: 'gemini', kind: 'json', file: join('/h', '.gemini', 'settings.json'), key: ['mcpServers', 'github'], value: { command: 'npx', args: ['-y', '@mcp/github'], env: { GITHUB_TOKEN: 'ghp_secret' } } });
     expect(() => installStep('codex', 'remote', remote, { home: '/h' })).toThrow(UnsupportedError);
     expect(() => installStep('codex', 'bad name; rm -rf', github, { home: '/h' })).toThrow(/name/);
   });
@@ -150,7 +150,8 @@ describe('install steps', () => {
     applyJsonStep(step);
     expect(lstatSync(join(home, '.gemini', 'settings.json')).isSymbolicLink()).toBe(true);
     expect(Object.keys(JSON.parse(readFileSync(real, 'utf8')).mcpServers)).toEqual(['github']);
-    expect(statSync(real).mode & 0o777).toBe(0o600);
+    // Windows has no POSIX permission bits.
+    if (process.platform !== 'win32') expect(statSync(real).mode & 0o777).toBe(0o600);
   });
 
   it('leaves a settings file that is not a JSON object alone', () => {

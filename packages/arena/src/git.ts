@@ -1,5 +1,7 @@
 import { execFile } from 'node:child_process';
+import { realpathSync } from 'node:fs';
 import { devNull } from 'node:os';
+import { isAbsolute, relative, resolve as resolvePath, sep } from 'node:path';
 
 export class GitError extends Error {
   constructor(
@@ -35,13 +37,32 @@ export function git(cwd: string, args: string[], options: { timeoutMs?: number; 
   });
 }
 
-/** The repository's top-level folder, or null when `cwd` is not inside a git repo. */
+/**
+ * The repository's top-level folder, or null when `cwd` is not inside a git repo. It is spelled the
+ * way `cwd` is: git reports it resolved (symlinks followed; on Windows long names and forward
+ * slashes), and `relative(root, cwd)` must stay inside the repository.
+ */
 export async function repoRoot(cwd: string): Promise<string | null> {
+  let top: string;
   try {
-    return (await git(cwd, ['rev-parse', '--show-toplevel'])).trim() || null;
+    top = (await git(cwd, ['rev-parse', '--show-toplevel'])).trim();
   } catch {
     return null;
   }
+  if (!top) return null;
+  try {
+    const real = realpathSync.native(top);
+    const depth = relative(real, realpathSync.native(cwd));
+    if (!depth.startsWith('..') && !isAbsolute(depth)) {
+      const up = depth ? depth.split(sep).map(() => '..') : [];
+      const root = resolvePath(cwd, ...up);
+      // A symlink between the root and cwd would put the root elsewhere: then use git's.
+      if (realpathSync.native(root) === real) return root;
+    }
+  } catch {
+    // Unreadable path: git's answer is the best there is.
+  }
+  return resolvePath(top);
 }
 
 export async function headCommit(cwd: string): Promise<string> {

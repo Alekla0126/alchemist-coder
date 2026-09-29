@@ -5,7 +5,12 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { Indexer, IndexReader } from '../src/index.ts';
 
 const root = mkdtempSync(join(tmpdir(), 'ac-acp-src-'));
-afterAll(() => rmSync(root, { recursive: true, force: true }));
+afterAll(() => {
+  // Windows can't delete a folder while a database in it is open.
+  indexer.close();
+  reader.close();
+  rmSync(root, { recursive: true, force: true });
+});
 const jsonl = (rows: object[]) => rows.map((r) => JSON.stringify(r)).join('\n') + '\n';
 const old = new Date('2026-09-01T00:00:00Z');
 

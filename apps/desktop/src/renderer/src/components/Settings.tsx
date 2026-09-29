@@ -1,3 +1,4 @@
+import { keys as shortcutText } from '../keys';
 import { useEffect, useState } from 'react';
 import type { PermissionMode } from '@shared/api';
 import { useStore, useT } from '../store';
@@ -263,7 +264,7 @@ function Shortcuts() {
       {SHORTCUTS.map(([keys, label]) => (
         <div key={label} className="set-row">
           <span>{t(label as never)}</span>
-          <kbd>{keys}</kbd>
+          <kbd>{shortcutText(keys)}</kbd>
         </div>
       ))}
     </div>

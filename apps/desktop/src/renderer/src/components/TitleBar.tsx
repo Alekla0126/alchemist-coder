@@ -1,3 +1,4 @@
+import { keys } from '../keys';
 import type { Mode } from '@shared/api';
 import { useShallow } from 'zustand/react/shallow';
 import { useStore, useT, waitingRuns } from '../store';
@@ -74,9 +75,9 @@ export function TitleBar() {
           </button>
         )}
         <button className="title-search" onClick={() => useStore.setState({ paletteOpen: true })} title={t('palette.placeholder')}>
-          <span>⌕</span> {t('title.search')} <kbd>⌘K</kbd>
+          <span>⌕</span> {t('title.search')} <kbd>{keys('⌘K')}</kbd>
         </button>
-        <button className="icon-btn title-gear" onClick={() => useStore.setState({ settingsOpen: true })} title={`${t('settings.title')} (⌘,)`} aria-label={t('settings.title')}>
+        <button className="icon-btn title-gear" onClick={() => useStore.setState({ settingsOpen: true })} title={`${t('settings.title')} (${keys('⌘,')})`} aria-label={t('settings.title')}>
           ⚙
         </button>
         <button className={`chip edition ${info?.edition === 'pro' ? 'pro' : ''}`} title={t('usage.title')} onClick={() => useStore.setState({ settingsOpen: true, settingsSection: 'usage' })}>

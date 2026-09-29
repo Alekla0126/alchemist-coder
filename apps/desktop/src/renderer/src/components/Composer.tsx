@@ -1,3 +1,4 @@
+import { keys } from '../keys';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { SessionSummary, SlashCommand } from '@alchemist-coder/core';
 import type { MenuItem, PermissionMode } from '@shared/api';
@@ -630,11 +631,11 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
               <span className={`split-send ${session ? 'has-more' : ''}`}>
                 {forkNext ? (
                   <button className="btn-send" disabled={!canFork} onClick={() => void fork()} title={t('run.forkHint')}>
-                    ⑂ {t('run.fork')} {sendKey === 'enter' ? '↵' : '⌘↵'}
+                    ⑂ {t('run.fork')} {sendKey === 'enter' ? '↵' : keys('⌘↵')}
                   </button>
                 ) : (
                   <button className="btn-send" disabled={!prompt.trim() || (!canContinue && !ready)} onClick={() => void submit()}>
-                    {t('run.send')} {sendKey === 'enter' ? '↵' : '⌘↵'}
+                    {t('run.send')} {sendKey === 'enter' ? '↵' : keys('⌘↵')}
                   </button>
                 )}
                 {session && (

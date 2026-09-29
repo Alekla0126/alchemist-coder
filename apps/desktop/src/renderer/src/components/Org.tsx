@@ -5,6 +5,7 @@ import { money, modelLabel as rawModelLabel, relativeTime } from '../format';
 import { sourceOf } from '../sources';
 import { useStore, useT, type PendingPermission } from '../store';
 import { confirmAction, contextMenu, promptText, toast } from '../ui';
+import { baseName, isInside } from '../paths';
 import { AgentPicker, defaultChoice } from './AgentPicker';
 import { ACTIVE, botState, confirmDeleteTeam, doingText, errorText, setDraftGoal, takeDraftGoal, teamActive, teamCost, teamState, TeamView } from './Bots';
 import { PermissionCard } from './LiveRun';
@@ -25,9 +26,9 @@ const PRESETS = ['coder', 'tester', 'reviewer', 'uijudge', 'researcher', 'planne
 const READ_ONLY = ['reviewer', 'uijudge', 'researcher', 'planner'];
 
 /** Whether an agent works in the project at `cwd` (no projects = all of them). */
-const inProject = (c: BotConfig, cwd: string) => !c.projects?.length || c.projects.some((p) => cwd === p || cwd.startsWith(`${p}/`) || p.startsWith(`${cwd}/`));
-const inFolder = (team: BotTeam, cwd: string) => team.cwd === cwd || team.cwd.startsWith(`${cwd.replace(/\/+$/, '')}/`);
-const folderName = (cwd: string) => cwd.split('/').filter(Boolean).at(-1) ?? cwd;
+const inProject = (c: BotConfig, cwd: string) => !c.projects?.length || c.projects.some((p) => isInside(cwd, p) || isInside(p, cwd));
+const inFolder = (team: BotTeam, cwd: string) => isInside(team.cwd, cwd);
+const folderName = baseName;
 
 /** Something an agent needs from you: a plan to review or a question/permission, and in which assignment. */
 interface Need {

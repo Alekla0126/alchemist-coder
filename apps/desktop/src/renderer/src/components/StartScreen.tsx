@@ -1,3 +1,4 @@
+import { keys } from '../keys';
 import { relativeTime } from '../format';
 import { showSessionMenu } from '../actions/session';
 import { sourceOf } from '../sources';
@@ -36,7 +37,7 @@ export function StartScreen() {
         </div>
         <h2>{t('start.noProject')}</h2>
         <button className="btn-send" onClick={() => setPickerOpen(true)}>
-          {t('palette.openProject')} <kbd>⌘O</kbd>
+          {t('palette.openProject')} <kbd>{keys('⌘O')}</kbd>
         </button>
       </div>
     );
@@ -60,7 +61,7 @@ export function StartScreen() {
         {middle(project.cwd.replace(/^\/Users\/[^/]+/, '~'), 72)}
       </p>
       <button className="btn-send start-new" onClick={() => setCompose(project.id)}>
-        ＋ {t('run.new')} <kbd>⌘N</kbd>
+        ＋ {t('run.new')} <kbd>{keys('⌘N')}</kbd>
       </button>
       {running.length > 0 && (
         <section className="start-sec">
@@ -77,7 +78,7 @@ export function StartScreen() {
       <div className="start-hints">
         {HINTS.map(([key, label]) => (
           <span key={key}>
-            <kbd>{key}</kbd> {t(label as never)}
+            <kbd>{keys(key)}</kbd> {t(label as never)}
           </span>
         ))}
       </div>

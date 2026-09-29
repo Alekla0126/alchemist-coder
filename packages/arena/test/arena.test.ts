@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -142,20 +142,33 @@ describe('worktrees', () => {
     await expect(mergeBranch(root, wt.branch, { squash: true, message: 'm', into: 'main' })).rejects.toThrow(/switch back to it/);
   });
 
+  it('names the repository root the way the folder was opened, even through a symlink', async () => {
+    const root = repo();
+    mkdirSync(join(root, 'src'));
+    const link = `${root}-link`;
+    symlinkSync(root, link, 'junction');
+    roots.push(link);
+    // git answers with the resolved path; relative(root, cwd) must still stay inside the repo.
+    expect(await repoRoot(join(link, 'src'))).toBe(link);
+    expect(await repoRoot(root)).toBe(root);
+  });
+
   it('shows symlinks as links and never follows them', async () => {
     const root = repo();
     const base = await headCommit(root);
     const wt = await createWorktree(root, 't6', 'a', base);
     symlinkSync('/etc/hosts', join(wt.path, 'hosts'));
-    expect(await fileVersions(wt.path, base, 'hosts')).toEqual({ oldText: null, newText: '/etc/hosts' });
+    // The link's target (as the OS stores it: D:\\etc\\hosts on Windows), never the file it points to.
+    expect(await fileVersions(wt.path, base, 'hosts')).toEqual({ oldText: null, newText: readlinkSync(join(wt.path, 'hosts')) });
   });
 
   it('runs a test command in the worktree', async () => {
     const root = repo();
-    const pass = await runTests(root, 'test -f app.js && echo tests passed');
+    // Commands that mean the same to sh and to cmd.exe (Windows).
+    const pass = await runTests(root, `node -e "process.exit(require('fs').existsSync('app.js') ? 0 : 1)" && echo tests passed`);
     expect(pass).toMatchObject({ ok: true, code: 0 });
     expect(pass.output).toContain('tests passed');
-    const fail = await runTests(root, 'echo broken >&2; exit 3');
+    const fail = await runTests(root, `node -e "console.error('broken'); process.exit(3)"`);
     expect(fail).toMatchObject({ ok: false, code: 3 });
     expect(fail.output).toContain('broken');
   });

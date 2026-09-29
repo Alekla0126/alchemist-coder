@@ -56,8 +56,11 @@ describe('Workspace', () => {
     symlinkSync(join(base, 'created-by-link.txt'), join(project, 'dangling.txt'));
     await expect(ws.write(join(project, 'dangling.txt'), 'x')).rejects.toThrow(/broken link/);
     expect(() => readFileSync(join(base, 'created-by-link.txt'))).toThrow();
-    execFileSync('mkfifo', [join(project, 'pipe')]);
-    await expect(ws.read(join(project, 'pipe'))).rejects.toThrow(/Not a file/);
+    if (process.platform !== 'win32') {
+      // Windows has no named pipes in the file system.
+      execFileSync('mkfifo', [join(project, 'pipe')]);
+      await expect(ws.read(join(project, 'pipe'))).rejects.toThrow(/Not a file/);
+    }
     await ws.write(join(project, 'new.ts'), 'ok');
     expect(readFileSync(join(project, 'new.ts'), 'utf8')).toBe('ok');
   });

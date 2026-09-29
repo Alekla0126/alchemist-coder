@@ -1,3 +1,4 @@
+import { keys } from './keys';
 import type { Locale } from '@shared/api';
 
 const en = {
@@ -1800,5 +1801,5 @@ export function translate(locale: Locale, key: MessageKey, vars?: Record<string,
   const one = vars?.n === 1 ? ((dictionaries[locale] as Record<string, string>)[`${key}.one`] ?? (en as Record<string, string>)[`${key}.one`]) : undefined;
   let s = one ?? dictionaries[locale][key] ?? en[key];
   if (vars) for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, String(v));
-  return s;
+  return keys(s);
 }

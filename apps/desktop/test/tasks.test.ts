@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ExtensionRegistry, type ProviderAdapter } from '@alchemist-coder/core';
@@ -47,7 +47,7 @@ function setup() {
   registry.registerProvider(local);
   const runner = new RunnerManager(registry, () => {});
   const updates: ArenaTask[] = [];
-  const file = join(root, '..', `${root.split('/').pop()}-tasks.json`);
+  const file = join(root, '..', `${basename(root)}-tasks.json`);
   const tasks = new TaskManager(file, runner, (cwd) => {
     if (cwd !== root) throw new Error('Not an open project');
     return root;
@@ -88,7 +88,7 @@ describe('TaskManager (Arena)', () => {
     // The plan submitted for approval wins over the chat text.
     expect(reviewed.plan).toBe('## Plan\n1. Create hello.txt\n2. Check it exists');
 
-    tasks.edit(task.id, { plan: `${reviewed.plan}\n3. Keep it short`, testCommand: 'test -f hello.txt' });
+    tasks.edit(task.id, { plan: `${reviewed.plan}\n3. Keep it short`, testCommand: `node -e "process.exit(require('fs').existsSync('hello.txt') ? 0 : 1)"` });
     await tasks.start(task.id, [fake, fake]);
     const compared = await until(updates, (t) => t.phase === 'compare' && t.contestants.every((c) => c.tests && c.tests !== 'running'));
     expect(compared.base).toBe(git('rev-parse', 'HEAD').trim());

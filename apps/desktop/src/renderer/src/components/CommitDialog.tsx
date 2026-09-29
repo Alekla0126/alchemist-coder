@@ -1,6 +1,8 @@
+import { keys } from '../keys';
 import { useEffect, useRef, useState } from 'react';
 import { useT } from '../store';
 import { toast } from '../ui';
+import { relativePath } from '../paths';
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e)).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
 
@@ -14,8 +16,7 @@ export function CommitDialog({ cwd, changes, onClose, onDone }: { cwd: string; c
   const [busy, setBusy] = useState(false);
   const box = useRef<HTMLTextAreaElement>(null);
   useEffect(() => box.current?.focus(), []);
-  const root = cwd.replace(/\/+$/, '');
-  const rel = (p: string) => (p.startsWith(`${root}/`) ? p.slice(root.length + 1) : p);
+  const rel = (p: string) => relativePath(p, cwd) || p;
   const all = picked.size === files.length;
   const commit = async () => {
     if (!message.trim() || !picked.size || busy) return;
@@ -80,7 +81,7 @@ export function CommitDialog({ cwd, changes, onClose, onDone }: { cwd: string; c
             {t('dialog.cancel')}
           </button>
           <button className="btn-send" disabled={!message.trim() || !picked.size || busy} onClick={() => void commit()}>
-            {busy ? <span className="spin" /> : '✓'} {push ? t('commit.commitPush') : t('commit.commit')} ⌘↵
+            {busy ? <span className="spin" /> : '✓'} {push ? t('commit.commitPush') : t('commit.commit')} {keys('⌘↵')}
           </button>
         </div>
       </div>

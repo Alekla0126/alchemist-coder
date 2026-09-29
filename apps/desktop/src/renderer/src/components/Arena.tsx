@@ -8,6 +8,7 @@ import { DiffPreview, LiveRun } from './LiveRun';
 import { Markdown } from './Markdown';
 import { Preview, previewKind } from './Preview';
 import { confirmAction } from '../ui';
+import { joinPath } from '../paths';
 
 const api = window.alchemist;
 const MAX_AGENTS = 4;
@@ -433,7 +434,7 @@ function ArenaPreview({ task, path, initial, onClose }: { task: ArenaTask; path:
             ×
           </button>
         </div>
-        {c?.worktree && <Preview key={c.id} root={c.worktree.path} path={`${c.worktree.path}/${path}`} />}
+        {c?.worktree && <Preview key={c.id} root={c.worktree.path} path={joinPath(c.worktree.path, path)} />}
       </div>
     </div>
   );

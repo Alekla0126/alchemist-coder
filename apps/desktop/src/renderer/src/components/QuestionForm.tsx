@@ -1,3 +1,4 @@
+import { keys as shortcutText } from '../keys';
 import { useEffect, useState } from 'react';
 import type { QuestionAnswer } from '@alchemist-coder/core';
 import { answerSummary, type LiveQuestion } from '../live-turns';
@@ -175,7 +176,7 @@ export function QuestionForm({ runId, request, shortcuts = true }: { runId: stri
       })}
       <div className="perm-actions">
         <button className="perm-btn allow_once" disabled={sent || missing || nothing} onClick={send} title={nothing ? t('ask.pickFirst') : undefined}>
-          {t('ask.send')} {shortcuts && <kbd className="q-send-key">⌘↵</kbd>}
+          {t('ask.send')} {shortcuts && <kbd className="q-send-key">{shortcutText('⌘↵')}</kbd>}
         </button>
         <button className="perm-btn" disabled={sent} onClick={skip} title={t('ask.skipTitle')}>
           {t('ask.skip')}

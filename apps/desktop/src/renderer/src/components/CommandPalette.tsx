@@ -5,6 +5,8 @@ import { sourceOf } from '../sources';
 import { listThemes } from '../theme';
 import { toggleSidebar } from '../layout';
 import { useStore, useT } from '../store';
+import { keys } from '../keys';
+import { joinPath } from '../paths';
 
 interface Command {
   id: string;
@@ -94,7 +96,7 @@ export function CommandPalette() {
       ? commands.filter((c) => matches(`${c.label} ${c.hint ?? ''}`, query))
       : commands.filter((c) => !c.id.startsWith('session:') && !c.id.startsWith('theme:')).concat(commands.filter((c) => c.id.startsWith('session:')).slice(0, 8))
     ).slice(0, 40),
-    ...files.map((f) => ({ id: `file:${f}`, label: `▤ ${f.split('/').pop()}`, hint: f, run: () => project && (s.openFileAt(project.id, `${project.cwd.replace(/\/+$/, '')}/${f}`), s.settings.mode !== 'split' && s.setMode('code')) })),
+    ...files.map((f) => ({ id: `file:${f}`, label: `▤ ${f.split('/').pop()}`, hint: f, run: () => project && (s.openFileAt(project.id, joinPath(project.cwd, f)), s.settings.mode !== 'split' && s.setMode('code')) })),
     ...hits
       .filter((h) => !commands.some((c) => c.id === `session:${h.sessionId}`))
       .map((h) => ({ id: `hit:${h.sessionId}`, label: `${sourceOf(h.source).glyph} ${h.title}`, hint: h.projectName, run: () => (void s.select(h.sessionId, h.agentId), s.setMode('agents')) })),
@@ -125,7 +127,7 @@ export function CommandPalette() {
           {shown.map((c, i) => (
             <button key={c.id} role="option" aria-selected={i === index} className={i === index ? 'on' : ''} onMouseEnter={() => setIndex(i)} onClick={() => pick(c)}>
               <span className="palette-label">{c.label}</span>
-              {c.hint && <span className="palette-hint">{c.hint}</span>}
+              {c.hint && <span className="palette-hint">{keys(c.hint)}</span>}
             </button>
           ))}
           {!shown.length && <p className="empty">{t('search.noResults')}</p>}

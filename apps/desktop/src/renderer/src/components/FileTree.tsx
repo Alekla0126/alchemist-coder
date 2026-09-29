@@ -5,11 +5,10 @@ import { translate, type MessageKey } from '../i18n';
 import { useStore, useT } from '../store';
 import { CommitDialog } from './CommitDialog';
 import { confirmAction, openMenu, promptText, toast } from '../ui';
+import { baseName, parentOf, relativePath, tailOf } from '../paths';
 
 const STATUS_CLASS: Record<string, string> = { M: 'mod', A: 'add', '?': 'new', '??': 'new', D: 'del', R: 'mod', AM: 'add', MM: 'mod' };
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e)).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
-const parentOf = (p: string) => p.slice(0, p.lastIndexOf('/')) || '/';
-const baseName = (p: string) => p.slice(p.lastIndexOf('/') + 1);
 
 /** Right-click on a file or folder of the project (or its root). */
 async function entryMenu(project: ProjectSummary, entry: { path: string; dir: boolean; root?: boolean }, refresh: () => void) {
@@ -101,7 +100,7 @@ function Dir({ entry, depth, ...props }: TreeProps & { entry: DirEntry; depth: n
   useEffect(() => {
     if (open) void window.alchemist.listDir(entry.path).then(setChildren).catch(() => setChildren([]));
   }, [open, entry.path, version]);
-  const dirty = [...changes.keys()].some((p) => p.startsWith(entry.path + '/'));
+  const dirty = [...changes.keys()].some((p) => !!relativePath(p, entry.path));
   return (
     <>
       {depth > 0 && (
@@ -170,7 +169,7 @@ export function FileTree() {
         }}
       >
         <span className="tt" title={project.cwd}>
-          {project.cwd.split('/').slice(-2).join('/')}
+          {tailOf(project.cwd, 2)}
         </span>
         <button className="icon-btn" onClick={rootMenu} title={t('files.new')}>
           ＋

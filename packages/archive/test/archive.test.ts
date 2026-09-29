@@ -9,7 +9,17 @@ import { BACKUP_FOLDER, backupSize, commitBackup, flattenAgents, isBackupDir, mi
 
 const fx = buildFixtures();
 const backup = join(fx.root, 'backup');
-afterAll(() => rmSync(fx.root, { recursive: true, force: true }));
+// Windows can't delete a folder while a database in it is open: close every reader first.
+const readers: IndexReader[] = [];
+const openReader = () => {
+  const r = new IndexReader(fx.dbPath);
+  readers.push(r);
+  return r;
+};
+afterAll(() => {
+  for (const r of readers) r.close();
+  rmSync(fx.root, { recursive: true, force: true });
+});
 
 function exportInput(reader: IndexReader, sessionId: string): ExportInput {
   const session = reader.getSession(sessionId)!;
@@ -72,7 +82,7 @@ describe('backup', () => {
   it('keeps showing a conversation after Claude Code deletes it', () => {
     const indexer = new Indexer({ dbPath: fx.dbPath, claudeRoot: fx.claudeRoot, codexRoot: fx.codexRoot, geminiRoot: fx.geminiRoot, grokRoot: fx.grokRoot, backupRoot: backup, now: () => fx.liveNow });
     indexer.indexAll();
-    const reader = new IndexReader(fx.dbPath);
+    const reader = openReader();
     const before = reader.getSession(SESSION)!;
     expect(before).toMatchObject({ archived: false, preserved: false });
     const agentsBefore = flattenAgents(reader.getAgentTree(SESSION)!).length;
@@ -94,7 +104,7 @@ describe('backup', () => {
 
 describe('export', () => {
   it('exports a conversation with its subagents to Markdown, HTML and JSON', () => {
-    const reader = new IndexReader(fx.dbPath);
+    const reader = openReader();
     const input = exportInput(reader, SESSION);
     const md = toMarkdown(input);
     expect(md.startsWith(`# ${input.session.title}\n`)).toBe(true);

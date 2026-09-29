@@ -56,7 +56,8 @@ describe('ReviewManager', { timeout: 30_000 }, () => {
     // Whole files: bring run.sh back (still executable) and keep the new file.
     await reviews.undo('run-1', 'run.sh');
     expect(readFileSync(join(root, 'run.sh'), 'utf8')).toBe('echo hi\n');
-    expect(statSync(join(root, 'run.sh')).mode & 0o111).not.toBe(0);
+    // Windows has no executable bit.
+    if (process.platform !== 'win32') expect(statSync(join(root, 'run.sh')).mode & 0o111).not.toBe(0);
     expect(await reviews.keep('run-1', 'new.md')).toBeNull();
     expect(await reviews.list(root)).toEqual([]);
     // Nothing was staged or committed for the user.

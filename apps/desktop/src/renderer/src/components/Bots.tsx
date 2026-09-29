@@ -10,6 +10,7 @@ import { Markdown } from './Markdown';
 import { TranscriptEntries } from './Transcript';
 import { CommitDialog } from './CommitDialog';
 import { parsePatch } from '../diff';
+import { relativePath, tailOf } from '../paths';
 
 export const ACTIVE: BotStatus[] = ['starting', 'working', 'waiting'];
 export const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e)).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
@@ -462,9 +463,8 @@ function ResultsCard({ team, state }: { team: BotTeam; state: TeamState }) {
   }, [team.id, team.updatedAt]);
   const summary = team.finished?.summary || lead.lastReply;
   if (!workers.length && !summary) return null;
-  const root = team.cwd.replace(/\/+$/, '');
   // Paths inside a bot's own copy read like paths in the project.
-  const rel = (p: string) => (p.startsWith(`${root}/`) ? p.slice(root.length + 1) : p).replace(/^(.*\/)?\.alchemist\/worktrees\/[^/]+\/[^/]+\//, '');
+  const rel = (p: string) => (relativePath(p, team.cwd) ?? p.replace(/\\/g, '/')).replace(/^(.*\/)?\.alchemist\/worktrees\/[^/]+\/[^/]+\//, '');
   const unapplied = workers.filter((b) => { const c = copies[b.id]; return !!c && 'n' in c && c.n > 0; });
   const openCommit = async () => {
     const list = await window.alchemist.gitStatus(team.cwd).catch(() => []);
@@ -688,7 +688,7 @@ export function TeamView({ team }: { team: BotTeam }) {
           <h1 title={team.goal}>{team.title || team.goal}</h1>
         </div>
         <button className="ac team-folder" title={`${team.cwd}\n${t('bots.openFolder')}`} onClick={() => void window.alchemist.revealPath(team.cwd)}>
-          📁 {folder.split('/').slice(-2).join('/')}
+          📁 {tailOf(folder, 2)}
         </button>
         <span className="ah-stats">
           {t('bots.count', { n: team.bots.length })}
