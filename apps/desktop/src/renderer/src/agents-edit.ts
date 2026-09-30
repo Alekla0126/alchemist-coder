@@ -56,3 +56,40 @@ export function subagentPrompt(
 ): string {
   return [lines.ask.replace('{type}', o.type), '', o.task.trim(), '', [o.background ? lines.background : '', lines.report].filter(Boolean).join(' ')].join('\n');
 }
+
+const NAMES_KEY = 'alchemist.agentNames';
+
+function loadNames(): Record<string, Record<string, string>> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(NAMES_KEY) ?? '{}') as Record<string, unknown>;
+    return Object.fromEntries(Object.entries(raw).filter((e): e is [string, Record<string, string>] => !!e[1] && typeof e[1] === 'object'));
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Names you give a conversation's agents ("Scribe" instead of "general"), kept in the app: the
+ * conversation's files don't change. An empty name brings the original back.
+ */
+export const useAgentNames = create<{
+  names: Record<string, Record<string, string>>;
+  rename(sessionId: string, agentId: string, name: string): void;
+}>((set, get) => ({
+  names: loadNames(),
+  rename(sessionId, agentId, name) {
+    const own = { ...get().names[sessionId] };
+    const clean = name.trim().slice(0, 60);
+    if (clean) own[agentId] = clean;
+    else delete own[agentId];
+    const names = { ...get().names, [sessionId]: own };
+    if (!Object.keys(own).length) delete names[sessionId];
+    const trimmed = Object.fromEntries(Object.entries(names).slice(-300));
+    set({ names: trimmed });
+    try {
+      localStorage.setItem(NAMES_KEY, JSON.stringify(trimmed));
+    } catch {
+      // no storage
+    }
+  },
+}));

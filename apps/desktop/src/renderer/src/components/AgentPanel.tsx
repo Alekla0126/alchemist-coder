@@ -11,6 +11,7 @@ import { LiveTurns } from './LiveTurns';
 import { FindBar } from './FindBar';
 import { StartScreen } from './StartScreen';
 import { Icon } from './Icon';
+import { useAgentNames } from '../agents-edit';
 import { MarkdownActions } from './Markdown';
 import { toast } from '../ui';
 import { showSessionMenu } from '../actions/session';
@@ -66,6 +67,8 @@ export function AgentPanel() {
   }, []);
   useEffect(() => setFinding(false), [selection?.sessionId, selection?.agentId]);
   const node = selection ? findAgent(tree, selection.agentId) : null;
+  // A name you gave this agent in the tree.
+  const alias = useAgentNames((n) => (selection && node ? n.names[selection.sessionId]?.[node.id] : undefined));
   // File paths in the chat open in the editor when they're in the project.
   const projectForLinks = useStore((s) => s.projects.find((p) => p.id === (s.composeProjectId ?? s.settings.activeProjectId)));
   const openFileAt = useStore((s) => s.openFileAt);
@@ -221,7 +224,7 @@ export function AgentPanel() {
             <StatusDot status={status} />
           </span>
           <h1 className="aname" title={isMain ? (session?.title ?? node.description) : node.type}>
-            {isMain ? (session?.title ?? node.description) : node.type}
+            {isMain ? (session?.title ?? node.description) : (alias ?? node.type)}
           </h1>
           <span className="ah-stats" title={t('agent.costHint')}>
             {stats}

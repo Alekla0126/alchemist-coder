@@ -251,6 +251,8 @@ export interface BotConfig {
   projects?: string[];
   /** Defined on the spot by the coordinator: you keep it or dismiss it. */
   proposed?: boolean;
+  /** Whose team it's on (a top-level agent); none: it reports to the coordinator. */
+  leadId?: string | null;
 }
 
 /** The organization: its name and the instructions the coordinator and every agent get. */

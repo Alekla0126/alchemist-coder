@@ -156,7 +156,7 @@ function coordinatorPrompt(goal: string, role: string, cwd: string, approvePlan 
     org?.guidance ? `For this assignment: ${org.guidance}` : null,
     org
       ? org.roster
-        ? `The organization's agents for this project (use them with create_bot and config = the agent's name; prefer them, and define a new agent with role only when none fits):\n${org.roster}`
+        ? `The organization's agents for this project (use them with create_bot and config = the agent's name; prefer them, and define a new agent with role only when none fits):\n${org.roster}${/leads a team/.test(org.roster) ? "\nAn agent that leads a team hands work to its team itself: give the lead the whole piece of work that fits its team, instead of creating its members yourself." : ''}`
         : "The organization has no agents for this project yet: define them in create_bot with role. They join the organization as proposed agents the user can keep."
       : null,
     '',
@@ -173,13 +173,17 @@ function coordinatorPrompt(goal: string, role: string, cwd: string, approvePlan 
     .join('\n');
 }
 
-function workerPrompt(bot: BotMember, parentName: string, orgInstructions = ''): string {
+function workerPrompt(bot: BotMember, parentName: string, orgInstructions = '', team: BotConfig[] = []): string {
   return [
     `You are "${bot.name}", a bot in a team coordinated by "${parentName}" in Alchemist Coder.`,
     bot.role && `Your role: ${bot.role}`,
     orgInstructions && `Organization instructions:\n${orgInstructions}`,
     `Your task: ${bot.task}`,
-    bot.canSpawn ? `If it helps, you can create helper bots with the "${SERVER_NAME}" MCP tools.` : '',
+    team.length && bot.canSpawn
+      ? `You lead a team. Hand parts of your task to its members with create_bot (config: their name) from the "${SERVER_NAME}" MCP tools, wait for them, check their work, and answer with the combined result:\n${team.map((m) => `- ${m.name}: ${m.role.slice(0, 200) || 'no role set'}`).join('\n')}`
+      : bot.canSpawn
+        ? `If it helps, you can create helper bots with the "${SERVER_NAME}" MCP tools.`
+        : '',
     bot.worktree ? `You work in your own copy of the project (${bot.worktree.path}). Your changes reach the main folder only when "${parentName}" applies them, so finish them completely there.` : '',
     'When you finish, reply with what you did and anything the coordinator needs to know (files changed, open problems).',
   ]
@@ -340,6 +344,15 @@ export class BotManager {
       projects: Array.isArray(c.projects) ? c.projects.filter((p): p is string => typeof p === 'string' && p.startsWith('/')).slice(0, 50).map((p) => p.replace(/\/+$/, '').slice(0, 1000)) : [],
       proposed: c.proposed === true,
     };
+    // A team is one level deep, like the teams themselves: a top-level agent leads, its team reports to it.
+    const lead = typeof c.leadId === 'string' ? this.configs.find((x) => x.id === c.leadId) : undefined;
+    if (lead && config.kind !== 'coordinator') {
+      if (lead.id === config.id) throw new Error("An agent can't be on its own team.");
+      if (lead.kind === 'coordinator') config.leadId = null;
+      else if (lead.leadId) throw new Error(`${lead.name} is on ${this.configs.find((x) => x.id === lead.leadId)?.name ?? 'another'}'s team: only top-level agents lead a team.`);
+      else if (this.configs.some((x) => x.leadId === config.id)) throw new Error(`${config.name} leads a team, so it can't join another one.`);
+      else config.leadId = lead.id;
+    }
     // One coordinator: it can always create agents, and naming another one hands the role over.
     if (config.kind === 'coordinator') {
       config.canSpawn = true;
@@ -367,7 +380,14 @@ export class BotManager {
   deleteConfig(id: string) {
     if (this.configs.find((c) => c.id === id)?.kind === 'coordinator') throw new Error("The coordinator can't be removed: change its agent or instructions instead.");
     this.configs = this.configs.filter((c) => c.id !== id);
+    // Its team stays in the organization, reporting to the coordinator.
+    for (const c of this.configs) if (c.leadId === id) c.leadId = null;
     this.write(this.files.configs, this.configs);
+  }
+
+  /** The agents on a lead's team. */
+  private teamOf(leadId: string | null | undefined): BotConfig[] {
+    return leadId ? this.configs.filter((c) => c.leadId === leadId && !c.proposed) : [];
   }
 
   private findConfig(ref: string): BotConfig | undefined {
@@ -421,7 +441,11 @@ export class BotManager {
             instructions: this.org.instructions,
             roster: this.configs
               .filter((c) => c.kind !== 'coordinator' && !c.proposed && this.inProject(c, cwd))
-              .map((c) => `- ${c.name}: ${c.role.replace(/\s+/g, ' ').slice(0, 200) || 'no role set'} (${c.agent.model}, permissions ${c.permissionMode}${c.ownWorktree ? ', own copy' : ''})`)
+              .map((c) => {
+                const members = this.teamOf(c.id).map((m) => m.name);
+                const lead = c.leadId ? this.configs.find((x) => x.id === c.leadId)?.name : undefined;
+                return `- ${c.name}: ${c.role.replace(/\s+/g, ' ').slice(0, 200) || 'no role set'} (${c.agent.model}, permissions ${c.permissionMode}${c.ownWorktree ? ', own copy' : ''}${members.length ? `; leads a team: ${members.join(', ')}` : ''}${lead ? `; on ${lead}'s team` : ''})`;
+              })
               .join('\n'),
             guidance: str(r.guidance, 4000),
           }
@@ -804,7 +828,16 @@ export class BotManager {
       case 'list_bot_configs': {
         const here = this.configs.filter((c) => c.kind !== 'coordinator' && this.inProject(c, team.cwd));
         if (!here.length) return 'No saved configurations for this project: define bots directly with role (and model) in create_bot.';
-        return here.map((c) => `- ${c.name} (id ${c.id}): ${c.role.slice(0, 200) || 'no role set'} · ${c.agent.harnessId} / ${c.agent.model} · permissions ${c.permissionMode}${c.canSpawn ? ' · may create bots' : ''}${c.proposed ? ' · proposed (not kept yet)' : ''}`).join('\n');
+        const nameOf = (id: string | null | undefined) => this.configs.find((x) => x.id === id)?.name;
+        // A lead sees its own team first; the coordinator sees who leads whom.
+        const mineFirst = me.configId ? [...here.filter((c) => c.leadId === me.configId), ...here.filter((c) => c.leadId !== me.configId)] : here;
+        return mineFirst
+          .map((c) => {
+            const team = this.teamOf(c.id).map((x) => x.name);
+            const on = nameOf(c.leadId);
+            return `- ${c.name} (id ${c.id}): ${c.role.slice(0, 200) || 'no role set'} · ${c.agent.harnessId} / ${c.agent.model} · permissions ${c.permissionMode}${c.canSpawn || team.length ? ' · may create bots' : ''}${team.length ? ` · leads a team: ${team.join(', ')}` : ''}${on ? ` · on ${on}'s team` : ''}${c.proposed ? ' · proposed (not kept yet)' : ''}`;
+          })
+          .join('\n');
       }
       case 'propose_plan': {
         if (me.depth > 0) throw new Error('Only the coordinator proposes the plan.');
@@ -854,7 +887,8 @@ export class BotManager {
         if (ref && !config) throw new Error(`No configuration "${ref}". Call list_bot_configs, or define the bot with role.`);
         if (config?.kind === 'coordinator') throw new Error("That's the organization's coordinator (you). Pick one of its agents, or define a new one with role.");
         const depth = me.depth + 1;
-        const wantsSpawn = config ? config.canSpawn : args.can_create_bots === true;
+        // A lead creates its team's bots, so it may always create bots.
+        const wantsSpawn = config ? config.canSpawn || this.teamOf(config.id).length > 0 : args.can_create_bots === true;
         const wantsCopy = config ? config.ownWorktree === true : args.own_worktree === true;
         const model = !config && str(args.model, 120) && /^[\w.:/@-]{1,120}$/.test(str(args.model, 120)) ? str(args.model, 120) : null;
         const child: BotMember = {
@@ -892,7 +926,7 @@ export class BotManager {
         }
         team.bots.push(child);
         this.log(team, me.id, 'created', `${child.id}|${task}`);
-        this.launch(team, child, workerPrompt(child, me.name, this.org.instructions), cwd);
+        this.launch(team, child, workerPrompt(child, me.name, this.org.instructions, config ? this.teamOf(config.id) : []), cwd);
         this.changed(team);
         if (child.status === 'error') throw new Error(`${child.name} couldn't start: ${child.lastReply}`);
         const copy = child.worktree ? ' in its own copy of the project (use bot_changes and apply_bot_work when it is done)' : '';

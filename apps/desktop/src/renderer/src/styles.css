@@ -1775,3 +1775,15 @@ select.mk-chip { appearance: none; padding-right: 12px; }
 .add-agent .add-agent-note { margin: 0; color: var(--amber); font-size: 12px; }
 .add-agent .btn-send { display: inline-flex; align-items: center; gap: 6px; }
 .add-agent .btn-send kbd { font-size: 10.5px; opacity: 0.75; font-family: var(--mono); }
+.row.org-member .row-acts { display: none; flex: none; margin-left: 4px; }
+.row.org-member:hover .row-acts, .row.org-member:focus-within .row-acts, .row.org-member.sel .row-acts { display: inline-flex; }
+.org-team-sec { display: flex; flex-direction: column; gap: 8px; }
+.org-team-sec h4 { margin: 0; font-size: 12.5px; display: flex; align-items: baseline; gap: 8px; }
+.org-team-sec h4 small { color: var(--fg-3); font-weight: 400; }
+.org-team-list { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.org-team-chip { display: inline-flex; align-items: center; gap: 2px; padding: 2px 4px 2px 9px; border: 1px solid var(--line-2); border-radius: 12px; background: var(--bg-hl); font-size: 12px; }
+.org-team-chip .link { color: var(--fg); }
+.org-team-x { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; color: var(--fg-3); }
+.org-team-x:hover { color: var(--fg); background: var(--bg-input); }
+.org-team-list .btn-ghost { display: inline-flex; align-items: center; gap: 4px; }
+.org-team { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }

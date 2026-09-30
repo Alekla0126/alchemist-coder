@@ -137,7 +137,8 @@ interface State {
   /** Unsaved edits to agent profiles, by agent: kept while you look at other things. */
   orgDrafts: Record<string, Record<string, unknown>>;
   /** Opens the new bot configuration dialog (screenshots). */
-  botConfigDialog: boolean;
+  /** Opens the org's add-agent dialog; with a lead: a new agent for that lead's team. */
+  botConfigDialog: boolean | { leadId: string };
   loadBots(): Promise<void>;
   upsertTeam(team: BotTeam): void;
   /** You messaging a bot: shows as your turn in its chat. */

@@ -298,6 +298,42 @@ describe('bot teams', () => {
     expect(await bots.callTool(me, 'list_bot_configs', {})).toContain('Docs writer');
   });
 
+  it("lets a top-level agent lead a team: it hands work to its team, one level deep", async () => {
+    const { fake, bots } = setup();
+    const starters = { coordinator: { name: 'Chief', role: 'Plan and delegate' }, coder: { name: 'Dreammaker', role: 'Builds features' }, researcher: { name: 'Seeker', role: 'Researches' } };
+    const list = bots.ensureOrg(agent, starters);
+    const chief = list.find((c) => c.kind === 'coordinator')!;
+    const dream = list.find((c) => c.name === 'Dreammaker')!;
+    const seeker = list.find((c) => c.name === 'Seeker')!;
+    const scribe = bots.saveConfig({ name: 'Scribe', role: 'Writes emails', agent, permissionMode: 'default', canSpawn: false, leadId: dream.id });
+    expect(scribe.leadId).toBe(dream.id);
+    // One level deep, and never your own team.
+    expect(() => bots.saveConfig({ ...seeker, leadId: scribe.id })).toThrow(/top-level/);
+    expect(() => bots.saveConfig({ ...dream, leadId: seeker.id })).toThrow(/leads a team/);
+    expect(() => bots.saveConfig({ ...seeker, leadId: seeker.id })).toThrow(/own team/);
+    expect(bots.saveConfig({ ...seeker, leadId: chief.id }).leadId).toBeNull();
+    // Renaming keeps the team.
+    expect(bots.saveConfig({ ...scribe, name: 'Quill' })).toMatchObject({ name: 'Quill', leadId: dream.id });
+
+    const team = bots.startTeam({ goal: 'Launch', cwd: '/p', configId: chief.id });
+    expect(fake.started[0]!.prompt).toContain('Dreammaker: Builds features');
+    expect(fake.started[0]!.prompt).toContain('leads a team: Quill');
+    expect(fake.started[0]!.prompt).toContain('hands work to its team itself');
+    const me = { teamId: team.id, botId: 'b1' };
+    expect(await bots.callTool(me, 'list_bot_configs', {})).toContain("on Dreammaker's team");
+    // The lead may create bots and gets its team in its instructions.
+    await bots.callTool(me, 'create_bot', { name: 'Dreammaker', task: 'build the launch page', config: 'Dreammaker' });
+    expect(bots.listTeams()[0]!.bots[1]).toMatchObject({ canSpawn: true, depth: 1 });
+    expect(fake.started[1]!.prompt).toContain('You lead a team');
+    expect(fake.started[1]!.prompt).toContain('- Quill: Writes emails');
+    const lead = { teamId: team.id, botId: 'b2' };
+    expect((await bots.callTool(lead, 'list_bot_configs', {})).split('\n')[0]).toContain('Quill');
+    expect(await bots.callTool(lead, 'create_bot', { name: 'Quill', task: 'write the launch email', config: 'Quill' })).toContain('id b3');
+    // Deleting a lead: its team reports to the coordinator again.
+    bots.deleteConfig(dream.id);
+    expect(bots.listConfigs().find((c) => c.name === 'Quill')!.leadId).toBeNull();
+  });
+
   it('caps the team size', async () => {
     const { bots } = setup();
     const team = bots.startTeam({ goal: 'Big job', cwd: '/p', coordinator: { name: 'Lead', role: '', agent, permissionMode: 'acceptEdits' } });

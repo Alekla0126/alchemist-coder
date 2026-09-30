@@ -4,8 +4,8 @@ import { Caret, Icon } from './Icon';
 import { money, modelLabel } from '../format';
 import { useStore, useT } from '../store';
 import { StatusDot } from './StatusDot';
-import { confirmAction, contextMenu } from '../ui';
-import { useHiddenAgents } from '../agents-edit';
+import { confirmAction, contextMenu, promptText } from '../ui';
+import { useAgentNames, useHiddenAgents } from '../agents-edit';
 import { AddAgentDialog } from './AddAgent';
 
 /** What the tree needs to add or stop agents: whose conversation it is and where it runs. */
@@ -54,6 +54,12 @@ function AgentRow({ ctx, node }: { ctx: TreeCtx; node: AgentNode }) {
   const liveRun = useLiveRun(sessionId);
   const interrupt = useStore((s) => s.interruptRun);
   const hide = useHiddenAgents((h) => h.hide);
+  const alias = useAgentNames((n) => n.names[sessionId]?.[node.id]);
+  const renameTo = useAgentNames((n) => n.rename);
+  const rename = async () => {
+    const value = await promptText({ title: t('agentEdit.renameTitle'), message: t('agentEdit.renameBody'), value: alias ?? '', placeholder: isMain ? t('agent.main') : node.type, confirmLabel: t('menu.renameOk'), cancelLabel: t('dialog.cancel') });
+    if (value !== null) renameTo(sessionId, node.id, value);
+  };
   const locale = useStore((s) => s.locale);
   const key = `a:${sessionId}:${node.id}`;
   const open = useStore((s) => s.expanded[key] ?? node.id === 'main');
@@ -104,6 +110,7 @@ function AgentRow({ ctx, node }: { ctx: TreeCtx; node: AgentNode }) {
         onContextMenu={contextMenu(
           () => [
             { id: 'open', label: t('menu.open') },
+            { id: 'rename', label: `${t('agentEdit.rename')}…` },
             ...(node.parentId ? [{ id: 'parent', label: t('menu.goToParent') }] : []),
             { type: 'separator' as const },
             { id: 'copy-id', label: t('menu.copyAgentId') },
@@ -114,6 +121,7 @@ function AgentRow({ ctx, node }: { ctx: TreeCtx; node: AgentNode }) {
           ],
           (id) => {
             if (id === 'add') setAdding(true);
+            if (id === 'rename') void rename();
             if (id === 'hide') hide(sessionId, node.id);
             if (id === 'stop') void stop();
             if (id === 'open') void select(sessionId, node.id);
@@ -134,11 +142,15 @@ function AgentRow({ ctx, node }: { ctx: TreeCtx; node: AgentNode }) {
         </span>
         <StatusDot status={waiting ? 'waiting' : node.status} />
         {isMain ? (
-          <span className="tt strong">{t('agent.main')}</span>
+          <span className="tt strong" onDoubleClick={(e) => (e.stopPropagation(), void rename())} title={t('agentEdit.renameHint')}>
+            {alias ?? t('agent.main')}
+          </span>
         ) : (
           <>
             <span className="ty">{node.type === 'general-purpose' ? 'general' : node.type}</span>
-            <span className="tt">{node.description}</span>
+            <span className={`tt ${alias ? 'strong' : ''}`} onDoubleClick={(e) => (e.stopPropagation(), void rename())}>
+              {alias ?? node.description}
+            </span>
           </>
         )}
         <span className="r">

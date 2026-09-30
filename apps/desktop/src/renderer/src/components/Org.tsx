@@ -4,7 +4,8 @@ import type { LiveQuestion } from '../live-turns';
 import { money, modelLabel as rawModelLabel, relativeTime } from '../format';
 import { sourceOf } from '../sources';
 import { useStore, useT, type PendingPermission } from '../store';
-import { confirmAction, contextMenu, promptText, toast } from '../ui';
+import { confirmAction, contextMenu, openMenu, promptText, toast } from '../ui';
+import { Icon } from './Icon';
 import { baseName, isInside } from '../paths';
 import { AgentPicker, defaultChoice } from './AgentPicker';
 import { ACTIVE, botState, confirmDeleteTeam, doingText, errorText, setDraftGoal, takeDraftGoal, teamActive, teamCost, teamState, TeamView } from './Bots';
@@ -29,6 +30,47 @@ const READ_ONLY = ['reviewer', 'uijudge', 'researcher', 'planner'];
 const inProject = (c: BotConfig, cwd: string) => !c.projects?.length || c.projects.some((p) => isInside(cwd, p) || isInside(p, cwd));
 const inFolder = (team: BotTeam, cwd: string) => isInside(team.cwd, cwd);
 const folderName = baseName;
+
+/** Renames an agent right from the list (its unsaved edits keep the new name too). */
+async function renameMember(member: BotConfig, t: T) {
+  const value = await promptText({ title: t('org.renameAgent'), value: member.name, confirmLabel: t('menu.renameOk'), cancelLabel: t('dialog.cancel') });
+  const name = value?.trim();
+  if (!name || name === member.name) return;
+  try {
+    await window.alchemist.saveBotConfig({ ...member, name });
+    const draft = useStore.getState().orgDrafts[member.id];
+    if (draft) useStore.setState((s) => ({ orgDrafts: { ...s.orgDrafts, [member.id]: { ...draft, name } } }));
+    await useStore.getState().loadBots();
+  } catch (e) {
+    toast(errorText(e));
+  }
+}
+
+/** Puts an agent on a lead's team, or back under the coordinator (null). */
+async function setLead(member: BotConfig, lead: BotConfig | null, t: T) {
+  try {
+    await window.alchemist.saveBotConfig({ ...member, leadId: lead?.id ?? null });
+    await useStore.getState().loadBots();
+    toast(lead ? t('org.joinedTeam', { name: member.name, lead: lead.name }) : t('org.leftTeam', { name: member.name }), undefined, 3000);
+  } catch (e) {
+    toast(errorText(e));
+  }
+}
+
+/** "+" on an agent: a new agent for its team, or one of the organization's agents moved onto it. */
+async function addToTeam(lead: BotConfig, configs: BotConfig[], t: T) {
+  const nameOf = (id?: string | null) => configs.find((c) => c.id === id)?.name ?? '';
+  const movable = configs.filter((c) => c.kind !== 'coordinator' && !c.proposed && c.id !== lead.id && c.leadId !== lead.id && !configs.some((x) => x.leadId === c.id));
+  const id = await openMenu([
+    { id: 'new', label: t('org.newTeamAgent') },
+    ...(movable.length
+      ? [{ type: 'separator' as const }, { id: 'h', label: t('org.moveHere'), enabled: false }, ...movable.map((c) => ({ id: `m:${c.id}`, label: c.leadId ? `${c.name} · ${t('org.onTeam', { name: nameOf(c.leadId) })}` : c.name }))]
+      : []),
+  ]);
+  if (id === 'new') useStore.setState({ botConfigDialog: { leadId: lead.id } });
+  const moved = id?.startsWith('m:') ? configs.find((c) => c.id === id.slice(2)) : undefined;
+  if (moved) await setLead(moved, lead, t);
+}
 
 /** Something an agent needs from you: a plan to review or a question/permission, and in which assignment. */
 interface Need {
@@ -352,9 +394,10 @@ function MemberForm({ draft, set, coordinator, autoFocus = false }: { draft: Dra
 }
 
 /** A new agent for the organization, blank or from a role. */
-function AddAgentDialog({ onClose }: { onClose: () => void }) {
+function AddAgentDialog({ leadId, onClose }: { leadId: string | null; onClose: () => void }) {
   const t = useT();
   const catalog = useStore((s) => s.catalog);
+  const leadName = useStore((s) => (leadId ? s.botConfigs.find((c) => c.id === leadId)?.name : undefined));
   const orgProject = useStore((s) => s.orgProject);
   const [draft, setDraft] = useState<Draft>(() => ({ ...draftOf({}, defaultChoice(catalog)), projects: orgProject ? [orgProject] : [] }));
   const [preset, setPreset] = useState<string | null>(null);
@@ -371,10 +414,10 @@ function AddAgentDialog({ onClose }: { onClose: () => void }) {
   const save = async () => {
     if (!draft.agent) return;
     try {
-      const saved = await window.alchemist.saveBotConfig({ ...draft, agent: draft.agent, kind: 'member' });
+      const saved = await window.alchemist.saveBotConfig({ ...draft, agent: draft.agent, kind: 'member', leadId });
       await useStore.getState().loadBots();
       useStore.setState({ activeMemberId: saved.id, activeTeamId: null, activeBotId: null });
-      toast(t('org.joined', { name: saved.name }), undefined, 3000);
+      toast(leadName ? t('org.joinedTeam', { name: saved.name, lead: leadName }) : t('org.joined', { name: saved.name }), undefined, 3000);
       onClose();
     } catch (e) {
       toast(errorText(e));
@@ -382,8 +425,9 @@ function AddAgentDialog({ onClose }: { onClose: () => void }) {
   };
   return (
     <div className="settings-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="commit-dialog bot-dialog" role="dialog" aria-modal="true" aria-label={t('org.addAgent')}>
-        <h3>{t('org.addAgent')}</h3>
+      <div className="commit-dialog bot-dialog" role="dialog" aria-modal="true" aria-label={leadName ? t('org.addToTeamOf', { name: leadName }) : t('org.addAgent')}>
+        <h3>{leadName ? t('org.addToTeamOf', { name: leadName }) : t('org.addAgent')}</h3>
+        {leadName && <p className="composer-note">{t('org.teamHint', { name: leadName })}</p>}
         <div className="bot-field">
           <span>{t('org.presets')}</span>
           <div className="bots-examples">
@@ -409,7 +453,7 @@ function AddAgentDialog({ onClose }: { onClose: () => void }) {
             {t('dialog.cancel')}
           </button>
           <button className="btn-send" disabled={!draft.name.trim() || !draft.agent} onClick={() => void save()}>
-            {t('org.addAgent')}
+            {leadName ? t('org.addToTeam') : t('org.addAgent')}
           </button>
         </div>
       </div>
@@ -447,6 +491,9 @@ function resultIn(team: BotTeam, bots: BotMember[]): 'waiting' | 'working' | 'er
 
 function MemberRow({ member, depth, teams, compact, focus }: { member: BotConfig; depth: number; teams: BotTeam[]; compact: boolean; focus: Focus }) {
   const t = useT();
+  const configs = useStore((s) => s.botConfigs);
+  const teamLead = !member.proposed && member.kind !== 'coordinator' && !member.leadId;
+  const onTeamOf = member.leadId ? configs.find((c) => c.id === member.leadId) : undefined;
   const selected = useStore((s) => s.activeMemberId === member.id && !s.activeTeamId);
   const unsaved = useStore((s) => !!s.orgDrafts[member.id]);
   const a = activityOf(member, teams);
@@ -479,12 +526,26 @@ function MemberRow({ member, depth, teams, compact, focus }: { member: BotConfig
       style={{ paddingLeft: 10 + depth * 16 }}
       onClick={select}
       onKeyDown={(e) => rowKeys(e, select)}
-      onContextMenu={lead ? undefined : contextMenu(() => [{ id: 'delete', label: t('org.deleteAgent') }], (id) => id === 'delete' && void remove())}
+      onContextMenu={contextMenu(
+        () => [
+          { id: 'rename', label: `${t('org.renameAgent')}…` },
+          ...(lead ? [{ id: 'add-org', label: `${t('org.addAgent')}…` }] : teamLead ? [{ id: 'add-team', label: `${t('org.addToTeam')}…` }] : []),
+          ...(onTeamOf ? [{ id: 'leave', label: t('org.leaveTeam', { name: onTeamOf.name }) }] : []),
+          ...(lead ? [] : [{ type: 'separator' as const }, { id: 'delete', label: t('org.deleteAgent') }]),
+        ],
+        (id) => {
+          if (id === 'rename') void renameMember(member, t);
+          if (id === 'add-org') useStore.setState({ botConfigDialog: true });
+          if (id === 'add-team') void addToTeam(member, configs, t);
+          if (id === 'leave') void setLead(member, null, t);
+          if (id === 'delete') void remove();
+        },
+      )}
       title={member.role || undefined}
     >
       <span className={`org-dot st-${a.status}`} role="img" aria-label={status} title={status} />
       <span className="tt">
-        <span className="org-member-name">
+        <span className="org-member-name" onDoubleClick={(e) => (e.stopPropagation(), void renameMember(member, t))} title={t('org.renameHint2')}>
           {lead && <span className="org-lead-mark">⚗ </span>}
           {member.name}
           {unsaved && (
@@ -527,6 +588,22 @@ function MemberRow({ member, depth, teams, compact, focus }: { member: BotConfig
           </>
         )}
       </span>
+      {(lead || teamLead) && (
+        <span className="row-acts">
+          <button
+            className="row-act add"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (lead) useStore.setState({ botConfigDialog: true });
+              else void addToTeam(member, configs, t);
+            }}
+            title={lead ? t('org.addAgent') : t('org.addToTeamOf', { name: member.name })}
+            aria-label={lead ? t('org.addAgent') : t('org.addToTeamOf', { name: member.name })}
+          >
+            <Icon name="plus" size={13} />
+          </button>
+        </span>
+      )}
     </div>
   );
 }
@@ -578,7 +655,7 @@ export function OrgSidebar() {
   const addDialog = useStore((s) => s.botConfigDialog);
   const open = useOpenProjects();
   const [loaded, setLoaded] = useState(false);
-  const [adding, setAdding] = useState(false);
+  const [adding, setAdding] = useState<false | { leadId: string | null }>(false);
   const ensuring = useRef(false);
   useEffect(() => {
     void useStore
@@ -604,7 +681,7 @@ export function OrgSidebar() {
   }, [catalog, configs, loaded]);
   useEffect(() => {
     if (!addDialog) return;
-    setAdding(true);
+    setAdding({ leadId: typeof addDialog === 'object' ? addDialog.leadId : null });
     useStore.setState({ botConfigDialog: false });
   }, [addDialog]);
   const coordinator = configs.find((c) => c.kind === 'coordinator');
@@ -665,7 +742,7 @@ export function OrgSidebar() {
       <div className="sec arena-sec">
         <span>{t('org.agents')}</span>
         {coordinator && (
-          <button className="new-btn" onClick={() => setAdding(true)}>
+          <button className="new-btn" onClick={() => setAdding({ leadId: null })}>
             + {t('org.addAgent')}
           </button>
         )}
@@ -680,9 +757,13 @@ export function OrgSidebar() {
       {activeTeam && <p className="org-focus-caption">{t('org.focusCaption', { title: activeTeam.title || activeTeam.goal })}</p>}
       <div className="tree org-chart" role="tree" aria-label={t('org.agents')}>
         {coordinator ? <MemberRow member={coordinator} depth={0} teams={teams} compact={compact} focus={focusOf(coordinator)} /> : <p className="empty">{t('org.setup')}</p>}
-        {kept.map((m) => (
-          <MemberRow key={m.id} member={m} depth={1} teams={teams} compact={compact} focus={focusOf(m)} />
-        ))}
+        {/* Each lead with its team right under it. */}
+        {kept
+          .filter((m) => !m.leadId || !kept.some((k) => k.id === m.leadId))
+          .flatMap((m) => [m, ...kept.filter((x) => x.leadId === m.id)])
+          .map((m) => (
+            <MemberRow key={m.id} member={m} depth={m.leadId && kept.some((k) => k.id === m.leadId) ? 2 : 1} teams={teams} compact={compact} focus={focusOf(m)} />
+          ))}
         {proposed.length > 0 && (
           <div className="org-sub" role="presentation">
             {t('org.proposedSection')}
@@ -729,7 +810,7 @@ export function OrgSidebar() {
           </div>
         ))}
       </div>
-      {adding && <AddAgentDialog onClose={() => setAdding(false)} />}
+      {adding && <AddAgentDialog leadId={adding.leadId} onClose={() => setAdding(false)} />}
     </aside>
   );
 }
@@ -1091,11 +1172,7 @@ function MemberPanel({ member }: { member: BotConfig }) {
             </button>
           </div>
         )}
-        {lead ? (
-          <p className="composer-note">{t('org.coordinatorHint')}</p>
-        ) : (
-          coordinator && <p className="composer-note">{t('org.reportsTo', { name: coordinator.name })}</p>
-        )}
+        {lead ? <p className="composer-note">{t('org.coordinatorHint')}</p> : <TeamSection member={member} coordinatorName={coordinator?.name ?? ''} />}
         {a.status === 'working' && a.doing && <p className="org-doing">◐ {doingText(a.doing, t).text}</p>}
         <div className="org-stats" role="list" aria-label={t('org.record')}>
           {tiles.map((x) => (
@@ -1177,6 +1254,53 @@ function MemberPanel({ member }: { member: BotConfig }) {
 }
 
 /** The organization view: an assignment, an agent's profile, or the home screen. */
+/** Who an agent reports to, and its own team (a top-level agent can lead one). */
+function TeamSection({ member, coordinatorName }: { member: BotConfig; coordinatorName: string }) {
+  const t = useT();
+  const configs = useStore((s) => s.botConfigs);
+  const lead = member.leadId ? configs.find((c) => c.id === member.leadId) : undefined;
+  const team = configs.filter((c) => c.leadId === member.id && !c.proposed);
+  const open = (c: BotConfig) => useStore.setState({ activeMemberId: c.id, activeTeamId: null, activeBotId: null });
+  if (member.proposed) return coordinatorName ? <p className="composer-note">{t('org.reportsTo', { name: coordinatorName })}</p> : null;
+  if (lead)
+    return (
+      <div className="org-team">
+        <span className="composer-note">
+          {t('org.onTeamLong', { name: lead.name })}{' '}
+          <button className="link small" onClick={() => open(lead)}>
+            {t('org.openLead', { name: lead.name })}
+          </button>
+        </span>
+        <button className="btn-ghost small" onClick={() => void setLead(member, null, t)}>
+          {t('org.leaveTeam', { name: lead.name })}
+        </button>
+      </div>
+    );
+  return (
+    <section className="org-team-sec" aria-label={t('org.team')}>
+      <h4>
+        {t('org.team')} <small>{coordinatorName && t('org.reportsTo', { name: coordinatorName })}</small>
+      </h4>
+      <div className="org-team-list">
+        {team.map((c) => (
+          <span key={c.id} className="org-team-chip">
+            <button className="link" onClick={() => open(c)} title={c.role || undefined}>
+              {c.name}
+            </button>
+            <button className="org-team-x" onClick={() => void setLead(c, null, t)} title={t('org.removeFromTeam', { name: c.name })} aria-label={t('org.removeFromTeam', { name: c.name })}>
+              <Icon name="close" size={11} />
+            </button>
+          </span>
+        ))}
+        <button className="btn-ghost small" onClick={() => void addToTeam(member, configs, t)}>
+          <Icon name="plus" size={12} /> {t('org.addToTeam')}
+        </button>
+      </div>
+      {!team.length && <p className="composer-note">{t('org.teamEmpty', { name: member.name })}</p>}
+    </section>
+  );
+}
+
 export function OrgView() {
   const team = useStore((s) => s.botTeams.find((x) => x.id === s.activeTeamId));
   const member = useStore((s) => s.botConfigs.find((c) => c.id === s.activeMemberId));
