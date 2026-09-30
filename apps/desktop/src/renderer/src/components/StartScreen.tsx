@@ -75,7 +75,7 @@ export function StartScreen() {
         {middle(tildify(project.cwd, home), 72)}
       </p>
       <button className="btn-send start-new" onClick={() => setCompose(project.id)}>
-        ＋ {t('run.new')} <kbd>{keys('⌘N')}</kbd>
+        + {t('run.new')} <kbd>{keys('⌘N')}</kbd>
       </button>
       {running.length > 0 && (
         <section className="start-sec">

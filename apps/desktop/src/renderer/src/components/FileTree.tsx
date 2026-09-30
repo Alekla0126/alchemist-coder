@@ -173,7 +173,7 @@ export function FileTree() {
           {tailOf(project.cwd, 2)}
         </span>
         <button className="icon-btn" onClick={rootMenu} title={t('files.new')}>
-          ＋
+          +
         </button>
         {changes.size > 0 && (
           <button className="btn-ghost small commit-btn" onClick={() => setCommitting(true)} title={t('commit.title')}>

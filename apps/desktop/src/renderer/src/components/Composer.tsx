@@ -101,7 +101,9 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
     if (!fill) return;
     if (fill.send) {
       useStore.setState({ composerFill: null });
-      if (busy) setQueue([...queue, fill.text]);
+      // Sent into a copy of the conversation (its agent is busy somewhere else).
+      if (fill.fork && session) void fork(fill.text);
+      else if (busy) setQueue([...queue, fill.text]);
       else void submit(fill.text);
       return;
     }
@@ -190,12 +192,13 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
 
   const setCompose = useStore((s) => s.setCompose);
   /** A new conversation that starts with this one's full context; the original stays as it was. */
-  const fork = async () => {
-    const text = prompt.trim();
+  const fork = async (given?: string) => {
+    const text = (given ?? prompt).trim();
     if (!text || !session || !ready || !provider || !project) return;
     setError(null);
     try {
-      await startRun(`p:${projectId}`, { cwd: project.cwd, harnessId, providerId: provider.id, model, prompt: text, resumeSessionId: session.id, fork: true, permissionMode, effort: effortStart, images });
+      await startRun(`p:${projectId}`, { cwd: project.cwd, harnessId, providerId: provider.id, model, prompt: text, resumeSessionId: session.id, fork: true, permissionMode, effort: effortStart, images: given ? [] : images });
+      if (given) return setCompose(projectId);
       setPrompt('');
       setForkNext(false);
       if (images.length) setImages([]);
@@ -505,6 +508,7 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
     <div className="composer">
       {run && (busy || run.errors.length > 0 || run.notices.length > 0 || run.config || run.usage) && <LiveRun run={run} compact />}
       {detected && catalog && !harness?.installed && <p className="composer-hint">{t('run.noHarness', { name: harness?.label ?? harnessId })}</p>}
+      {session && !run && (session.runningAgents > 0 || session.status === 'running') && <p className="composer-hint">{t('run.liveElsewhere')}</p>}
       {noLocalModel && (
         <p className="composer-hint">
           {t('run.noModel')} <code>ollama pull qwen2.5-coder:7b</code>

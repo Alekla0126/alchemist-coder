@@ -25,6 +25,7 @@ const api: AlchemistApi = {
   boardSave: (data) => ipcRenderer.invoke(Channels.boardSave, data),
   actionsList: (cwd) => ipcRenderer.invoke(Channels.actionsList, cwd),
   actionsCreate: (cwd, example) => ipcRenderer.invoke(Channels.actionsCreate, cwd, example),
+  subagents: (cwd) => ipcRenderer.invoke(Channels.subagents, cwd),
   sessions: (projectId, favoritesOnly) => ipcRenderer.invoke(Channels.sessions, projectId, favoritesOnly),
   recentSessions: (projectIds, perProject) => ipcRenderer.invoke(Channels.recentSessions, projectIds, perProject),
   session: (id) => ipcRenderer.invoke(Channels.session, id),

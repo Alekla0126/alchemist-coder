@@ -101,6 +101,7 @@ function appInfo(): AppInfo {
           drawer: process.argv.includes('--drawer'),
           boardNew: process.argv.includes('--board-new'),
           boardOpen: arg('board-open') ?? null,
+          addAgent: process.argv.includes('--add-agent'),
           scope: arg('scope') === 'all' || arg('scope') === 'project' ? (arg('scope') as 'all' | 'project') : null,
           mkTab: arg('mk-tab') ?? null,
           mkGenerate: (() => {

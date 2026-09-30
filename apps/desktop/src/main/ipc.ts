@@ -22,6 +22,7 @@ import { browsableRoot, type Workspace } from './workspace';
 import { createProjectFolder } from './new-project';
 import { loadMarketing, readDrafts, saveMarketing } from './marketing';
 import { createActions, listActions, loadBoard, saveBoard } from './board';
+import { listSubagents } from './subagents';
 
 const text = (value: unknown, name: string, max = 512): string => {
   if (typeof value !== 'string' || value.length === 0 || value.length > max) throw new Error(`Invalid ${name}`);
@@ -102,6 +103,7 @@ export function registerIpc(deps: IpcDeps): void {
   });
   // ai-actions.md: read from, and created in, your projects' folders only.
   ipcMain.handle(Channels.actionsList, (_e, cwd: unknown) => listActions(deps.workspace.projectFolder(cwd)));
+  ipcMain.handle(Channels.subagents, (_e, cwd: unknown) => listSubagents(deps.workspace.projectFolder(cwd)));
   ipcMain.handle(Channels.actionsCreate, (_e, cwd: unknown, example: unknown) => createActions(deps.workspace.projectFolder(cwd), typeof example === 'string' ? example : ''));
   ipcMain.handle(Channels.createProject, async (_e, parent: unknown, name: unknown, git: unknown) =>
     addProject(await createProjectFolder(text(parent, 'folder', 4096), text(name, 'project name', 200), git === true)),

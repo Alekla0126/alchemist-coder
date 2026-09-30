@@ -283,7 +283,7 @@ export function TerminalPanel({ projectId }: { projectId: number }) {
           </div>
         ))}
         <button className="icon-btn" title={t('term.new')} onClick={() => void create()}>
-          ＋
+          +
         </button>
         {shells.length > 1 && (
           <span className="shell-menu">

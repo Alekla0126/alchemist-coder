@@ -43,6 +43,7 @@ const PATHS = {
   ),
   reopen: <path d="M4.5 5v5h5M5.2 15.5a7.5 7.5 0 1 0 1.3-8.1L4.5 10" />,
   play: <path d="M8 5.5v13l10.5-6.5z" />,
+  stop: <rect x="6.5" y="6.5" width="11" height="11" rx="2" />,
   plus: <path d="M12 5v14M5 12h14" />,
   more: (
     <>

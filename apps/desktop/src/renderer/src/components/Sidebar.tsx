@@ -60,6 +60,7 @@ export function SessionRow({ session }: { session: SessionSummary }) {
   const key = `s:${session.id}`;
   const open = useStore((s) => s.expanded[key] ?? false);
   const tree = useStore((s) => s.trees[session.id]);
+  const cwd = useStore((s) => s.projects.find((p) => p.id === session.projectId)?.cwd ?? null);
   const selected = useStore((s) => s.selection?.sessionId === session.id);
   const unread = useViewed((v) => !selected && isUnread(session, v));
   const waiting = useStore((s) => s.runs[s.runByTarget[`s:${session.id}`] ?? '']?.status === 'waiting');
@@ -135,7 +136,7 @@ export function SessionRow({ session }: { session: SessionSummary }) {
         </button>
         </span>
       </div>
-      {open && tree && <AgentTree sessionId={session.id} root={tree} />}
+      {open && tree && <AgentTree sessionId={session.id} root={tree} source={session.source} cwd={cwd} />}
     </div>
   );
 }
@@ -197,7 +198,7 @@ function AllProjects({ filter, query }: { filter: SessionFilter; query: string }
                 aria-label={t('plus.conversation', { name: p.name })}
                 onClick={() => void openProject(p.id).then(() => setCompose(p.id))}
               >
-                ＋
+                +
               </button>
             </div>
             {!shut && (
@@ -331,7 +332,7 @@ export function Sidebar() {
         </span>
         {activeId != null && (
           <button className="new-btn" title={t('run.new')} onClick={() => setCompose(activeId)}>
-            ＋ {t('run.newShort')}
+            + {t('run.newShort')}
           </button>
         )}
       </div>

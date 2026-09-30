@@ -393,7 +393,7 @@ function Studio({ mk, data, cwd, selected, setSelected }: { mk: Mk; data: Market
       <aside className="mk-list">
         <div className="mk-list-head">
           <button className="btn-send" onClick={() => void create()}>
-            ＋ {t('mk.new')}
+            + {t('mk.new')}
           </button>
         </div>
         {data.pieces.length > 6 && <input className="mk-search" type="search" value={query} placeholder={t('mk.search')} aria-label={t('mk.search')} onChange={(e) => setQuery(e.target.value)} />}
@@ -621,7 +621,7 @@ function Board({ mk, data, open }: { mk: Mk; data: MarketingData; open: (id: str
           ))}
           {status === 'idea' && (
             <button className="mk-add" onClick={() => void addIdea()}>
-              ＋ {t('mk.cal.add')}
+              + {t('mk.cal.add')}
             </button>
           )}
         </div>
@@ -745,7 +745,7 @@ function Team({ cwd, projectName }: { cwd: string; projectName: string }) {
       </div>
       {missing.length > 0 && (
         <button className="btn-send" disabled={busy} onClick={() => void addTeam()}>
-          ＋ {t('mk.team.add')}
+          + {t('mk.team.add')}
         </button>
       )}
       <label className="mk-bfield mk-goal">

@@ -1751,3 +1751,27 @@ select.mk-chip { appearance: none; padding-right: 12px; }
 .task-dialog select { background: var(--bg-input); color: var(--fg); border: 1px solid var(--line-2); border-radius: 8px; padding: 7px 8px; font-size: 13px; }
 .task-dialog-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .task-dialog .dialog-actions .btn-ghost { display: inline-flex; align-items: center; gap: 5px; }
+
+/* ---------- add and remove agents in the tree ---------- */
+.row.agent .row-acts { display: none; flex: none; margin-left: 2px; gap: 2px; }
+.row.agent:hover .row-acts, .row.agent:focus-within .row-acts { display: inline-flex; }
+/* Adding is the main thing to find: the + on the main agent always shows. */
+.row.agent.main .row-acts { display: inline-flex; }
+.row-act { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 5px; color: var(--fg-3); flex: none; }
+.row-act:hover:not(:disabled) { color: var(--fg); background: var(--bg-hl); box-shadow: inset 0 0 0 1px var(--line-2); }
+.row-act.add { color: var(--accent); }
+.row-act:disabled { opacity: 0.4; cursor: default; }
+.row.agent:hover:not(.main) .r { display: none; }
+.row.agent.hidden-note { width: 100%; background: none; border: 0; font-size: 11.5px; color: var(--fg-3); text-align: left; }
+.row.agent.hidden-note .r { color: var(--accent); }
+.add-agent { width: min(500px, 92vw); display: flex; flex-direction: column; gap: 12px; }
+.add-agent h3 { margin-bottom: 0; }
+.add-agent .add-agent-sub { margin: -6px 0 0; color: var(--fg-3); font-size: 12px; }
+.add-agent select, .add-agent textarea { width: 100%; box-sizing: border-box; background: var(--bg-input); color: var(--fg); border: 1px solid var(--line-2); border-radius: 8px; padding: 7px 9px; font: 13px/1.45 var(--sans); }
+.add-agent textarea { resize: vertical; }
+.add-agent select:focus, .add-agent textarea:focus { border-color: var(--accent); outline: none; }
+.add-agent-desc { color: var(--fg-3); font-size: 11.5px; line-height: 1.4; }
+.add-agent .np-check input { width: auto; margin: 0; accent-color: var(--accent); }
+.add-agent .add-agent-note { margin: 0; color: var(--amber); font-size: 12px; }
+.add-agent .btn-send { display: inline-flex; align-items: center; gap: 6px; }
+.add-agent .btn-send kbd { font-size: 10.5px; opacity: 0.75; font-family: var(--mono); }

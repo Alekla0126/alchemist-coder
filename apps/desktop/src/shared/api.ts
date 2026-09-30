@@ -77,6 +77,12 @@ export interface BoardData {
   tasks: BoardTask[];
   placed: Record<string, BoardPlacement>;
 }
+/** A subagent type from .claude/agents (the project's or your own). */
+export interface SubagentDef {
+  name: string;
+  description: string;
+  scope: 'project' | 'user';
+}
 /** A reusable prompt from the project's ai-actions.md ("## Name" then the prompt). */
 export interface ActionPrompt {
   label: string;
@@ -137,6 +143,8 @@ export interface AppInfo {
     boardNew?: boolean;
     /** Open this conversation next to the board. */
     boardOpen?: string | null;
+    /** Open the add-agent dialog on the selected conversation's main agent. */
+    addAgent?: boolean;
     /** The Agents view scope to show. */
     scope?: 'project' | 'all' | null;
     /** Marketing mode's tab to show. */
@@ -595,6 +603,8 @@ export interface AlchemistApi {
   boardSave(data: BoardData): Promise<BoardData>;
   /** The project's ai-actions.md prompts (exists: whether the file is there). */
   actionsList(cwd: string): Promise<{ exists: boolean; path: string; actions: ActionPrompt[] }>;
+  /** Subagent types defined in the project's and your .claude/agents folders. */
+  subagents(cwd: string): Promise<SubagentDef[]>;
   /** Writes an ai-actions.md with examples if there is none; its path. */
   actionsCreate(cwd: string, example: string): Promise<string>;
   sessions(projectId: number | null, favoritesOnly?: boolean): Promise<SessionSummary[]>;
@@ -768,6 +778,7 @@ export const Channels = {
   boardSave: 'board:save',
   actionsList: 'actions:list',
   actionsCreate: 'actions:create',
+  subagents: 'agents:subagents',
   sessions: 'index:sessions',
   recentSessions: 'index:recent-sessions',
   session: 'index:session',

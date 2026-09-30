@@ -82,7 +82,7 @@ export function AgentsHome() {
       </p>
       {open.length > 0 && (
         <button className="btn-send start-new" onClick={() => void newIn()}>
-          ＋ {t('home.new')}
+          + {t('home.new')}
         </button>
       )}
       {needs.length > 0 && (

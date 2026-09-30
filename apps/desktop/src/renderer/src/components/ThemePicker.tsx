@@ -123,7 +123,7 @@ export function ThemePicker() {
             </button>
           )}
           <button className="menu-item" onClick={() => void importTheme()}>
-            ＋ {t('theme.import')}
+            + {t('theme.import')}
           </button>
           {error && <div className="menu-error">{error === 'search' ? t('theme.searchError') : error}</div>}
         </div>
