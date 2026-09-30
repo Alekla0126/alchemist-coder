@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Icon } from './Icon';
 import { Terminal, type IBufferLine, type ILink } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
@@ -168,8 +169,8 @@ function TermPane({ id, split, projectId, cwd, onClose }: { id: string; split: b
   return (
     <div className={`term-pane${split ? ' right' : ''}`} onMouseDown={() => requestAnimationFrame(() => instances.get(id)?.term.focus())}>
       {onClose && (
-        <button className="term-pane-close" onClick={onClose} title="×">
-          ×
+        <button className="term-pane-close" onClick={onClose} title={t('terminal.closePane')} aria-label={t('terminal.closePane')}>
+          <Icon name="close" size={13} />
         </button>
       )}
       <div className="term-box" ref={box} />

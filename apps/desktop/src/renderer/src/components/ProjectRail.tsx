@@ -4,7 +4,6 @@ import type { ProjectSummary } from '@alchemist-coder/core';
 import { initials, projectGradient } from '../format';
 import { useStore, useT, waitingProjectIds } from '../store';
 import { useShallow } from 'zustand/react/shallow';
-import { toggleSidebar, useLayout } from '../layout';
 import { contextMenu, toast } from '../ui';
 
 export function ProjectRail() {
@@ -12,7 +11,6 @@ export function ProjectRail() {
   const projects = useStore((s) => s.projects);
   const openIds = useStore((s) => s.settings.openProjectIds);
   const activeId = useStore((s) => s.settings.activeProjectId);
-  const sideHidden = useLayout((l) => l.sideHidden);
   const waitingProjects = useStore(useShallow((s) => waitingProjectIds(s)));
   const setActive = useStore((s) => s.setActiveProject);
   const close = useStore((s) => s.closeProject);
@@ -84,9 +82,6 @@ export function ProjectRail() {
         +
       </button>
       <span className="rail-sp" />
-      <button className="rail-gear rail-side" title={`${t('shortcut.sidebar')} (${keys('⌘B')})`} aria-label={t('shortcut.sidebar')} aria-pressed={!sideHidden} onClick={toggleSidebar}>
-        <span className={`panel-ic ${sideHidden ? 'off' : ''}`} aria-hidden />
-      </button>
       <button className="rail-gear" title={`${t('settings.title')} (${keys('⌘,')})`} onClick={() => useStore.setState({ settingsOpen: true })}>
         ⚙
       </button>

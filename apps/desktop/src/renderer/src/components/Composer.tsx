@@ -11,34 +11,27 @@ import { drafts, queues } from '../composer-state';
 import { sourceOf } from '../sources';
 import { useStore, useT } from '../store';
 import { confirmAction, openMenu, toast } from '../ui';
+import { Chip, ContextChip, ModeTag, cachedEffort, effortLabel, effortOptionOf, effortTable, pickAction, rememberEffort } from './ComposerChips';
 
 const PREFS_KEY = 'alchemist.composer';
 const MODES: PermissionMode[] = ['default', 'acceptEdits', 'plan', 'bypassPermissions'];
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-const MODE_ICON: Record<string, string> = { default: '✋', acceptEdits: '✎', plan: '☰', bypassPermissions: '⚠', 'read-only': '👁', auto: '✎', 'full-access': '⚠' };
 /** Codex's own ACP modes, named like the app's. */
 const AGENT_MODE_LABEL: Record<string, 'readOnly' | PermissionMode> = { 'read-only': 'readOnly', auto: 'acceptEdits', 'full-access': 'bypassPermissions' };
 const ALLOW_ALL = new Set(['bypassPermissions', 'full-access']);
 /** "Allow all" asks once per launch. */
 let allowAllConfirmed = false;
 
-/** A composer setting as a pill: what's chosen, and a menu to change it. */
-function Pill({ icon, label, title, disabled, danger, onClick }: { icon?: string; label: string; title: string; disabled?: boolean; danger?: boolean; onClick?: () => void }) {
-  return (
-    <button className={`cpill ${danger ? 'danger' : ''}`} disabled={disabled} title={title} aria-label={`${title}: ${label}`} aria-haspopup="menu" onClick={onClick}>
-      {icon && <span className="cpill-ic">{icon}</span>}
-      <span className="cpill-label">{label}</span>
-      <span className="cpill-caret">▾</span>
-    </button>
-  );
-}
-
 interface Prefs {
   harnessId?: string;
   providerId?: string;
   model?: string;
   permissionMode?: PermissionMode;
+  /** The permission to go back to when leaving plan mode. */
+  agentMode?: PermissionMode;
+  /** Reasoning effort per agent CLI. */
+  effort?: Record<string, string>;
 }
 
 const PICKS_KEY = 'alchemist.sessionModels';
@@ -88,8 +81,7 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
   const [queue, setQueueState] = useState<string[]>(() => queues.get(target) ?? []);
   /** "Edit in a fork" from a message: Send starts a new conversation instead. */
   const [forkNext, setForkNext] = useState(false);
-  const ctx = useContextFill(session);
-  const fillPct = ctx?.size ? Math.round((ctx.used / ctx.size) * 100) : 0;
+  const sessionCtx = useContextFill(session);
   const box = useRef<HTMLTextAreaElement>(null);
   const setPrompt = (v: string) => {
     drafts.set(target, v);
@@ -179,6 +171,8 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
     saveSessionPicks(next);
   };
   const permissionMode = prefs.permissionMode ?? 'acceptEdits';
+  // A new conversation's live run reports its context before the index knows the conversation.
+  const ctx = sessionCtx ?? (run?.usage && run.usage.contextTokens > 0 ? { used: run.usage.usedTokens, size: run.usage.contextTokens } : null);
   const busy = run?.status === 'running' || run?.status === 'starting' || run?.status === 'waiting';
   const canContinue = run?.status === 'idle';
   const needsKey = !!provider?.credential && !provider.credential.isSet && !provider.credential.optional;
@@ -201,7 +195,7 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
     if (!text || !session || !ready || !provider || !project) return;
     setError(null);
     try {
-      await startRun(`p:${projectId}`, { cwd: project.cwd, harnessId, providerId: provider.id, model, prompt: text, resumeSessionId: session.id, fork: true, permissionMode, images });
+      await startRun(`p:${projectId}`, { cwd: project.cwd, harnessId, providerId: provider.id, model, prompt: text, resumeSessionId: session.id, fork: true, permissionMode, effort: effortStart, images });
       setPrompt('');
       setForkNext(false);
       if (images.length) setImages([]);
@@ -236,6 +230,7 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
           prompt: text,
           resumeSessionId: session?.id ?? run?.sessionId ?? undefined,
           permissionMode,
+          effort: effortStart,
           images: sent,
         });
       }
@@ -262,6 +257,12 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
   const modeLabel = (id: string, fallback?: string) =>
     MODES.includes(id as PermissionMode) ? t(`perm.${id as PermissionMode}`) : AGENT_MODE_LABEL[id] ? t(`perm.${AGENT_MODE_LABEL[id]!}`) : (fallback ?? id);
   const currentMode = liveModes ? (run!.config!.mode ?? permissionMode) : permissionMode;
+  /** The chip's short name for a mode; the menu keeps the long one. */
+  const shortMode = (id: string, fallback?: string) => {
+    const key = MODES.includes(id as PermissionMode) ? id : AGENT_MODE_LABEL[id];
+    const text = key ? t(`perm.short.${key}` as never) : '';
+    return text && text !== `perm.short.${key}` ? text : modeLabel(id, fallback);
+  };
   const labelOf = (m: { id: string; label: string }) => (m.id === 'default' ? t('run.defaultModel') : m.label);
   const found = provider?.models.find((m) => m.id === model);
   const modelName = found ? labelOf(found) : model || (detected ? t('run.noModels') : '…');
@@ -283,7 +284,38 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
     else if (id?.startsWith('h:')) setPrefs({ ...prefs, harnessId: id.slice(2) });
   };
 
+  /** New conversation: one menu for both, agent CLI › (provider ›) model. */
+  const pickAgentModel = async () => {
+    const harnesses = catalog?.harnesses ?? [];
+    const modelsOf = (hi: number, p: (typeof providers)[number], pi: number): MenuItem[] =>
+      p.models.slice(0, 40).map((m, mi) => ({ id: `hm:${hi}:${pi}:${mi}`, label: labelOf(m), checked: harnesses[hi]!.id === harnessId && p.id === provider?.id && m.id === model }));
+    const items: MenuItem[] = harnesses.map((h, hi) => {
+      const ps = (catalog?.providers ?? []).filter((p) => p.harnesses.includes(h.id));
+      const usable = ps.filter((p) => p.available && p.models.length > 0);
+      return {
+        id: `h:${hi}`,
+        label: h.installed ? `${sourceOf(h.id).glyph}  ${h.label}` : `${h.label} · ${t('settings.notInstalled')}`,
+        enabled: h.installed && usable.length > 0,
+        checked: h.id === harnessId,
+        submenu:
+          usable.length === 1
+            ? modelsOf(hi, usable[0]!, ps.indexOf(usable[0]!))
+            : ps.map((p, pi) => ({ id: `p:${hi}:${pi}`, label: p.available ? providerName(p) : `${providerName(p)} · ${t('run.offline')}`, enabled: p.available && p.models.length > 0, submenu: modelsOf(hi, p, pi) })),
+      };
+    });
+    items.push({ type: 'separator' }, { id: 'redetect', label: t('run.redetect') }, { id: 'settings', label: `${t('settings.agents')}…` });
+    const id = await openMenu(items);
+    if (id === 'redetect') return void loadCatalog();
+    if (id === 'settings') return useStore.setState({ settingsOpen: true, settingsSection: 'agents' });
+    const [kind, hi, pi, mi] = id?.split(':') ?? [];
+    const h = harnesses[Number(hi)];
+    const p = h ? (catalog?.providers ?? []).filter((x) => x.harnesses.includes(h.id))[Number(pi)] : undefined;
+    const m = p?.models[Number(mi)];
+    if (kind === 'hm' && h && p && m) setPrefs({ ...prefs, harnessId: h.id, providerId: p.id, model: m.id });
+  };
+
   const pickModel = async () => {
+    if (!session && !liveModel) return pickAgentModel();
     if (liveModel && run) {
       const id = await openMenu(liveModel.choices.slice(0, 40).map((c, i) => ({ id: `c:${i}`, label: c.label, checked: c.value === liveModel.value })));
       const choice = id ? liveModel.choices[Number(id.slice(2))] : undefined;
@@ -305,19 +337,56 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
     if (kind === 'm' && p && m) choose(p.id, m.id);
   };
 
-  const pickMode = async () => {
-    const options = liveModes ?? MODES.map((m) => ({ id: m, label: t(`perm.${m}`) }));
-    const id = await openMenu(options.map((m) => ({ id: `mode:${m.id}`, label: modeLabel(m.id, m.label), checked: m.id === currentMode })));
-    if (!id) return;
-    const value = id.slice(5);
+  const setModeTo = async (value: string) => {
     if (ALLOW_ALL.has(value) && !allowAllConfirmed) {
       const ok = await confirmAction({ title: t('perm.allowAllTitle'), message: t('perm.allowAllBody'), confirmLabel: t('perm.bypassPermissions'), cancelLabel: t('dialog.cancel'), danger: true });
       if (!ok) return;
       allowAllConfirmed = true;
     }
     if (liveModes && run) void configure(run.runId, { mode: value }).catch(() => {});
-    if (MODES.includes(value as PermissionMode)) setPrefs({ ...prefs, permissionMode: value as PermissionMode });
+    if (MODES.includes(value as PermissionMode)) {
+      const agentMode = value !== 'plan' ? (value as PermissionMode) : prefs.agentMode;
+      setPrefs({ ...prefs, permissionMode: value as PermissionMode, agentMode });
+    }
   };
+  /** Every mode (the /permissions command), or only what the agent may do on its own (the chip). */
+  const pickMode = async (withPlan = true) => {
+    const options = (liveModes ?? MODES.map((m) => ({ id: m, label: t(`perm.${m}`) }))).filter((m) => withPlan || m.id !== 'plan');
+    const id = await openMenu(options.map((m) => ({ id: `mode:${m.id}`, label: modeLabel(m.id, m.label), checked: m.id === currentMode })));
+    if (id) await setModeTo(id.slice(5));
+  };
+  // AGENT ⇄ PLAN, like Nimbalyst's tag; leaving plan goes back to the permission you had.
+  const plan = currentMode === 'plan';
+  const canPlan = liveModes ? liveModes.some((m) => m.id === 'plan') : true;
+  const toggleMode = () => {
+    if (plan) void setModeTo(prefs.agentMode && prefs.agentMode !== 'plan' ? prefs.agentMode : 'acceptEdits');
+    else void setModeTo('plan');
+  };
+
+  // Reasoning effort: the live session's option, or the levels seen last time for this agent and model.
+  const liveEffort = live ? effortOptionOf(run!.config!.options) : undefined;
+  const effortModel = liveModel?.value ?? model;
+  useEffect(() => {
+    if (liveEffort && effortModel) rememberEffort(harnessId, effortModel, liveEffort.choices);
+  }, [liveEffort?.choices.map((c) => c.value).join(), harnessId, effortModel]);
+  const effortChoices = liveEffort?.choices ?? (model ? (cachedEffort(harnessId, model) ?? effortTable(harnessId, model)) : null);
+  const effortPref = prefs.effort?.[harnessId];
+  const effortValue = liveEffort ? liveEffort.value : effortPref && effortChoices?.some((c) => c.value === effortPref) ? effortPref : (effortChoices?.find((c) => c.value === 'default')?.value ?? null);
+  const effortStart = effortPref && effortPref !== 'default' ? effortPref : undefined;
+  const pickEffort = async () => {
+    if (!effortChoices?.length) return;
+    const id = await openMenu(effortChoices.map((c, i) => ({ id: `e:${i}`, label: effortLabel(t, c.value, c.label), checked: c.value === effortValue })));
+    const choice = id ? effortChoices[Number(id.slice(2))] : undefined;
+    if (!choice) return;
+    if (liveEffort && run) void configure(run.runId, { option: { id: liveEffort.id, value: choice.value } }).catch(() => {});
+    setPrefs({ ...prefs, effort: { ...prefs.effort, [harnessId]: choice.value } });
+  };
+  /** Drops a prompt into the box: in place of an empty draft, else on a new line after it. */
+  const insertText = (text: string) => {
+    setPrompt(prompt.trim() ? `${prompt.replace(/\s+$/, '')}\n\n${text}` : text);
+    requestAnimationFrame(() => box.current?.focus());
+  };
+  const canCompact = harnessId === 'claude-code' && (!!session || !!run?.sessionId);
 
   // @ for files, / (at the start) for commands.
   type Pick = SuggestItem & { insert?: string; run?: () => void };
@@ -339,7 +408,7 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
       session && { id: 'app:new', label: '/new', detail: t('slash.new'), icon: '⚗', badge: 'Alchemist', run: () => setCompose(projectId) },
       !session && catalog && { id: 'app:agent', label: '/agent', detail: t('slash.agent'), icon: '⚗', badge: 'Alchemist', run: () => void pickAgent() },
       catalog && { id: 'app:model', label: '/model', detail: t('slash.model'), icon: '⚗', badge: 'Alchemist', run: () => void pickModel() },
-      { id: 'app:permissions', label: '/permissions', detail: t('slash.permissions'), icon: '⚗', badge: 'Alchemist', run: () => void pickMode() },
+      { id: 'app:permissions', label: '/permissions', detail: t('slash.permissions'), icon: '⚗', badge: 'Alchemist', run: () => void pickMode(true) },
     ].filter((x): x is Exclude<typeof x, false | null | undefined> => !!x);
   /** Built-in commands' descriptions in the app's language (the main process sends English). */
   const builtinText = (harness: string, name: string, fallback: string) => {
@@ -436,14 +505,6 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
     <div className="composer">
       {run && (busy || run.errors.length > 0 || run.notices.length > 0 || run.config || run.usage) && <LiveRun run={run} compact />}
       {detected && catalog && !harness?.installed && <p className="composer-hint">{t('run.noHarness', { name: harness?.label ?? harnessId })}</p>}
-      {fillPct >= 80 && session?.source === 'claude-code' && (
-        <p className="composer-hint">
-          {t('context.full', { pct: fillPct })}{' '}
-          <button className="link small" onClick={() => (setPrompt('/compact'), box.current?.focus())}>
-            /compact
-          </button>
-        </p>
-      )}
       {noLocalModel && (
         <p className="composer-hint">
           {t('run.noModel')} <code>ollama pull qwen2.5-coder:7b</code>
@@ -591,25 +652,35 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
           rows={2}
         />
         <div className="composer-bar">
-          {!catalog ? (
-            <>
-              {!session && <Pill label="…" title={t('run.agent')} disabled />}
-              <Pill label="…" title={t('run.model')} disabled />
-            </>
-          ) : (
-            <>
-              {!session && <Pill icon={sourceOf(harnessId).glyph} label={harness?.label ?? harnessId} title={t('run.agent')} onClick={() => void pickAgent()} />}
-              <Pill label={modelPill} title={modelTitle} disabled={!liveModel && !providers.length} onClick={() => void pickModel()} />
-            </>
-          )}
-          <Pill
-            icon={MODE_ICON[currentMode] ?? '✋'}
-            label={modeLabel(currentMode, liveModes?.find((m) => m.id === currentMode)?.label)}
-            title={t('run.permissions')}
-            danger={ALLOW_ALL.has(currentMode)}
-            onClick={() => void pickMode()}
+          {canPlan && <ModeTag plan={plan} onToggle={toggleMode} />}
+          {/* Stays in place in plan mode (read only), so the chips don't jump when you switch. */}
+          <Chip
+            icon="shield"
+            label={plan ? t('perm.short.readOnly') : shortMode(currentMode, liveModes?.find((m) => m.id === currentMode)?.label)}
+            title={plan ? t('chip.permPlan') : `${t('run.permissions')}: ${modeLabel(currentMode, liveModes?.find((m) => m.id === currentMode)?.label)}`}
+            tone={ALLOW_ALL.has(currentMode) ? 'danger' : undefined}
+            fixed={plan}
+            className="perm-chip"
+            onClick={() => void pickMode(!canPlan)}
           />
+          {!catalog ? (
+            <Chip label="…" title={t('run.model')} disabled />
+          ) : (
+            <Chip
+              glyph={sourceOf(harnessId).glyph}
+              label={modelPill}
+              title={`${harness?.label ?? sourceOf(harnessId).label} · ${modelTitle}`}
+              disabled={!!session && !liveModel && !providers.length}
+              onClick={() => void pickModel()}
+              className="model-chip"
+            />
+          )}
+          {!!effortChoices?.length && (
+            <Chip icon="gauge" label={effortValue ? effortLabel(t, effortValue, effortChoices.find((c) => c.value === effortValue)?.label) : t('effort.default')} title={t('chip.effort')} onClick={() => void pickEffort()} />
+          )}
+          {project && <Chip icon="bolt" label={t('chip.actions')} title={t('chip.actionsTip')} className="actions-chip" onClick={() => void pickAction(t, project.cwd, projectId, insertText)} />}
           <span className="composer-sp" />
+          {ctx && <ContextChip used={ctx.used} size={ctx.size} onCompact={canCompact ? () => insertText('/compact') : undefined} />}
           {busy && run?.config && (
             <button className="btn-ghost" onClick={() => void interruptRun(run.runId)} title="Esc">
               ⏸ {t('run.interrupt')}
@@ -634,8 +705,8 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
                     ⑂ {t('run.fork')} {sendKey === 'enter' ? '↵' : keys('⌘↵')}
                   </button>
                 ) : (
-                  <button className="btn-send" disabled={!prompt.trim() || (!canContinue && !ready)} onClick={() => void submit()}>
-                    {t('run.send')} {sendKey === 'enter' ? '↵' : keys('⌘↵')}
+                  <button className="btn-send" disabled={!prompt.trim() || (!canContinue && !ready)} onClick={() => void submit()} aria-label={t('run.send')} title={t('run.send')}>
+                    <span className="send-label">{t('run.send')}</span> {sendKey === 'enter' ? '↵' : keys('⌘↵')}
                   </button>
                 )}
                 {session && (

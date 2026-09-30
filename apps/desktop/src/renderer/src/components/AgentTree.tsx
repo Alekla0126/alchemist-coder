@@ -1,4 +1,5 @@
 import type { AgentNode } from '@alchemist-coder/core';
+import { Caret } from './Icon';
 import { money, modelLabel } from '../format';
 import { useStore, useT } from '../store';
 import { StatusDot } from './StatusDot';
@@ -70,7 +71,7 @@ function AgentRow({ sessionId, node }: { sessionId: string; node: AgentNode }) {
             if (node.children.length) toggle(key);
           }}
         >
-          {node.children.length ? (open ? '▾' : '▸') : ''}
+          {node.children.length ? <Caret open={open} /> : null}
         </span>
         <StatusDot status={waiting ? 'waiting' : node.status} />
         {isMain ? (
@@ -100,7 +101,7 @@ function WaveRow({ sessionId, type, nodes }: { sessionId: string; type: string; 
   return (
     <>
       <div className="row agent wave" onClick={() => toggle(key)}>
-        <span className="car">{open ? '▾' : '▸'}</span>
+        <span className="car"><Caret open={open} /></span>
         <span className="ty">{type === 'general-purpose' ? 'general' : type}</span>
         <span className="tt">{t('agent.wave', { n: nodes.length })}</span>
         <span className="r wave-bars" aria-hidden>

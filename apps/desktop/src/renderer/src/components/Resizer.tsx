@@ -1,4 +1,4 @@
-import { resetPanel, setPanel, useLayout, type Panel } from '../layout';
+import { LIMITS, resetPanel, setPanel, useLayout, type Panel } from '../layout';
 import { useT } from '../store';
 
 /**
@@ -34,13 +34,25 @@ export function Resizer({ panel, edge }: { panel: Panel; edge: 'left' | 'right' 
         const startY = e.clientY;
         const start = size;
         document.body.classList.add(vertical ? 'resizing' : 'resizing-y');
-        const move = (ev: PointerEvent) => setPanel(panel, start + (edge === 'left' ? ev.clientX - startX : edge === 'right' ? startX - ev.clientX : startY - ev.clientY));
-        const up = () => {
+        const move = (ev: PointerEvent) => {
+          const px = start + (edge === 'left' ? ev.clientX - startX : edge === 'right' ? startX - ev.clientX : startY - ev.clientY);
+          // Dragged well past its minimum, the sidebar folds away (⌘B or the title bar brings it back).
+          if (panel === 'side' && px < LIMITS.side[0] - 90) {
+            useLayout.setState({ sideHidden: true });
+            return up();
+          }
+          if (panel === 'splitSide' && px < LIMITS.splitSide[0] - 120) {
+            useLayout.setState({ splitSideHidden: true });
+            return up();
+          }
+          setPanel(panel, px);
+        };
+        function up() {
           document.body.classList.remove('resizing', 'resizing-y');
           el.removeEventListener('pointermove', move);
           el.removeEventListener('pointerup', up);
           el.removeEventListener('pointercancel', up);
-        };
+        }
         el.addEventListener('pointermove', move);
         el.addEventListener('pointerup', up);
         el.addEventListener('pointercancel', up);

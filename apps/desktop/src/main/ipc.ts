@@ -21,6 +21,7 @@ import type { TerminalManager } from './terminals';
 import { browsableRoot, type Workspace } from './workspace';
 import { createProjectFolder } from './new-project';
 import { loadMarketing, readDrafts, saveMarketing } from './marketing';
+import { createActions, listActions, loadBoard, saveBoard } from './board';
 
 const text = (value: unknown, name: string, max = 512): string => {
   if (typeof value !== 'string' || value.length === 0 || value.length > max) throw new Error(`Invalid ${name}`);
@@ -49,6 +50,8 @@ export interface IpcDeps {
   exportSession: (sessionId: string, format: ExportFormat) => Promise<string | null>;
   workspace: Workspace;
   terminals: TerminalManager;
+  /** The app's data folder (board.json lives there). */
+  dataDir: string;
 }
 
 /** Every handler validates its arguments: the renderer is treated as untrusted. */
@@ -92,6 +95,14 @@ export function registerIpc(deps: IpcDeps): void {
     return saveMarketing(deps.workspace.projectFolder(cwd), data);
   });
   ipcMain.handle(Channels.marketingDrafts, (_e, cwd: unknown) => readDrafts(deps.workspace.projectFolder(cwd)));
+  ipcMain.handle(Channels.boardLoad, () => loadBoard(deps.dataDir));
+  ipcMain.handle(Channels.boardSave, (_e, data: unknown) => {
+    if (JSON.stringify(data ?? null).length > 4_000_000) throw new Error('The board is too large to save');
+    return saveBoard(deps.dataDir, data);
+  });
+  // ai-actions.md: read from, and created in, your projects' folders only.
+  ipcMain.handle(Channels.actionsList, (_e, cwd: unknown) => listActions(deps.workspace.projectFolder(cwd)));
+  ipcMain.handle(Channels.actionsCreate, (_e, cwd: unknown, example: unknown) => createActions(deps.workspace.projectFolder(cwd), typeof example === 'string' ? example : ''));
   ipcMain.handle(Channels.createProject, async (_e, parent: unknown, name: unknown, git: unknown) =>
     addProject(await createProjectFolder(text(parent, 'folder', 4096), text(name, 'project name', 200), git === true)),
   );

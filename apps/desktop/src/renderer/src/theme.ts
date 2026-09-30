@@ -182,11 +182,14 @@ export function onColor(...colors: string[]): string {
   return values.reduce((a, b) => a + b, 0) / values.length > 0.55 ? '#1a0d05' : '#ffffff';
 }
 
-const rgbOf = (hex: string): [number, number, number] | null => {
-  const m = /^#([0-9a-f]{6}|[0-9a-f]{3})(?:[0-9a-f]{2}|[0-9a-f])?$/i.exec(hex.trim());
+const rgbOf = (hex: string, over?: [number, number, number]): [number, number, number] | null => {
+  const m = /^#([0-9a-f]{6}|[0-9a-f]{3})([0-9a-f]{2}|[0-9a-f])?$/i.exec(hex.trim());
   if (!m) return null;
   const h = m[1]!.length === 3 ? m[1]!.split('').map((c) => c + c).join('') : m[1]!;
-  return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)) as [number, number, number];
+  const rgb = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)) as [number, number, number];
+  // A translucent color (GitHub Light's line numbers are #1b1f234d) shows blended with what's under it.
+  const a = m[2] ? parseInt(m[2].length === 1 ? m[2] + m[2] : m[2], 16) / 255 : 1;
+  return over && a < 1 ? (rgb.map((v, i) => v * a + over[i]! * (1 - a)) as [number, number, number]) : rgb;
 };
 /** WCAG contrast ratio between two opaque colors. */
 export function contrast(a: [number, number, number], b: [number, number, number]): number {
@@ -211,7 +214,7 @@ export function readableMuted(muted: string | undefined, fg: string, bg: string)
   const f = rgbOf(fg);
   const b = rgbOf(bg);
   if (!f || !b) return null;
-  const m = muted ? rgbOf(muted) : null;
+  const m = muted ? rgbOf(muted, b) : null;
   if (m && contrast(m, b) >= 4.5) return null;
   for (let p = 0.5; p <= 0.95; p += 0.05) {
     const mix = f.map((v, i) => v * p + b[i]! * (1 - p)) as [number, number, number];

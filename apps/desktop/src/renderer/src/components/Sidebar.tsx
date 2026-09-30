@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import type { SessionSummary } from '@alchemist-coder/core';
 import { showSessionMenu } from '../actions/session';
 import { initials, projectGradient, relativeTime } from '../format';
+import { Caret, Icon } from './Icon';
+import { closeDrawer, useViewport } from '../layout';
 import { useStore, useT, type SessionFilter } from '../store';
 import { isUnread, useViewed } from '../attention';
 import { contextMenu, toast } from '../ui';
@@ -34,7 +36,7 @@ function RepeatedRow({ title, items }: { title: string; items: SessionSummary[] 
         onClick={() => toggle(key)}
         onContextMenu={contextMenu(() => [{ id: 'hide-all', label: t('side.hideAll', { n: items.length }) }], (id) => id === 'hide-all' && void hideAll())}
       >
-        <span className="car">{open ? '▾' : '▸'}</span>
+        <span className="car"><Caret open={open} /></span>
         <span className="src">{sourceOf(items[0]!.source).glyph}</span>
         <span className="tt">{title}</span>
         <span className="r">
@@ -89,7 +91,7 @@ export function SessionRow({ session }: { session: SessionSummary }) {
             toggle(key);
           }}
         >
-          {open ? '▾' : '▸'}
+          <Caret open={open} />
         </span>
         <span className="src" title={sourceOf(session.source).label}>
           {sourceOf(session.source).glyph}
@@ -184,7 +186,7 @@ function AllProjects({ filter, query }: { filter: SessionFilter; query: string }
           <div key={p.id} className="all-group" role="group" aria-label={p.name}>
             <div className="all-head">
               <button className="all-toggle" aria-expanded={!shut} onClick={() => toggle(p.id)} title={p.cwd}>
-                <span className="car">{shut ? '▸' : '▾'}</span>
+                <span className="car"><Caret open={!shut} /></span>
                 <span className="avatar sm" style={{ background: projectGradient(p.name) }}>{initials(p.name)}</span>
                 <b>{p.name}</b>
                 {live > 0 && <span className="all-live" title={t('filter.running')}>● {live}</span>}
@@ -264,18 +266,27 @@ export function Sidebar() {
   const shown = (sessions ?? []).filter((s) => passes(s, filter, query));
   const groups = groupSessions(shown);
   const running = scope === 'all' ? Object.values(recent).flat().filter(isLive).length : (sessions ?? []).filter(isLive).length;
+  const narrow = useViewport((v) => v.narrow);
   return (
     <aside className="side">
       <div className="stabs">
-        <button className={tab === 'agents' ? 'on' : ''} onClick={() => setTab('agents')}>
-          ⚗ {t('side.agents')}
+        <button className={tab === 'agents' ? 'on' : ''} onClick={() => setTab('agents')} title={t('side.agents')}>
+          <Icon name="agents" size={14} />
+          <span>{t('side.agents')}</span>
         </button>
-        <button className={tab === 'files' ? 'on' : ''} onClick={() => setTab('files')}>
-          ▤ {t('side.files')}
+        <button className={tab === 'files' ? 'on' : ''} onClick={() => setTab('files')} title={t('side.files')}>
+          <Icon name="folder" size={14} />
+          <span>{t('side.files')}</span>
         </button>
-        <button className={tab === 'extensions' ? 'on' : ''} onClick={() => setTab('extensions')}>
-          ◈ {t('side.extensions')}
+        <button className={tab === 'extensions' ? 'on' : ''} onClick={() => setTab('extensions')} title={t('side.extensions')}>
+          <Icon name="blocks" size={14} />
+          <span>{t('side.extensions')}</span>
         </button>
+        {narrow && (
+          <button className="stab-close" onClick={closeDrawer} title={t('layout.hideSidebar')} aria-label={t('layout.hideSidebar')}>
+            <Icon name="close" size={15} />
+          </button>
+        )}
       </div>
       {tab === 'files' ? (
         <FileTree />

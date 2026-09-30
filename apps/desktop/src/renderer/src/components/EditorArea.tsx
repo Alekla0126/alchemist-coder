@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Icon } from './Icon';
 import { ensureLanguage, languageFor, monaco, useTheme as applyEditorTheme } from '../editor/monaco';
 import { models, type OpenModel } from '../editor/models';
 import { REVIEW_TAB, useStore, useT } from '../store';
@@ -261,7 +262,7 @@ export function EditorArea({ projectId }: { projectId: number }) {
                 void closeTabs([f]);
               }}
             >
-              <span className="et-x">×</span>
+              <span className="et-x"><Icon name="close" size={12} /></span>
               {dirty[f] && <span className="et-dot">●</span>}
             </button>
           </div>
@@ -296,7 +297,7 @@ export function EditorArea({ projectId }: { projectId: number }) {
                 setMode('split');
               }}
             >
-              ↗ {t('review.conversation')}
+              <Icon name="goto" size={12} /> {t('review.conversation')}
             </button>
           )}
         </div>

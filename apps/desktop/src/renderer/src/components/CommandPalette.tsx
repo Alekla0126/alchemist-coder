@@ -4,7 +4,7 @@ import type { SearchHit } from '@alchemist-coder/core';
 import type { Mode } from '@shared/api';
 import { sourceOf } from '../sources';
 import { listThemes } from '../theme';
-import { toggleSidebar } from '../layout';
+import { toggleSidebar, toggleSplitSide } from '../layout';
 import { useStore, useT } from '../store';
 import { keys } from '../keys';
 import { joinPath } from '../paths';
@@ -25,6 +25,7 @@ const MODES: Array<[Mode, string]> = [
   ['history', '⌘6'],
   ['bots', '⌘7'],
   ['marketing', '⌘8'],
+  ['board', '⌘9'],
 ];
 
 /** Accent-insensitive "every word appears" match. */
@@ -51,6 +52,7 @@ export function CommandPalette() {
       { id: 'settings', label: t('settings.title'), hint: '⌘,', run: () => useStore.setState({ settingsOpen: true }) },
       { id: 'usage', label: t('usage.title'), run: () => useStore.setState({ settingsOpen: true, settingsSection: 'usage' }) },
       { id: 'sidebar', label: t('shortcut.sidebar'), hint: '⌘B', run: toggleSidebar },
+      ...(s.settings.mode === 'split' ? [{ id: 'agent-panel', label: t('shortcut.agentPanel'), hint: '⌘⌥B', run: toggleSplitSide }] : []),
       ...(['en', 'es'] as const).filter((l) => l !== s.locale).map((l) => ({ id: `lang:${l}`, label: `${t('settings.language')}: ${l === 'en' ? 'English' : 'Español'}`, run: () => s.setLocale(l) })),
       // Only found by typing: there are many.
       ...listThemes()

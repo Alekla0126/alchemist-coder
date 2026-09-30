@@ -60,7 +60,8 @@ export class RunnerManager {
     const resume = typeof request.resumeSessionId === 'string' && /^[A-Za-z0-9][\w-]{7,79}$/.test(request.resumeSessionId) ? request.resumeSessionId : undefined;
     const permissionMode = PERMISSION_MODES.includes(request.permissionMode as PermissionMode) ? request.permissionMode : 'acceptEdits';
 
-    const handle = harness.run({ cwd, prompt, images: validImages(request.images), provider, model, resumeSessionId: resume, fork: !!resume && request.fork === true, permissionMode, mcpServers: internal.mcpServers });
+    const effort = typeof request.effort === 'string' && /^[\w-]{1,24}$/.test(request.effort) ? request.effort : undefined;
+    const handle = harness.run({ cwd, prompt, images: validImages(request.images), provider, model, resumeSessionId: resume, fork: !!resume && request.fork === true, permissionMode, effort, mcpServers: internal.mcpServers });
     this.runs.set(handle.id, handle);
     handle.onEvent((event) => {
       const message = { runId: handle.id, event };

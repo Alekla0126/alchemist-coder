@@ -150,8 +150,9 @@ export function LiveRun({ run, compact = false }: { run: RunState; compact?: boo
         <span className="composer-sp" />
         {run.usage && (
           <span className="live-usage" title={t('run.tokens', { n: compactNumber(run.usage.usedTokens, locale) })}>
-            {pct != null && <span className="ctx-bar"><i style={{ width: `${Math.min(pct, 100)}%` }} /></span>}
-            {pct != null && t('run.context', { pct })}
+            {/* In the composer the context has its own chip. */}
+            {pct != null && !compact && <span className="ctx-bar"><i style={{ width: `${Math.min(pct, 100)}%` }} /></span>}
+            {pct != null && !compact && t('run.context', { pct })}
             {run.usage.costUsd != null && <b>{money(run.usage.costUsd, locale)}</b>}
           </span>
         )}

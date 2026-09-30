@@ -4,6 +4,13 @@ export function compactNumber(n: number, locale: Locale): string {
   return new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: n >= 1e6 ? 1 : 0 }).format(n);
 }
 
+/** Token counts the way agents show them: 79k, 1.2M (short enough for a chip in any language). */
+export function shortTokens(n: number): string {
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1).replace(/\.0$/, '')}M`;
+  if (n >= 1000) return `${Math.round(n / 1000)}k`;
+  return String(Math.max(0, Math.round(n)));
+}
+
 export function money(n: number | null, locale: Locale): string {
   if (n == null) return '—';
   return new Intl.NumberFormat(locale, { style: 'currency', currency: 'USD', maximumFractionDigits: n < 10 ? 2 : 0 }).format(n);

@@ -139,6 +139,22 @@ describe('acpHarness', () => {
     expect(configs[0]).toMatchObject({ mode: 'plan', options: [{ id: 'model', value: 'sonnet' }, { id: 'effort' }] });
   });
 
+  it('starts with the chosen reasoning effort, and skips a level the model does not offer', async () => {
+    const effortOf = (events: RunnerEvent[]) => {
+      const config = events.find((e) => e.type === 'config');
+      return config?.type === 'config' ? config.options.find((o) => o.category === 'thought_level')?.value : undefined;
+    };
+    const high = acpHarness(spec()).run({ cwd, prompt: 'x', provider: provider(), model: 'default', effort: 'high' });
+    const a = await collect(high, 'allow', (e) => e.type === 'result');
+    high.stop();
+    expect(effortOf(a)).toBe('high');
+    const odd = acpHarness(spec()).run({ cwd, prompt: 'x', provider: provider(), model: 'default', effort: 'ultra' });
+    const b = await collect(odd, 'allow', (e) => e.type === 'result');
+    odd.stop();
+    expect(effortOf(b)).toBe('low');
+    expect(b.some((e) => e.type === 'notice' && /doesn't offer the "ultra"/.test(e.text))).toBe(true);
+  });
+
   it('resumes an existing session instead of creating one', async () => {
     const run = acpHarness(spec()).run({ cwd, prompt: 'again', provider: provider(), model: 'default', resumeSessionId: 'old-session-42' });
     const events = await collect(run, 'allow', (e) => e.type === 'result');

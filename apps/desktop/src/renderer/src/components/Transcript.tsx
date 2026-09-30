@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useState } from 'react';
+import { Icon } from './Icon';
 import type { FileDiff, TranscriptBlock, TranscriptEntry } from '@alchemist-coder/core';
 import { clockTime, modelLabel } from '../format';
 import { useStore, useT } from '../store';
@@ -239,7 +240,7 @@ function ToolRow({ block, result, sessionId }: { block: ToolUse; result: ToolRes
               openFileAt(projectId, file);
             }}
           >
-            ↗
+            <Icon name="goto" size={12} />
           </button>
         )}
         {block.spawnsAgentId && (

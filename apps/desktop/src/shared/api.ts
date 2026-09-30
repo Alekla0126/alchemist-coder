@@ -2,7 +2,7 @@ import type { AgentNode, IndexProgress, ModelSpec, PermissionMode, ProjectSummar
 
 export type { PermissionMode };
 
-export type Mode = 'agents' | 'arena' | 'bots' | 'code' | 'split' | 'terminal' | 'history' | 'marketing';
+export type Mode = 'agents' | 'arena' | 'bots' | 'code' | 'split' | 'terminal' | 'history' | 'marketing' | 'board';
 
 /** Marketing mode: where a piece goes. */
 export type MarketingChannel = 'x' | 'thread' | 'instagram' | 'linkedin' | 'tiktok' | 'email' | 'landing' | 'blog' | 'appstore' | 'play' | 'seo';
@@ -50,6 +50,36 @@ export interface MarketingDraft {
   file: string;
   title: string;
   channel: MarketingChannel | null;
+  body: string;
+}
+
+/** A column of the board, the same phases Nimbalyst uses. */
+export type BoardPhase = 'backlog' | 'planning' | 'implementing' | 'validating' | 'done';
+/** A piece of work on the board: written down first, then handed to an agent (its conversation). */
+export interface BoardTask {
+  id: string;
+  /** The project's folder (project ids change if the index is rebuilt). */
+  cwd: string;
+  title: string;
+  notes: string;
+  phase: BoardPhase;
+  /** The conversation working on it, once started. */
+  sessionId: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+/** Where you put a conversation, and when: newer agent activity moves it on its own again. */
+export interface BoardPlacement {
+  phase: BoardPhase;
+  at: number;
+}
+export interface BoardData {
+  tasks: BoardTask[];
+  placed: Record<string, BoardPlacement>;
+}
+/** A reusable prompt from the project's ai-actions.md ("## Name" then the prompt). */
+export interface ActionPrompt {
+  label: string;
   body: string;
 }
 export type Locale = 'en' | 'es';
@@ -101,6 +131,12 @@ export interface AppInfo {
     locale: Locale | null;
     /** Opens the New project dialog. */
     newProject?: boolean;
+    /** Open the floating sidebar (narrow windows). */
+    drawer?: boolean;
+    /** Open the board's new-task dialog. */
+    boardNew?: boolean;
+    /** Open this conversation next to the board. */
+    boardOpen?: string | null;
     /** The Agents view scope to show. */
     scope?: 'project' | 'all' | null;
     /** Marketing mode's tab to show. */
@@ -175,6 +211,8 @@ export interface StartRunRequest {
   /** With resumeSessionId: start a new conversation from that one, leaving it untouched. */
   fork?: boolean;
   permissionMode?: PermissionMode;
+  /** Reasoning effort, when the agent offers it for the model. */
+  effort?: string;
   /** Pasted images, for agents that take them. */
   images?: PromptImage[];
 }
@@ -552,6 +590,13 @@ export interface AlchemistApi {
   marketingSave(cwd: string, data: MarketingData): Promise<MarketingData>;
   /** Drafts the marketing team left in marketing/drafts/. */
   marketingDrafts(cwd: string): Promise<MarketingDraft[]>;
+  /** The board: tasks and where you put conversations. */
+  boardLoad(): Promise<BoardData>;
+  boardSave(data: BoardData): Promise<BoardData>;
+  /** The project's ai-actions.md prompts (exists: whether the file is there). */
+  actionsList(cwd: string): Promise<{ exists: boolean; path: string; actions: ActionPrompt[] }>;
+  /** Writes an ai-actions.md with examples if there is none; its path. */
+  actionsCreate(cwd: string, example: string): Promise<string>;
   sessions(projectId: number | null, favoritesOnly?: boolean): Promise<SessionSummary[]>;
   /** The latest `perProject` conversations of each project, for the all-projects view. */
   recentSessions(projectIds: number[], perProject: number): Promise<Record<number, SessionSummary[]>>;
@@ -719,6 +764,10 @@ export const Channels = {
   marketingLoad: 'marketing:load',
   marketingSave: 'marketing:save',
   marketingDrafts: 'marketing:drafts',
+  boardLoad: 'board:load',
+  boardSave: 'board:save',
+  actionsList: 'actions:list',
+  actionsCreate: 'actions:create',
   sessions: 'index:sessions',
   recentSessions: 'index:recent-sessions',
   session: 'index:session',

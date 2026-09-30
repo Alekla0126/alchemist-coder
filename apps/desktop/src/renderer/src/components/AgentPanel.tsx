@@ -6,12 +6,11 @@ import { compactNumber, duration, money, modelLabel } from '../format';
 import { findAgent, useStore, useT } from '../store';
 import { Composer } from './Composer';
 import { StatusDot } from './StatusDot';
-import { sourceOf } from '../sources';
 import { TranscriptEntries } from './Transcript';
 import { LiveTurns } from './LiveTurns';
 import { FindBar } from './FindBar';
 import { StartScreen } from './StartScreen';
-import { ContextMeter, useContextFill } from './ContextMeter';
+import { Icon } from './Icon';
 import { MarkdownActions } from './Markdown';
 import { toast } from '../ui';
 import { showSessionMenu } from '../actions/session';
@@ -53,7 +52,6 @@ export function AgentPanel() {
   const pendingScroll = useRef<{ kind: 'bottom' } | { kind: 'keep'; height: number; top: number } | null>(null);
   const loaded = useRef<{ key: string; start: number; total: number } | null>(null);
   const [finding, setFinding] = useState(false);
-  const fill = useContextFill(selection?.agentId === 'main' ? session : null);
   // ⌘F finds in the conversation, unless the editor or a terminal has the focus (they have their own).
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -228,20 +226,20 @@ export function AgentPanel() {
           <span className="ah-stats" title={t('agent.costHint')}>
             {stats}
           </span>
-          {fill && <ContextMeter used={fill.used} size={fill.size} />}
-          <button className="icon-btn" title={`${t('find.title')} (${keys('⌘F')})`} aria-label={t('find.title')} onClick={() => setFinding(true)}>
-            ⌕
+          <button className="icon-btn ic-btn" title={`${t('find.title')} (${keys('⌘F')})`} aria-label={t('find.title')} onClick={() => setFinding(true)}>
+            <Icon name="search" size={15} />
           </button>
           {isMain && session && (
-            <button className="icon-btn" title={t('menu.more')} aria-label={t('menu.more')} onClick={() => void showSessionMenu(session)}>
-              ⋯
+            <button className="icon-btn ic-btn" title={t('menu.more')} aria-label={t('menu.more')} onClick={() => void showSessionMenu(session)}>
+              <Icon name="more" size={16} />
             </button>
           )}
         </div>
         {!isMain && <p className="adesc">{node.description}</p>}
         <div className="achips">
           {status !== 'done' && status !== 'idle' && <span className={`ac status ${status}`}>{t(`status.${status}`)}</span>}
-          {node.model && (
+          {/* The main agent's CLI and model are in the chips under the message box. */}
+          {node.model && !isMain && (
             <span className="ac model" title={node.model}>
               {modelLabel(node.model)}
             </span>
@@ -249,9 +247,6 @@ export function AgentPanel() {
           {isMain ? (
             session && (
               <>
-                <span className="ac" title={[session.cliVersion && `v${session.cliVersion}`, t('time.messages', { n: session.messageCount })].filter(Boolean).join(' · ')}>
-                  {sourceOf(session.source).label}
-                </span>
                 {session.gitBranch && <span className="ac branch">⎇ {session.gitBranch}</span>}
 
                 {session.preserved && (

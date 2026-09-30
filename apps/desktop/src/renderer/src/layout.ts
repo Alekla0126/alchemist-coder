@@ -10,6 +10,8 @@ interface Layout {
   /** Terminal under the editor in split mode. */
   splitTerm: number;
   sideHidden: boolean;
+  /** The agent column of the split view, folded away. */
+  splitSideHidden: boolean;
 }
 
 export const LIMITS = { side: [200, 560, 300], splitSide: [300, 760, 380], splitTerm: [120, 900, 280] } as const;
@@ -25,9 +27,10 @@ function load(): Layout {
       splitSide: clamp(Number(raw.splitSide) || LIMITS.splitSide[2], LIMITS.splitSide),
       splitTerm: clamp(Number(raw.splitTerm) || LIMITS.splitTerm[2], LIMITS.splitTerm),
       sideHidden: raw.sideHidden === true,
+      splitSideHidden: raw.splitSideHidden === true,
     };
   } catch {
-    return { side: LIMITS.side[2], splitSide: LIMITS.splitSide[2], splitTerm: LIMITS.splitTerm[2], sideHidden: false };
+    return { side: LIMITS.side[2], splitSide: LIMITS.splitSide[2], splitTerm: LIMITS.splitTerm[2], sideHidden: false, splitSideHidden: false };
   }
 }
 
@@ -61,4 +64,24 @@ useLayout.subscribe((l) => {
 
 export const setPanel = (panel: Panel, px: number) => useLayout.setState({ [panel]: clamp(px, LIMITS[panel]) } as Partial<Layout>);
 export const resetPanel = (panel: Panel) => useLayout.setState({ [panel]: LIMITS[panel][2] } as Partial<Layout>);
-export const toggleSidebar = () => useLayout.setState((l) => ({ sideHidden: !l.sideHidden }));
+
+/** Below this width (about half a laptop screen) the sidebar floats over the page instead of taking a column. */
+export const NARROW = 1000;
+const isNarrow = () => typeof window !== 'undefined' && window.innerWidth < NARROW;
+
+/** The window's size class, and whether the floating sidebar is open (it starts closed). */
+export const useViewport = create<{ narrow: boolean; drawer: boolean }>(() => ({ narrow: isNarrow(), drawer: false }));
+if (typeof window !== 'undefined')
+  window.addEventListener('resize', () => {
+    const narrow = isNarrow();
+    if (narrow !== useViewport.getState().narrow) useViewport.setState({ narrow, drawer: false });
+  });
+
+/** ⌘B and the title bar button: hide or show the sidebar column, or open and close the floating one. */
+export const toggleSidebar = () => {
+  if (useViewport.getState().narrow) useViewport.setState((v) => ({ drawer: !v.drawer }));
+  else useLayout.setState((l) => ({ sideHidden: !l.sideHidden }));
+};
+/** ⌘⌥B and the title bar button in split view: fold or unfold the agent column. */
+export const toggleSplitSide = () => useLayout.setState((l) => ({ splitSideHidden: !l.splitSideHidden }));
+export const closeDrawer = () => useViewport.getState().drawer && useViewport.setState({ drawer: false });

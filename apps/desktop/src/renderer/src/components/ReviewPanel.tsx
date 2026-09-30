@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Icon } from './Icon';
 import type { AgentReview, ReviewFile, ReviewFileContent } from '@shared/api';
 import { hunks, keepHunk, undoHunk, type Hunk } from '../diff';
 import { refreshFromDisk } from '../editor/models';
@@ -184,7 +185,7 @@ export function ReviewPanel({ reviewId }: { reviewId: string }) {
                 setMode('split');
               }}
             >
-              ↗ {t('review.conversation')}
+              <Icon name="goto" size={12} /> {t('review.conversation')}
             </button>
           )}
           <span className="composer-sp" />

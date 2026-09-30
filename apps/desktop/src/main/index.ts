@@ -98,6 +98,9 @@ function appInfo(): AppInfo {
             : null,
           locale: arg('locale') === 'es' || arg('locale') === 'en' ? (arg('locale') as 'es' | 'en') : null,
           newProject: process.argv.includes('--new-project'),
+          drawer: process.argv.includes('--drawer'),
+          boardNew: process.argv.includes('--board-new'),
+          boardOpen: arg('board-open') ?? null,
           scope: arg('scope') === 'all' || arg('scope') === 'project' ? (arg('scope') as 'all' | 'project') : null,
           mkTab: arg('mk-tab') ?? null,
           mkGenerate: (() => {
@@ -144,12 +147,17 @@ async function capture() {
   app.quit();
 }
 
+const MIN_WIDTH = 560;
+
 function createWindow(onClosed: () => void) {
+  // --size=WxH (screenshots): the window at a given size, e.g. half a laptop screen.
+  const [w, h] = (arg('size') ?? '').split('x').map(Number);
   const win = new BrowserWindow({
-    width: 1440,
-    height: 900,
-    minWidth: 1024,
-    minHeight: 640,
+    width: w && w >= MIN_WIDTH ? w : 1440,
+    height: h && h >= 480 ? h : 900,
+    // Narrow enough to share the screen side by side with another window.
+    minWidth: MIN_WIDTH,
+    minHeight: 480,
     show: !capturePath,
     backgroundColor: '#0f1115',
     title: 'Alchemist Coder',
@@ -252,7 +260,7 @@ void app.whenReady().then(async () => {
     runner.stopAll();
     terminals.killAll();
   });
-  registerIpc({ info: appInfo, bots, settings, onSettingsChanged: (patch) => 'locale' in patch && buildMenu(), reader: () => reader, progress: () => progress, onRendered: () => void capture(), runner, tasks, preview, hub, backup, reviews, usage, exportSession: (id, format) => (reader ? exportSession(window, reader, id, format) : Promise.reject(new Error('The index is still loading'))), workspace, terminals });
+  registerIpc({ info: appInfo, bots, settings, onSettingsChanged: (patch) => 'locale' in patch && buildMenu(), reader: () => reader, progress: () => progress, onRendered: () => void capture(), runner, tasks, preview, hub, backup, reviews, usage, exportSession: (id, format) => (reader ? exportSession(window, reader, id, format) : Promise.reject(new Error('The index is still loading'))), workspace, terminals, dataDir: userData });
   startIndexer(join(userData, 'index.db'), backup.root());
   backup.start();
   const menuLocale = () => settings.get().locale ?? (app.getLocale().toLowerCase().startsWith('es') ? 'es' : 'en');

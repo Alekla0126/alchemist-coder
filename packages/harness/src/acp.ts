@@ -196,6 +196,8 @@ class AcpRun extends RunBase {
     this.options = session.configOptions ?? [];
     await this.applyPermissionMode(o.permissionMode ?? 'acceptEdits');
     await this.applyModel(o.model);
+    // After the model: the effort levels on offer depend on it.
+    await this.applyEffort(o.effort);
     this.ready = true;
     this.emit({ type: 'started', sessionId: session.id, model: this.modelValue() });
     this.emitConfig();
@@ -516,11 +518,31 @@ class AcpRun extends RunBase {
     }
   }
 
+  /** The reasoning-effort option, when the agent has one for this model. */
+  private effortOption(): SessionConfigOption | undefined {
+    return this.options.find((c) => c.category === 'thought_level') ?? this.options.find((c) => c.id === 'effort' || c.id === 'reasoning_effort');
+  }
+
+  /** A level this model doesn't offer is skipped (and said): the agent keeps its own default. */
+  private async applyEffort(effort: string | undefined) {
+    if (!effort) return;
+    const option = this.effortOption();
+    if (!option || !flatChoices(option).some((c) => c.value === effort)) {
+      this.emit({ type: 'notice', level: 'info', text: `This model doesn't offer the "${effort}" reasoning effort; it uses its default.` });
+      return;
+    }
+    try {
+      await this.setOption(option.id, effort);
+    } catch (error) {
+      this.emit({ type: 'notice', level: 'warning', text: `Could not set the effort to ${effort}: ${error instanceof Error ? error.message : String(error)}` });
+    }
+  }
+
   private emitConfig() {
     if (!this.ready) return;
     const options: AgentOption[] = this.options
       .filter((c) => c.type === 'select' && c.id !== 'mode')
-      .map((c) => ({ id: c.id, label: c.name, value: c.type === 'select' ? c.currentValue : '', choices: flatChoices(c) }));
+      .map((c) => ({ id: c.id, label: c.name, category: c.category ?? undefined, value: c.type === 'select' ? c.currentValue : '', choices: flatChoices(c) }));
     this.emit({
       type: 'config',
       modes: (this.modes?.availableModes ?? []).map((m) => ({ id: m.id, label: m.name })),

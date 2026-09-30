@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Caret } from './Icon';
 import type { DirEntry, GitChange, MenuItem } from '@shared/api';
 import type { ProjectSummary } from '@alchemist-coder/core';
 import { translate, type MessageKey } from '../i18n';
@@ -113,7 +114,7 @@ function Dir({ entry, depth, ...props }: TreeProps & { entry: DirEntry; depth: n
             void entryMenu(project, { path: entry.path, dir: true }, refresh);
           }}
         >
-          <span className="car">{open ? '▾' : '▸'}</span>
+          <span className="car"><Caret open={open} /></span>
           <span className="tt">{entry.name}</span>
           {dirty && <span className="r git-dot" />}
         </div>

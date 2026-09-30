@@ -13,5 +13,9 @@ describe('readable secondary text', () => {
     const dark = readableMuted(undefined, '#e6edf3', '#0d1117')!;
     expect(contrast(rgb(dark), rgb('#0d1117'))).toBeGreaterThanOrEqual(4.5);
     expect(readableMuted('#abc', 'color-mix(in srgb, red, blue)', '#fff')).toBeNull();
+    // A translucent gray counts as it shows on the background, not as its opaque base.
+    const faint = readableMuted('#1b1f234d', '#24292e', '#ffffff')!;
+    expect(faint).not.toBeNull();
+    expect(contrast(rgb(faint), rgb('#ffffff'))).toBeGreaterThanOrEqual(4.5);
   });
 });

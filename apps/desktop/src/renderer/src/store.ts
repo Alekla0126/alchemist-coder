@@ -6,7 +6,7 @@ import { resolveLocale, translate, type MessageKey } from './i18n';
 import { moveComposerState } from './composer-state';
 import { applyToTurns, markQuestion, startTurn, type LiveQuestion, type LiveTurn } from './live-turns';
 import { applyWorkbench, loadTheme, type VsTheme } from './theme';
-import { toggleSidebar } from './layout';
+import { toggleSidebar, toggleSplitSide } from './layout';
 import { useCurrentTheme } from './theme-state';
 import { markViewed } from './attention';
 
@@ -322,7 +322,7 @@ export const useStore = create<State>((set, get) => ({
       if (wasReady) return;
       if (p.phase === 'ready') {
         // Anything fetched while the first index was filling up may be incomplete.
-        void Promise.all([get().refreshProjects(), ...Object.keys(get().trees).map((id) => get().loadTree(id)), ...(get().agentsScope === 'all' ? [get().loadRecent()] : [])]).then(() => resolveIndexed());
+        void Promise.all([get().refreshProjects(), ...Object.keys(get().trees).map((id) => get().loadTree(id)), ...(wantsRecent(get()) ? [get().loadRecent()] : [])]).then(() => resolveIndexed());
       } else if (p.done % 60 === 0) void get().refreshProjects();
     });
     api.onSessionsChanged((ids) => void get().onChanged(ids));
@@ -334,7 +334,7 @@ export const useStore = create<State>((set, get) => ({
     api.onTaskChanged((task) => get().upsertTask(task));
     api.onBotTeamChanged((team) => get().upsertTeam(team));
     await get().refreshProjects();
-    if (get().agentsScope === 'all') void get().loadRecent();
+    if (wantsRecent(get())) void get().loadRecent();
     const capture = info.capture?.select;
     if (capture) {
       await indexed;
@@ -546,7 +546,7 @@ export const useStore = create<State>((set, get) => ({
     const open = settings.openProjectIds.includes(projectId) ? settings.openProjectIds : [...settings.openProjectIds, projectId];
     set({ settings: await api.setSettings({ openProjectIds: open, activeProjectId: projectId }), pickerOpen: false, provisionalOpen: false });
     await get().loadSessions(projectId);
-    if (get().agentsScope === 'all' && !(projectId in get().recent)) reloadRecentSoon();
+    if (wantsRecent(get()) && !(projectId in get().recent)) reloadRecentSoon();
   },
 
   closeProject(projectId) {
@@ -640,7 +640,7 @@ export const useStore = create<State>((set, get) => ({
     const projects = await api.projects();
     set((s) => ({ projects, revision: s.revision + 1, changedSessions: ids }));
     if (settings.activeProjectId != null) await get().loadSessions(settings.activeProjectId);
-    if (get().agentsScope === 'all') reloadRecentSoon();
+    if (wantsRecent(get())) reloadRecentSoon();
   },
 
   markCaptureReady() {
@@ -857,9 +857,11 @@ export const useStore = create<State>((set, get) => ({
   },
 }));
 
-const MODES: Mode[] = ['agents', 'arena', 'bots', 'code', 'split', 'terminal', 'history', 'marketing'];
+const MODES: Mode[] = ['agents', 'arena', 'bots', 'code', 'split', 'terminal', 'history', 'marketing', 'board'];
 
 /** Menu bar commands. */
+/** The all-projects list and the board both show every open project's latest conversations. */
+const wantsRecent = (s: Pick<State, 'agentsScope' | 'settings'>) => s.agentsScope === 'all' || s.settings.mode === 'board';
 /** How many of each project's latest conversations the all-projects view lists. */
 const RECENT_PER_PROJECT = 8;
 let recentTimer: ReturnType<typeof setTimeout> | null = null;
@@ -883,6 +885,9 @@ function runAppCommand(command: string) {
   switch (command) {
     case 'toggle-sidebar':
       toggleSidebar();
+      return;
+    case 'toggle-agent-panel':
+      if (s.settings.mode === 'split') toggleSplitSide();
       return;
     case 'new-conversation':
       if (projectId != null) {

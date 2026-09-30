@@ -83,6 +83,8 @@ export interface PermissionChoice {
 export interface AgentOption {
   id: string;
   label: string;
+  /** ACP's kind of option: "model", "thought_level" (reasoning effort)… */
+  category?: string;
   value: string;
   choices: Array<{ value: string; label: string }>;
 }
@@ -177,6 +179,8 @@ export interface RunOptions {
   resumeSessionId?: string;
   fork?: boolean;
   permissionMode?: PermissionMode;
+  /** Reasoning effort ("low", "high"…), applied when the agent offers it for the model. */
+  effort?: string;
 }
 
 export interface RunHandle {

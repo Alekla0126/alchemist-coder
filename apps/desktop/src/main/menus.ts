@@ -52,12 +52,12 @@ export function editMenu(contents: WebContents) {
 const LABELS = {
   en: {
     settings: 'Settings…', file: 'File', newConversation: 'New Conversation', newProject: 'New Project…', openFolder: 'Open Folder…', newTerminal: 'New Terminal', openProject: 'Open Project…', closeTab: 'Close Tab',
-    view: 'View', agents: 'Agents', arena: 'Arena', code: 'Code', split: 'Split', terminal: 'Terminal', history: 'History', bots: 'Organization', marketing: 'Marketing', sidebar: 'Toggle Sidebar',
+    view: 'View', agents: 'Agents', arena: 'Arena', code: 'Code', split: 'Split', terminal: 'Terminal', history: 'History', bots: 'Organization', marketing: 'Marketing', board: 'Board', sidebar: 'Toggle Sidebar', agentPanel: 'Toggle Agent Panel',
     palette: 'Command Palette…', search: 'Search Conversations', website: 'Alchemist Coder Website', issue: 'Report an Issue',
   },
   es: {
     settings: 'Ajustes…', file: 'Archivo', newConversation: 'Nueva conversación', newProject: 'Nuevo proyecto…', openFolder: 'Abrir carpeta…', newTerminal: 'Nueva terminal', openProject: 'Abrir proyecto…', closeTab: 'Cerrar pestaña',
-    view: 'Ver', agents: 'Agentes', arena: 'Arena', code: 'Código', split: 'Dividido', terminal: 'Terminal', history: 'Historial', bots: 'Organización', marketing: 'Marketing', sidebar: 'Mostrar u ocultar barra lateral',
+    view: 'Ver', agents: 'Agentes', arena: 'Arena', code: 'Código', split: 'Dividido', terminal: 'Terminal', history: 'Historial', bots: 'Organización', marketing: 'Marketing', board: 'Tablero', sidebar: 'Mostrar u ocultar barra lateral', agentPanel: 'Mostrar u ocultar panel del agente',
     palette: 'Paleta de comandos…', search: 'Buscar conversaciones', website: 'Sitio de Alchemist Coder', issue: 'Reportar un problema',
   },
 } as const;
@@ -102,8 +102,10 @@ export function appMenu(send: (command: string) => void, options: { debug: boole
         { label: L.history, accelerator: 'CmdOrCtrl+6', click: cmd('mode:history') },
         { label: L.bots, accelerator: 'CmdOrCtrl+7', click: cmd('mode:bots') },
         { label: L.marketing, accelerator: 'CmdOrCtrl+8', click: cmd('mode:marketing') },
+        { label: L.board, accelerator: 'CmdOrCtrl+9', click: cmd('mode:board') },
         { type: 'separator' },
         { label: L.sidebar, accelerator: 'CmdOrCtrl+B', click: cmd('toggle-sidebar') },
+        { label: L.agentPanel, accelerator: 'CmdOrCtrl+Alt+B', click: cmd('toggle-agent-panel') },
         { label: L.palette, accelerator: 'CmdOrCtrl+K', click: cmd('palette') },
         { label: L.search, accelerator: 'CmdOrCtrl+Shift+F', click: cmd('mode:history') },
         { type: 'separator' },

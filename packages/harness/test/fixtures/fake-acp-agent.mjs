@@ -4,11 +4,11 @@ import { AgentSideConnection, ndJsonStream, PROTOCOL_VERSION, RequestError } fro
 
 // FAKE_MODES / FAKE_START_MODE: which modes it offers and starts in (like a CLI set to bypassPermissions).
 const available = (process.env.FAKE_MODES ?? 'default,acceptEdits,plan').split(',');
-const state = { authed: false, mode: process.env.FAKE_START_MODE ?? 'default', model: 'opus[1m]', cancelled: false };
+const state = { authed: false, mode: process.env.FAKE_START_MODE ?? 'default', model: 'opus[1m]', effort: 'low', cancelled: false };
 const modes = () => ({ currentModeId: state.mode, availableModes: available.map((id) => ({ id, name: id })) });
 const config = () => [
   { id: 'model', name: 'Model', type: 'select', currentValue: state.model, options: [{ value: 'opus[1m]', name: 'Opus' }, { value: 'sonnet', name: 'Sonnet' }] },
-  { id: 'effort', name: 'Effort', type: 'select', currentValue: 'low', options: [{ group: 'g', name: 'All', options: [{ value: 'low', name: 'Low' }, { value: 'high', name: 'High' }] }] },
+  { id: 'effort', name: 'Effort', category: 'thought_level', type: 'select', currentValue: state.effort, options: [{ group: 'g', name: 'All', options: [{ value: 'low', name: 'Low' }, { value: 'high', name: 'High' }] }] },
 ];
 
 const stream = ndJsonStream(Writable.toWeb(process.stdout), Readable.toWeb(process.stdin));
@@ -41,6 +41,7 @@ new AgentSideConnection((conn) => ({
   },
   async setSessionConfigOption({ configId, value }) {
     if (configId === 'model') state.model = value;
+    if (configId === 'effort') state.effort = value;
     return { configOptions: config() };
   },
   async cancel() {
