@@ -160,7 +160,7 @@ export interface AppInfo {
     /** Opens the editor's preview pane next to the file. */
     preview: boolean;
     /** Sidebar tab to show. */
-    sidebar: 'agents' | 'files' | 'extensions' | null;
+    sidebar: 'agents' | 'files' | 'git' | 'extensions' | null;
     /** Opens the theme picker searching Open VSX for this. */
     themeSearch: string | null;
     /** Opens the terminal split in two. */
@@ -583,6 +583,49 @@ export interface GitChange {
   status: string;
 }
 
+export interface GitCommitInfo {
+  hash: string;
+  short: string;
+  subject: string;
+  author: string;
+  at: number;
+  /** Made by (or with) a coding agent: a co-author line or its own name. */
+  agent: boolean;
+}
+
+export interface GitBranchInfo {
+  name: string;
+  current: boolean;
+  upstream: string | null;
+  ahead: number;
+  behind: number;
+  /** Its upstream was deleted on the remote. */
+  gone: boolean;
+  at: number;
+  subject: string;
+}
+
+/** A project's repository at a glance, for the Git panel. */
+export interface GitOverview {
+  repo: boolean;
+  root: string | null;
+  branch: string | null;
+  detached: boolean;
+  upstream: string | null;
+  /** Commits to push, and to pull. */
+  ahead: number;
+  behind: number;
+  files: GitChange[];
+  commits: GitCommitInfo[];
+  branches: GitBranchInfo[];
+  /** Other working copies: the agents' own copies (worktrees). */
+  worktrees: Array<{ path: string; branch: string | null }>;
+  /** Where it pushes (without credentials). */
+  remote: string | null;
+  lastFetch: number | null;
+  stashes: number;
+}
+
 export interface AlchemistApi {
   info(): Promise<AppInfo>;
   getSettings(): Promise<Settings>;
@@ -714,6 +757,10 @@ export interface AlchemistApi {
   /** Moves a file or folder of a project to the Trash. */
   trashEntry(path: string): Promise<void>;
   gitStatus(cwd: string): Promise<GitChange[]>;
+  /** The repository at a glance: branch, what's to push and pull, changes, history, branches. */
+  gitOverview(cwd: string): Promise<GitOverview>;
+  /** fetch, pull (fast-forward only), push, switch <branch>, branch <new name>, init. */
+  gitAction(cwd: string, action: 'fetch' | 'pull' | 'push' | 'switch' | 'branch' | 'init', arg?: string): Promise<void>;
   botConfigs(): Promise<BotConfig[]>;
   /** Creates (no id) or updates a bot configuration; returns the saved one. */
   saveBotConfig(config: Omit<BotConfig, 'id'> & { id?: string }): Promise<BotConfig>;
@@ -845,6 +892,8 @@ export const Channels = {
   readFile: 'fs:read',
   writeFile: 'fs:write',
   gitStatus: 'git:status',
+  gitOverview: 'git:overview',
+  gitAction: 'git:action',
   searchFiles: 'workspace:searchFiles',
   gitCommit: 'git:commit',
   botConfigs: 'bots:configs',

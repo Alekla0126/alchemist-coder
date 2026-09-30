@@ -71,7 +71,7 @@ function appInfo(): AppInfo {
           project: arg('project') ?? null,
           openFile: arg('open-file') ?? null,
           preview: process.argv.includes('--preview'),
-          sidebar: (['agents', 'files', 'extensions'] as const).find((x) => x === arg('sidebar')) ?? null,
+          sidebar: (['agents', 'files', 'git', 'extensions'] as const).find((x) => x === arg('sidebar')) ?? null,
           themeSearch: arg('theme-search') ?? null,
           terminalSplit: process.argv.includes('--terminal-split'),
           review: process.argv.includes('--review'),

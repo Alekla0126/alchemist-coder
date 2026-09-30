@@ -9,6 +9,7 @@ import { useStore, useT } from '../store';
 import { confirmAction, openMenu, toast } from '../ui';
 import { AgentPanel } from './AgentPanel';
 import { Icon } from './Icon';
+import { Resizer } from './Resizer';
 import { keys } from '../keys';
 
 type T = ReturnType<typeof useT>;
@@ -454,6 +455,7 @@ export function BoardView() {
         )}
         {data && !cards.length && !query && <p className="board-hint">{t('board.hint')}</p>}
       </div>
+      {peekOpen && !asList && <Resizer panel="peek" edge="right" />}
       {peekOpen && (
         <aside className="board-peek" aria-label={t('board.openConversation')}>
           <div className="peek-bar">

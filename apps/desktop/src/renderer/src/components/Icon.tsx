@@ -111,6 +111,23 @@ const PATHS = {
       <rect x="16" y="4.5" width="4.5" height="15" rx="1.2" />
     </>
   ),
+  branch: (
+    <>
+      <circle cx="7" cy="6" r="2.2" />
+      <circle cx="7" cy="18" r="2.2" />
+      <circle cx="17" cy="8" r="2.2" />
+      <path d="M7 8.2v7.6M17 10.2c0 3.5-3.5 4-8.5 5.8" />
+    </>
+  ),
+  arrowUp: <path d="M12 19V5.5M6.5 11L12 5.5l5.5 5.5" />,
+  arrowDown: <path d="M12 5v13.5M6.5 13l5.5 5.5 5.5-5.5" />,
+  refresh: <path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4.5H15" />,
+  commit: (
+    <>
+      <circle cx="12" cy="12" r="3.2" />
+      <path d="M3.5 12h5.3M15.2 12h5.3" />
+    </>
+  ),
   folder: <path d="M3.5 7.5A1.5 1.5 0 0 1 5 6h4.2l2 2H19a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5z" />,
   blocks: (
     <>

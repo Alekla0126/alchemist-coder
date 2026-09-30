@@ -12,6 +12,7 @@ import { sourceOf } from '../sources';
 import { AgentTree } from './AgentTree';
 import { ExtensionsHub } from './ExtensionsHub';
 import { FileTree } from './FileTree';
+import { GitPanel } from './GitPanel';
 
 /** Several conversations with the same title, as one row that opens. */
 function RepeatedRow({ title, items }: { title: string; items: SessionSummary[] }) {
@@ -279,6 +280,10 @@ export function Sidebar() {
           <Icon name="folder" size={14} />
           <span>{t('side.files')}</span>
         </button>
+        <button className={tab === 'git' ? 'on' : ''} onClick={() => setTab('git')} title={t('side.git')}>
+          <Icon name="branch" size={14} />
+          <span>{t('side.git')}</span>
+        </button>
         <button className={tab === 'extensions' ? 'on' : ''} onClick={() => setTab('extensions')} title={t('side.extensions')}>
           <Icon name="blocks" size={14} />
           <span>{t('side.extensions')}</span>
@@ -291,6 +296,8 @@ export function Sidebar() {
       </div>
       {tab === 'files' ? (
         <FileTree />
+      ) : tab === 'git' ? (
+        <GitPanel />
       ) : tab === 'extensions' ? (
         <ExtensionsHub />
       ) : (

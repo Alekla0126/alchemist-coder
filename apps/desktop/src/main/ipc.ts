@@ -23,6 +23,7 @@ import { createProjectFolder } from './new-project';
 import { loadMarketing, readDrafts, saveMarketing } from './marketing';
 import { createActions, listActions, loadBoard, saveBoard } from './board';
 import { listSubagents } from './subagents';
+import { gitAction, gitOverview } from './git-overview';
 
 const text = (value: unknown, name: string, max = 512): string => {
   if (typeof value !== 'string' || value.length === 0 || value.length > max) throw new Error(`Invalid ${name}`);
@@ -231,6 +232,11 @@ export function registerIpc(deps: IpcDeps): void {
   ipcMain.handle(Channels.renameEntry, (_e, path: unknown, name: unknown) => workspace.rename(path, name));
   ipcMain.handle(Channels.trashEntry, (_e, path: unknown) => shell.trashItem(workspace.trashable(path)));
   ipcMain.handle(Channels.gitStatus, (_e, cwd: unknown) => workspace.gitStatus(cwd));
+  // Only your projects' folders; network actions never prompt for a password.
+  ipcMain.handle(Channels.gitOverview, (_e, cwd: unknown) => gitOverview(workspace.projectFolder(cwd)));
+  ipcMain.handle(Channels.gitAction, async (_e, cwd: unknown, action: unknown, arg: unknown) => {
+    await gitAction(workspace.projectFolder(cwd), String(action), arg);
+  });
   ipcMain.handle(Channels.botConfigs, () => deps.bots.listConfigs());
   ipcMain.handle(Channels.saveBotConfig, (_e, config: unknown) => deps.bots.saveConfig(config));
   ipcMain.handle(Channels.addStarterBots, (_e, agent: unknown, starters: unknown) => {

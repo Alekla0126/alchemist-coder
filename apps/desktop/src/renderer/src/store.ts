@@ -154,7 +154,7 @@ interface State {
   runByTarget: Record<string, string>;
   /** Project in which the user is composing a brand-new conversation. */
   composeProjectId: number | null;
-  sidebarTab: 'agents' | 'files' | 'extensions';
+  sidebarTab: 'agents' | 'files' | 'git' | 'extensions';
   theme: VsTheme | null;
   openFiles: Record<number, string[]>;
   activeFile: Record<number, string | null>;
@@ -180,7 +180,7 @@ interface State {
   reveal: { path: string; line: number; column: number } | null;
 
   init(): Promise<void>;
-  setSidebarTab(tab: 'agents' | 'files' | 'extensions'): void;
+  setSidebarTab(tab: 'agents' | 'files' | 'git' | 'extensions'): void;
   setTheme(id: string): Promise<void>;
   openFile(projectId: number, path: string): void;
   /** Opens a file at a line, showing the editor if the current mode hides it. */

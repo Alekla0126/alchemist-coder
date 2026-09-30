@@ -9,12 +9,14 @@ interface Layout {
   splitSide: number;
   /** Terminal under the editor in split mode. */
   splitTerm: number;
+  /** The conversation opened next to the board. */
+  peek: number;
   sideHidden: boolean;
   /** The agent column of the split view, folded away. */
   splitSideHidden: boolean;
 }
 
-export const LIMITS = { side: [200, 560, 300], splitSide: [300, 760, 380], splitTerm: [120, 900, 280] } as const;
+export const LIMITS = { side: [200, 560, 300], splitSide: [300, 760, 380], splitTerm: [120, 900, 280], peek: [360, 1200, 620] } as const;
 export type Panel = keyof typeof LIMITS;
 
 const clamp = (v: number, [min, max]: readonly [number, number, number]) => Math.round(Math.min(max, Math.max(min, v)));
@@ -26,11 +28,12 @@ function load(): Layout {
       side: clamp(Number(raw.side) || LIMITS.side[2], LIMITS.side),
       splitSide: clamp(Number(raw.splitSide) || LIMITS.splitSide[2], LIMITS.splitSide),
       splitTerm: clamp(Number(raw.splitTerm) || LIMITS.splitTerm[2], LIMITS.splitTerm),
+      peek: clamp(Number(raw.peek) || LIMITS.peek[2], LIMITS.peek),
       sideHidden: raw.sideHidden === true,
       splitSideHidden: raw.splitSideHidden === true,
     };
   } catch {
-    return { side: LIMITS.side[2], splitSide: LIMITS.splitSide[2], splitTerm: LIMITS.splitTerm[2], sideHidden: false, splitSideHidden: false };
+    return { side: LIMITS.side[2], splitSide: LIMITS.splitSide[2], splitTerm: LIMITS.splitTerm[2], peek: LIMITS.peek[2], sideHidden: false, splitSideHidden: false };
   }
 }
 
@@ -50,6 +53,8 @@ function apply(l: Layout) {
   root.setProperty('--side-w', `${side}px`);
   root.setProperty('--split-side-w', `${splitSide}px`);
   root.setProperty('--split-term-h', `${Math.min(l.splitTerm, window.innerHeight - 260)}px`);
+  // The board keeps at least a column of room next to the conversation.
+  root.setProperty('--peek-w', `${Math.max(LIMITS.peek[0], Math.min(l.peek, width - RAIL - 380))}px`);
 }
 apply(useLayout.getState());
 if (typeof window !== 'undefined') window.addEventListener('resize', () => apply(useLayout.getState()));
