@@ -7,6 +7,7 @@ import { AgentPicker, defaultChoice, isRunnable } from './AgentPicker';
 import { DiffPreview, LiveRun } from './LiveRun';
 import { Markdown } from './Markdown';
 import { Preview, previewKind } from './Preview';
+import { useNow } from './WorkingOrb';
 import { confirmAction } from '../ui';
 import { joinPath } from '../paths';
 
@@ -438,16 +439,6 @@ function ArenaPreview({ task, path, initial, onClose }: { task: ArenaTask; path:
       </div>
     </div>
   );
-}
-
-function useNow(active: boolean) {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    if (!active) return;
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, [active]);
-  return now;
 }
 
 function ContestantCard({ task, c, squash, act, onPreview }: { task: ArenaTask; c: TaskContestant; squash: boolean; act: (fn: () => Promise<ArenaTask | void>) => Promise<void>; onPreview: (path: string) => void }) {

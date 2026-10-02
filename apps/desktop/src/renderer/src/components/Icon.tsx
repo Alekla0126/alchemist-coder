@@ -138,6 +138,7 @@ const PATHS = {
     </>
   ),
   list: <path d="M9 7h11M9 12h11M9 17h11M4.5 7h.5M4.5 12h.5M4.5 17h.5" />,
+  user: <path d="M12 12a3.8 3.8 0 1 0 0-7.6 3.8 3.8 0 0 0 0 7.6zM4.8 19.6a7.2 7.2 0 0 1 14.4 0" />,
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof PATHS;

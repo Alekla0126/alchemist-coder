@@ -134,6 +134,10 @@ interface State {
   orgSettings: OrgSettings | null;
   /** The project the organization view is filtered to ('' = all). */
   orgProject: string;
+  /** The assignment showing on the organization chart (who does what in it); null = the organization as a whole. */
+  orgFocusTeamId: string | null;
+  /** What you're writing as the next assignment: kept while you look at an agent or an assignment. */
+  orgGoal: string;
   /** Unsaved edits to agent profiles, by agent: kept while you look at other things. */
   orgDrafts: Record<string, Record<string, unknown>>;
   /** Opens the new bot configuration dialog (screenshots). */
@@ -283,6 +287,8 @@ export const useStore = create<State>((set, get) => ({
   activeMemberId: null,
   orgSettings: null,
   orgProject: '',
+  orgFocusTeamId: null,
+  orgGoal: '',
   orgDrafts: {},
   botConfigDialog: false,
   planUsage: null,
@@ -351,7 +357,7 @@ export const useStore = create<State>((set, get) => ({
       const pid = get().settings.activeProjectId;
       if (pid != null && info.capture.openFile) get().openFile(pid, info.capture.openFile);
       // A piece being written (--mk-generate) says when it's ready itself.
-      if (!info.capture.mkGenerate) setTimeout(() => set({ captureReady: true }), 2500);
+      if (!info.capture.mkGenerate && !info.capture.orgGoal) setTimeout(() => set({ captureReady: true }), 2500);
     } else if (info.capture?.settings) {
       // The panel reads what the index found (agents, usage): wait for it.
       await indexed;
@@ -371,9 +377,14 @@ export const useStore = create<State>((set, get) => ({
           const run = get().runs[get().runByTarget[target] ?? ''];
           return !run || run.permissions.length > 0 || !!run.questions?.length || ['idle', 'done', 'error', 'interrupted'].includes(run.status);
         };
+        // --run-until=subagent: a few seconds into its first subagent's work.
+        const delegating = () => info.capture!.runUntil === 'subagent' && !!get().runs[get().runByTarget[target] ?? '']?.tools.some((x) => (x.name === 'Agent' || x.name === 'Task') && x.state !== 'done' && x.state !== 'failed');
         await new Promise<void>((resolve) => {
           const timer = setTimeout(resolve, 120_000);
-          const off = useStore.subscribe(() => settled() && (clearTimeout(timer), off(), resolve()));
+          const off = useStore.subscribe(() => {
+            if (settled()) (clearTimeout(timer), off(), resolve());
+            else if (delegating()) (clearTimeout(timer), off(), setTimeout(resolve, 9000));
+          });
         });
         if (info.capture.review) {
           const runId = get().runByTarget[target] ?? '';
@@ -432,6 +443,7 @@ export const useStore = create<State>((set, get) => ({
       const latest = get().botTeams[0];
       if (info.capture.botsView === 'team' && latest) set({ activeTeamId: latest.id, activeBotId: latest.bots[0]?.id ?? null });
       if (info.capture.botsView === 'config') set({ botConfigDialog: true });
+      if (info.capture.botsView === 'chart') set({ orgFocusTeamId: (get().botTeams.find((x) => x.plan?.status === 'pending') ?? latest)?.id ?? null });
       // The organization is set up on first open: wait for its coordinator before picking a profile.
       if (info.capture.botsView === 'member' || info.capture.botsView === 'agent') {
         const pick = () => get().botConfigs.find((c) => (info.capture!.botsView === 'member' ? c.kind === 'coordinator' : c.kind !== 'coordinator' && !c.proposed));
@@ -1033,6 +1045,13 @@ function afterRunEvent(runId: string, event: RunnerEventMessage['event']) {
 export function useT() {
   const locale = useStore((s) => s.locale);
   return (key: MessageKey, vars?: Record<string, string | number>) => translate(locale, key, vars);
+}
+
+/** The projects open in the rail: where agents can be assigned and assignments given. */
+export function useOpenProjects(): ProjectSummary[] {
+  const projects = useStore((s) => s.projects);
+  const open = useStore((s) => s.settings.openProjectIds);
+  return open.map((id) => projects.find((p) => p.id === id)).filter((p): p is ProjectSummary => !!p);
 }
 
 export function findAgent(node: AgentNode | null | undefined, id: string): AgentNode | null {

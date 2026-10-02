@@ -9,19 +9,17 @@ import { LiveTurns } from './LiveTurns';
 import { Markdown } from './Markdown';
 import { TranscriptEntries } from './Transcript';
 import { CommitDialog } from './CommitDialog';
+import { Icon } from './Icon';
 import { parsePatch } from '../diff';
 import { relativePath, tailOf } from '../paths';
+import { ACTIVE, botState, needsYou, teamActive, teamCost, teamState, type TeamState } from '../org-model';
+import { showOnChart } from '../actions/org';
 
-export const ACTIVE: BotStatus[] = ['starting', 'working', 'waiting'];
+export { ACTIVE, botState, needsYou, teamActive, teamCost, teamState, type TeamState };
+
 export const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e)).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
 const STATUS_ICON: Record<BotStatus, string> = { starting: '○', working: '◐', waiting: '!', idle: '✓', done: '✓', error: '✕', stopped: '■' };
 type T = ReturnType<typeof useT>;
-
-/** A bot's status as you see it: a coordinator whose plan waits for you is waiting for you (even stopped: answering resumes it). */
-export function botState(team: BotTeam, bot: BotMember): BotStatus {
-  if (bot.depth === 0 && team.plan?.status === 'pending' && bot.status !== 'error') return 'waiting';
-  return bot.status;
-}
 
 /** What a bot is doing now, in words: the app's own tools come as "@tool:target". */
 export function doingText(doing: string, t: T): { text: string; words: boolean } {
@@ -47,32 +45,9 @@ export async function confirmDeleteTeam(team: BotTeam, t: T): Promise<boolean> {
 /** "default" is the CLI's own setting: say so in the app's language. */
 const modelNamer = (t: ReturnType<typeof useT>) => (model: string) => (model === 'default' ? t('run.defaultModel') : rawModelLabel(model));
 
-export const teamActive = (team: BotTeam) => team.bots.some((b) => ACTIVE.includes(b.status));
-export const teamCost = (team: BotTeam) => team.bots.reduce((a, b) => a + (b.costUsd ?? 0), 0);
-
 /** A goal to start the next new assignment with ("New assignment with this goal"). */
-let draftGoal = '';
 export function setDraftGoal(goal: string) {
-  draftGoal = goal;
-}
-export function takeDraftGoal() {
-  const g = draftGoal;
-  draftGoal = '';
-  return g;
-}
-
-/** One word for how a team is doing. */
-export type TeamState = 'waiting' | 'working' | 'stopped' | 'failed' | 'finished' | 'yourTurn';
-/** Whether an assignment waits for you: a plan to review (even after a stop or restart: answering resumes it) or an agent asking. */
-export const needsYou = (team: BotTeam) => team.plan?.status === 'pending' || team.bots.some((b) => b.status === 'waiting');
-
-export function teamState(team: BotTeam): TeamState {
-  if (needsYou(team)) return 'waiting';
-  if (team.bots.some((b) => b.status === 'working' || b.status === 'starting')) return 'working';
-  if (team.stoppedReason || team.bots[0]?.status === 'stopped') return 'stopped';
-  if (team.bots[0]?.status === 'error') return 'failed';
-  // Finished only when the coordinator said so (finish_team); otherwise it ended its turn for you.
-  return team.finished ? 'finished' : 'yourTurn';
+  useStore.setState({ orgGoal: goal });
 }
 
 function BotRow({ bot, selected, onSelect, team }: { bot: BotMember; selected: boolean; onSelect: () => void; team: BotTeam }) {
@@ -683,6 +658,10 @@ export function TeamView({ team }: { team: BotTeam }) {
   return (
     <section className="team-view">
       <header className="team-head">
+        {/* Back to the chart, with this assignment showing on it: who does what. */}
+        <button className="icon-btn ic-btn" onClick={() => showOnChart(team.id)} title={t('org.seeOnChart')} aria-label={t('org.seeOnChart')}>
+          <Icon name="chevronLeft" size={16} />
+        </button>
         <div className="team-title">
           <span className={`team-state ts-${state}`}>{t(`bots.team.${state}`)}</span>
           <h1 title={team.goal}>{team.title || team.goal}</h1>
@@ -826,8 +805,8 @@ export function TeamView({ team }: { team: BotTeam }) {
                     <button
                       className="btn-ghost small"
                       onClick={() => {
-                        draftGoal = team.goal;
-                        useStore.setState({ activeTeamId: null, activeBotId: null });
+                        setDraftGoal(team.goal);
+                        showOnChart(null);
                       }}
                     >
                       ⚗ {t('bots.newTeamSameGoal')}

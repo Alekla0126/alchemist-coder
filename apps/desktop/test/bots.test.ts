@@ -224,6 +224,29 @@ describe('bot teams', () => {
     expect(bots.listTeams()[0]!.bots[0]!.doing).toBe('@wait_for_bot:W');
   });
 
+  it('keeps saying what a bot does when a call\'s updates come without its name', async () => {
+    const { bots } = setup();
+    const team = bots.startTeam({ goal: 'g', cwd: '/p', coordinator: { name: 'Lead', role: '', agent, permissionMode: 'acceptEdits' } });
+    await bots.callTool({ teamId: team.id, botId: 'b1' }, 'create_bot', { name: 'W', task: 't' });
+    const emit = (bots as unknown as { onRunEvent(m: RunnerEventMessage): void }).onRunEvent.bind(bots);
+    const doing = (i: number) => bots.listTeams()[0]!.bots[i]!.doing;
+    emit({ runId: 'run-2', event: { type: 'tool', name: 'Bash', summary: 'npm test', id: 't1', kind: 'execute' } });
+    // Updates of the same call: named after its kind, or just "tool", with nothing new to say.
+    emit({ runId: 'run-2', event: { type: 'tool', name: 'execute', summary: '', id: 't1', kind: 'execute', state: 'running' } });
+    emit({ runId: 'run-2', event: { type: 'tool', name: 'tool', summary: '', id: 't1', state: 'done' } });
+    expect(doing(1)).toBe('Bash: npm test');
+    // One of the app's own tools that only ever arrives as an update: the title names it.
+    emit({ runId: 'run-1', event: { type: 'tool', name: 'other', summary: 'mcp__alchemist_bots__wait_for_bot', id: 't2', kind: 'other', input: '{"bot_id":"b2"}' } });
+    expect(doing(0)).toBe('@wait_for_bot:W');
+    // A title that already starts with the tool isn't said twice.
+    emit({ runId: 'run-2', event: { type: 'tool', name: 'Read', summary: 'Read notes.txt', id: 't3', kind: 'read' } });
+    expect(doing(1)).toBe('Read notes.txt');
+    emit({ runId: 'run-2', event: { type: 'tool', name: 'Bash', summary: 'npm test', id: 't4', kind: 'execute' } });
+    // An unknown call with no name at all changes nothing.
+    emit({ runId: 'run-2', event: { type: 'tool', name: 'tool', summary: '', id: 't7' } });
+    expect(doing(1)).toBe('Bash: npm test');
+  });
+
   it('marks teams cut off by a restart, and a plan answered later resumes the coordinator', async () => {
     const fake = fakeRunner();
     const files = { configs: join(dir, 'restart-c.json'), teams: join(dir, 'restart-t.json') };

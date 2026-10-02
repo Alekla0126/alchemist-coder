@@ -13,6 +13,7 @@ import { AgentTree } from './AgentTree';
 import { ExtensionsHub } from './ExtensionsHub';
 import { FileTree } from './FileTree';
 import { GitPanel } from './GitPanel';
+import { WorkingOrb } from './WorkingOrb';
 
 /** Several conversations with the same title, as one row that opens. */
 function RepeatedRow({ title, items }: { title: string; items: SessionSummary[] }) {
@@ -109,7 +110,9 @@ export function SessionRow({ session }: { session: SessionSummary }) {
               {t('attention.needsYouPill')}
             </span>
           ) : session.runningAgents > 0 ? (
-            <span className="badge-run" title={t('status.runningAgents', { n: session.runningAgents })}>● {session.runningAgents}</span>
+            <span className="badge-run" title={t('status.runningAgents', { n: session.runningAgents })}>
+              <WorkingOrb size={11} /> {session.runningAgents}
+            </span>
           ) : (
             relativeTime(session.lastTs, locale)
           )}

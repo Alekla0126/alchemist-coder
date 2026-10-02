@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useStore, useT } from '../store';
 import { UsageMeter } from './UsageMeter';
+import { ActivityBar } from './ActivityBar';
 import { useGit } from '../git-store';
 import { gitSummary } from './GitPanel';
 import { Icon } from './Icon';
@@ -12,7 +13,6 @@ export function StatusBar() {
   const projects = useStore((s) => s.projects);
   const info = useStore((s) => s.info);
   const sessions = projects.reduce((n, p) => n + p.sessionCount, 0);
-  const running = projects.reduce((n, p) => n + p.runningAgents, 0);
   const cwd = useStore((s) => s.projects.find((p) => p.id === s.settings.activeProjectId)?.cwd);
   const git = gitSummary(useGit((g) => (cwd ? g.byCwd[cwd] : undefined)));
   const load = useGit((g) => g.load);
@@ -32,7 +32,7 @@ export function StatusBar() {
   };
   return (
     <footer className="status">
-      <span className="l">
+      <span className="l status-index">
         {progress.phase === 'ready' ? (
           t('index.ready', { sessions, projects: projects.length })
         ) : progress.phase === 'scanning' ? (
@@ -45,7 +45,7 @@ export function StatusBar() {
           </>
         )}
       </span>
-      {running > 0 && <span className="l run">● {t('status.runningAgents', { n: running })}</span>}
+      <ActivityBar />
       {git && (
         <button className="l status-git" onClick={openGit} title={t('git.statusTip')}>
           <Icon name="branch" size={12} /> {git.branch}

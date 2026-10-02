@@ -169,12 +169,22 @@ export interface AppInfo {
     review: boolean;
     /** Open the plans & usage popover. */
     usage: boolean;
+    /** Open the status bar's activity list. */
+    activity?: boolean;
+    /** Scroll the open conversation to the first element matching this selector. */
+    scrollTo?: string | null;
+    /** With `run`: capture while the agent's first subagent works, instead of once the run settles. */
+    runUntil?: 'subagent' | null;
+    /** Organization: give this assignment from the chart's message box and capture once its plan waits for you. */
+    orgGoal?: string | null;
+    /** With `orgGoal`: approve the plan and capture while its agents work. */
+    orgApprove?: boolean;
     /** Open Settings at this section. */
     settings: 'general' | 'agents' | 'usage' | 'backup' | 'shortcuts' | 'about' | null;
     /** Starts a real agent run and captures once it asks for permission or finishes. */
     run: { harnessId: string; providerId: string; model: string; permissionMode: PermissionMode; prompt: string; cwd: string | null } | null;
-    /** Bots mode: open the most recent team, or the new-configuration dialog. */
-    botsView: 'team' | 'config' | 'member' | 'agent' | null;
+    /** Bots mode: open the most recent team, the new-configuration dialog, or the chart with a plan to review on it. */
+    botsView: 'team' | 'config' | 'member' | 'agent' | 'chart' | null;
     /** Starts a real bot team (coordinator agent from `agent`) and captures once it settles. */
     team: { goal: string; harnessId: string; providerId: string; model: string; cwd: string; approvePlan: boolean; org: boolean } | null;
     /** Runs a real Arena task and captures it at plan review or once the agents finish. */

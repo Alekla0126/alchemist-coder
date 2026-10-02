@@ -6,7 +6,10 @@ import { compactNumber, duration, money, modelLabel } from '../format';
 import { findAgent, useStore, useT } from '../store';
 import { Composer } from './Composer';
 import { StatusDot } from './StatusDot';
-import { TranscriptEntries } from './Transcript';
+import { WorkingOrb, WorkingRow } from './WorkingOrb';
+import { TranscriptEntries, type Speakers } from './Transcript';
+import { AgentTabs } from './AgentTabs';
+import { typeLabel } from '../chat-model';
 import { LiveTurns } from './LiveTurns';
 import { FindBar } from './FindBar';
 import { StartScreen } from './StartScreen';
@@ -19,6 +22,23 @@ import { openMenu } from '../ui';
 import { relativePath } from '../paths';
 
 const PAGE = 300;
+
+/** The shape of a conversation while it loads: a question, an answer, a question. */
+function ChatSkeleton({ label }: { label: string }) {
+  return (
+    <div className="entries chat-skeleton" role="status" aria-label={label}>
+      {[['you', 44], ['agent', 92, 78, 61], ['you', 30], ['agent', 86, 52]].map(([kind, ...widths], i) => (
+        <div key={i} className={`sk-turn ${kind}`}>
+          <i className="sk sk-who" />
+          {widths.map((w, j) => (
+            <i key={j} className="sk" style={{ width: `${w}%` }} />
+          ))}
+        </div>
+      ))}
+      <span className="sk-label">{label}</span>
+    </div>
+  );
+}
 
 export function AgentPanel() {
   const t = useT();
@@ -53,6 +73,8 @@ export function AgentPanel() {
   const pendingScroll = useRef<{ kind: 'bottom' } | { kind: 'keep'; height: number; top: number } | null>(null);
   const loaded = useRef<{ key: string; start: number; total: number } | null>(null);
   const [finding, setFinding] = useState(false);
+  /** The conversation (or agent) just opened hasn't arrived yet. */
+  const [loading, setLoading] = useState(false);
   // ⌘F finds in the conversation, unless the editor or a terminal has the focus (they have their own).
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -69,6 +91,7 @@ export function AgentPanel() {
   const node = selection ? findAgent(tree, selection.agentId) : null;
   // A name you gave this agent in the tree.
   const alias = useAgentNames((n) => (selection && node ? n.names[selection.sessionId]?.[node.id] : undefined));
+  const names = useAgentNames((n) => (selection ? n.names[selection.sessionId] : undefined));
   // File paths in the chat open in the editor when they're in the project.
   const projectForLinks = useStore((s) => s.projects.find((p) => p.id === (s.composeProjectId ?? s.settings.activeProjectId)));
   const openFileAt = useStore((s) => s.openFileAt);
@@ -99,6 +122,13 @@ export function AgentPanel() {
     let cancelled = false;
     const key = `${selection.sessionId}:${selection.agentId}`;
     const same = loaded.current?.key === key;
+    // Another agent's messages don't stay under this one's name while its own load.
+    if (!same) {
+      setLoading(true);
+      setEntries([]);
+      setTotal(0);
+      setStart(0);
+    }
     void (async () => {
       // First open: the last page. A live update: everything from what's already loaded to the end.
       const from = same ? loaded.current!.start : -1;
@@ -119,8 +149,12 @@ export function AgentPanel() {
       setEntries(page.entries);
       setStart(page.offset);
       setTotal(page.total);
+      setLoading(false);
+      // --scroll-to (screenshots): a part of the conversation further up.
+      const to = useStore.getState().info?.capture?.scrollTo;
+      if (to) setTimeout(() => scroller.current?.querySelector(to)?.scrollIntoView({ block: 'center' }), 300);
       markCaptureReady();
-    })();
+    })().catch(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
     };
@@ -170,7 +204,7 @@ export function AgentPanel() {
           <h1 className="aname">{t('run.newIn', { project: composeProject?.name ?? '' })}</h1>
           <p className="adesc">{composeProject?.cwd}</p>
         </div>
-        <div className="tx">{liveRunId && <LiveTurns runId={liveRunId} />}</div>
+        <div className="tx">{liveRunId && <LiveTurns runId={liveRunId} who={{ asker: t('chat.you'), agent: t('agent.main'), you: true }} />}</div>
         <Composer projectId={composeProjectId} />
       </section>
       </MarkdownActions.Provider>
@@ -211,20 +245,19 @@ export function AgentPanel() {
     const id = await openMenu(files.map((f, i) => ({ id: `f:${i}`, label: relativePath(f, projectForLinks.cwd) || f })));
     if (id) markdownActions.openPath(files[Number(id.slice(2))]!);
   };
-  const pickChild = async () => {
-    const id = await openMenu(node.children.slice(0, 40).map((c) => ({ id: `a:${c.id}`, label: `${c.type} · ${c.description}`.slice(0, 120) })));
-    if (id) void select(selection.sessionId, id.slice(2));
-  };
+  // Who says what: you and the main agent, or the agent that gave this subagent its task and the subagent.
+  const nameOf = (n: { id: string; type: string }) => names?.[n.id] ?? (n.id === 'main' ? t('agent.main') : `${t('chat.subagent')} · ${typeLabel(n.type)}`);
+  const who: Speakers = isMain ? { asker: t('chat.you'), agent: nameOf(node), you: true } : { asker: parent ? nameOf(parent) : t('agent.main'), agent: nameOf(node), you: false };
   return (
     <MarkdownActions.Provider value={markdownActions}>
       <section className="agent-panel">
       <div className="ah compact">
         <div className="ah-row">
           <span className={`live ${status}`} title={t(`status.${status}`)}>
-            <StatusDot status={status} />
+            {status === 'running' || status === 'waiting' ? <WorkingOrb state={status} size={15} label={t(`status.${status}`)} /> : <StatusDot status={status} />}
           </span>
-          <h1 className="aname" title={isMain ? (session?.title ?? node.description) : node.type}>
-            {isMain ? (session?.title ?? node.description) : (alias ?? node.type)}
+          <h1 className="aname" title={isMain ? (session?.title ?? node.description) : node.description}>
+            {isMain ? (session?.title ?? node.description) : (alias ?? node.description)}
           </h1>
           <span className="ah-stats" title={t('agent.costHint')}>
             {stats}
@@ -238,8 +271,13 @@ export function AgentPanel() {
             </button>
           )}
         </div>
-        {!isMain && <p className="adesc">{node.description}</p>}
+        {!isMain && alias && <p className="adesc">{node.description}</p>}
         <div className="achips">
+          {!isMain && (
+            <span className="ac">
+              {t('chat.subagent')} · {typeLabel(node.type)}
+            </span>
+          )}
           {status !== 'done' && status !== 'idle' && <span className={`ac status ${status}`}>{t(`status.${status}`)}</span>}
           {/* The main agent's CLI and model are in the chips under the message box. */}
           {node.model && !isMain && (
@@ -259,29 +297,18 @@ export function AgentPanel() {
                 )}
               </>
             )
-          ) : (
-            <span className="ac">{t('agent.depth', { n: node.depth })}</span>
-          )}
+          ) : null}
           {node.worktreeBranch && <span className="ac branch">⎇ {node.worktreeBranch}</span>}
-          {parent && (
-            <button className="ac ac-btn" onClick={() => void select(selection.sessionId, parent.id)} title={t('agent.parent')}>
-              ↑ {parent.id === 'main' ? t('agent.main') : parent.description}
-            </button>
-          )}
           {isMain && session && session.editedFiles.length > 0 && (
             <button className="ac ac-btn" onClick={() => void pickEdited()} aria-haspopup="menu" title={t('agent.editedHint')}>
               ✎ {t('agent.editedN', { n: session.editedFiles.length })} ▾
-            </button>
-          )}
-          {node.children.length > 0 && (
-            <button className="ac ac-btn" onClick={() => void pickChild()} aria-haspopup="menu">
-              ⚗ {t('agent.subagentsN', { n: node.children.length })} ▾
             </button>
           )}
           {/* In a narrow panel the stats move here from the title row. */}
           <span className="ac ah-stats-chip">{stats}</span>
         </div>
       </div>
+      {tree && <AgentTabs sessionId={selection.sessionId} root={tree} selectedId={node.id} mainStatus={liveStatus ?? tree.status} />}
       {finding && (
         <FindBar root={scroller} version={`${entries.length}:${start}:${liveTurns?.length ?? 0}`} onClose={() => setFinding(false)} more={start} onLoadMore={() => void loadEarlier()} />
       )}
@@ -291,12 +318,16 @@ export function AgentPanel() {
             ↑ {t('transcript.loadEarlier', { n: start })}
           </button>
         )}
-        {entries.length === 0 && total === 0 ? (
+        {loading ? (
+          <ChatSkeleton label={t('chat.loading')} />
+        ) : entries.length === 0 && total === 0 ? (
           <p className="empty">{t('transcript.empty')}</p>
         ) : (
-          <TranscriptEntries entries={liveSince != null ? entries.filter((e) => e.ts == null || e.ts < liveSince) : entries} sessionId={selection.sessionId} isSubagent={!isMain} />
+          <TranscriptEntries entries={liveSince != null ? entries.filter((e) => e.ts == null || e.ts < liveSince) : entries} sessionId={selection.sessionId} isSubagent={!isMain} who={who} />
         )}
-        {isMain && liveRunId && <LiveTurns runId={liveRunId} />}
+        {isMain && liveRunId && <LiveTurns runId={liveRunId} who={who} />}
+        {/* Working without a run of the app (a terminal, another app, or a subagent): the chat still shows it. */}
+        {status === 'running' && !running && <WorkingRow state="running" label={t(isMain ? 'run.workingElsewhere' : 'run.running')} since={null} />}
         {(unseen > 0 || far) && (
           <button className="jump-latest" onClick={jumpToLatest}>
             ↓ {unseen > 0 ? t('transcript.jumpLatest', { n: unseen }) : t('transcript.jumpLatestPlain')}
@@ -304,6 +335,15 @@ export function AgentPanel() {
         )}
       </div>
       {isMain && session && <Composer projectId={session.projectId} session={session} />}
+      {/* A subagent only hears from the agent that launched it: say so, with the way back. */}
+      {!isMain && (
+        <div className="sub-foot">
+          <span>{t('chat.subNote')}</span>
+          <button className="btn-ghost small" onClick={() => void select(selection.sessionId, 'main')}>
+            ← {t('chat.backToMain')}
+          </button>
+        </div>
+      )}
     </section>
     </MarkdownActions.Provider>
   );

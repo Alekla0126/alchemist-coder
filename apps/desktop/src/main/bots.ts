@@ -205,6 +205,8 @@ export class BotManager {
   private readonly turnText = new Map<string, string>();
   /** Where the turn's text was when the bot last used a tool: what follows is its final message. */
   private readonly turnMark = new Map<string, number>();
+  /** The name each tool call started with, by run and call: its updates come without it. */
+  private readonly toolNames = new Map<string, string>();
   private readonly waiters = new Map<string, Array<() => void>>();
   private server: Server | null = null;
   private port = 0;
@@ -235,6 +237,11 @@ export class BotManager {
       };
     });
     runner.observe((m) => this.onRunEvent(m));
+  }
+
+  /** A turn ended: its calls' names aren't needed any more. */
+  private forgetTools(runId: string) {
+    for (const key of this.toolNames.keys()) if (key.startsWith(`${runId}:`)) this.toolNames.delete(key);
   }
 
   private read<T>(file: string): T | null {
@@ -728,7 +735,14 @@ export class BotManager {
         break;
       case 'tool': {
         this.turnMark.set(runId, (this.turnText.get(runId) ?? '').length);
-        const own = /^mcp__alchemist_bots__(\w+)$/.exec(event.name);
+        // A call's updates only carry what changed: they come named after their kind ("other", "tool"), with the tool in the title at most.
+        const key = `${runId}:${event.id ?? ''}`;
+        const unnamed = event.name === 'tool' || event.name === event.kind;
+        const toolName = !unnamed ? event.name : ((event.id ? this.toolNames.get(key) : undefined) ?? (/^mcp__\w+__\w+$/.test(event.summary) ? event.summary : ''));
+        if (!unnamed && event.id) this.toolNames.set(key, event.name);
+        // An update that says nothing new about what the bot is doing.
+        if (!toolName) break;
+        const own = /^mcp__alchemist_bots__(\w+)$/.exec(toolName);
         if (own) {
           // The app's own tools, shown in words by the app: "@wait_for_bot:Tester".
           let input: Record<string, unknown> = {};
@@ -739,15 +753,19 @@ export class BotManager {
           }
           const target = typeof input.bot_id === 'string' ? (team.bots.find((b) => b.id === input.bot_id)?.name ?? input.bot_id) : typeof input.name === 'string' ? input.name : '';
           if (event.input || !bot.doing?.startsWith(`@${own[1]}:`)) bot.doing = `@${own[1]}:${target}`.slice(0, 160);
-        } else if (event.summary || event.name) {
-          const name = event.name.startsWith('mcp__') ? (event.name.split('__').at(-1) ?? event.name) : event.name;
-          const summary = event.summary && event.summary !== event.name ? event.summary : '';
-          bot.doing = `${name}${summary ? `: ${summary}` : ''}`.slice(0, 160);
+        } else {
+          const name = toolName.startsWith('mcp__') ? (toolName.split('__').at(-1) ?? toolName) : toolName;
+          const summary = event.summary && event.summary !== event.name && event.summary !== toolName ? event.summary : '';
+          // An update without a title keeps what the call said when it started ("Bash: npm test").
+          // "Read pendientes.txt", not "Read: Read pendientes.txt": some titles already start with the tool.
+          const said = summary.toLowerCase().startsWith(`${name.toLowerCase()} `) ? summary : `${name}${summary ? `: ${summary}` : ''}`;
+          if (summary || !unnamed) bot.doing = said.slice(0, 160);
         }
         break;
       }
       case 'result':
         bot.doing = null;
+        this.forgetTools(runId);
         this.log(team, bot.id, event.ok ? 'finished' : 'failed');
         bot.lastReply = clip(this.finalText(runId), REPLY_CHARS) || bot.lastReply;
         if (event.costUsd != null) bot.costUsd = event.costUsd;
@@ -761,6 +779,7 @@ export class BotManager {
         if (event.status === 'running' && bot.status === 'idle') bot.status = 'working';
         if (event.status === 'done' || event.status === 'error' || event.status === 'interrupted') {
           bot.doing = null;
+          this.forgetTools(runId);
           if (event.status === 'error' && bot.status !== 'error') this.log(team, bot.id, 'failed');
           const text = this.finalText(runId);
           if (text) bot.lastReply = clip(text, REPLY_CHARS);

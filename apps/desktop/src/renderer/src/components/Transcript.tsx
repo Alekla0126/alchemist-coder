@@ -1,8 +1,12 @@
 import { Fragment, useEffect, useState } from 'react';
 import { Icon } from './Icon';
+import { StatusDot } from './StatusDot';
+import { useNow, WorkingOrb } from './WorkingOrb';
+import { useAgentNames } from '../agents-edit';
+import { findByToolUse, typeLabel } from '../chat-model';
 import type { FileDiff, TranscriptBlock, TranscriptEntry } from '@alchemist-coder/core';
-import { clockTime, modelLabel } from '../format';
-import { useStore, useT } from '../store';
+import { clockTime, duration, modelLabel, money } from '../format';
+import { findAgent, useStore, useT } from '../store';
 import { contextMenu, toast } from '../ui';
 import { Markdown } from './Markdown';
 import { DiffPreview, relativeTo, useProjectRoot } from './LiveRun';
@@ -165,6 +169,97 @@ export function QuietRow({ use, result }: { use: ToolUse; result: ToolResult | u
     <div className={`quiet-row ${result?.isError ? 'failed' : ''}`} title={use.input}>
       <span className="ic">{use.name === 'Skill' ? '✦' : '⌕'}</span> {text}
     </div>
+  );
+}
+
+/** Who says each turn of a chat: you (or the agent that gave a subagent its task) and the agent answering. */
+export interface Speakers {
+  asker: string;
+  agent: string;
+  /** The asker is you, not another agent. */
+  you: boolean;
+}
+
+/** The line over a turn that says whose it is. */
+export function Who({ name, you }: { name: string; you?: boolean }) {
+  return (
+    <div className={`speaker ${you ? 'you' : 'agent'}`}>
+      <span className="speaker-av" aria-hidden>
+        {you ? <Icon name="user" size={12} /> : '⚗'}
+      </span>
+      {name}
+    </div>
+  );
+}
+
+/**
+ * A subagent in the chat, where its parent launched it: who it is, how it's doing, and a way into
+ * its own chat. What it was asked and what it answered open in place.
+ */
+export function SubagentCard({ sessionId, agentId, toolUseId, type, description, prompt, answer, pending, failed, live }: { sessionId: string; agentId?: string | null; toolUseId?: string; type: string; description: string; prompt: string; answer: string; pending: boolean; failed: boolean; /** Part of a run going on right now. */ live?: boolean }) {
+  const t = useT();
+  const locale = useStore((s) => s.locale);
+  const select = useStore((s) => s.select);
+  const node = useStore((s) => (agentId ? findAgent(s.trees[sessionId], agentId) : findByToolUse(s.trees[sessionId], toolUseId)));
+  const alias = useAgentNames((n) => (node ? n.names[sessionId]?.[node.id] : undefined));
+  // A failed call is failed. Otherwise the subagent's own state says: one launched in the background
+  // keeps working after its call returned. Without it, the call's outcome is all there is.
+  const status = failed ? 'error' : node ? node.status : !pending ? 'done' : live ? 'running' : 'idle';
+  const working = status === 'running';
+  const now = useNow(working && node?.startedTs != null);
+  const elapsed = node?.startedTs != null ? (working ? now : (node.endedTs ?? node.startedTs)) - node.startedTs : null;
+  const stats = [elapsed != null && elapsed > 0 ? duration(elapsed) : '', node?.toolCalls ? t('agent.toolsN', { n: node.toolCalls }) : '', node?.costUsd ? money(node.costUsd, locale) : ''].filter(Boolean).join(' · ');
+  const label = working ? t('run.running') : status === 'done' ? t('chat.subDone') : t(`status.${status}`);
+  return (
+    <div className={`sub-card st-${status}`}>
+      <div className="sub-head">
+        {working ? <WorkingOrb size={16} label={label} /> : <StatusDot status={status} />}
+        <span className="sub-title">
+          <small>
+            {t('chat.subagent')} · {typeLabel(node?.type ?? type)}
+          </small>
+          <b>{alias ?? (description || node?.description || typeLabel(type))}</b>
+        </span>
+        <span className="sub-side">
+          <span className={`sub-state st-${status}`}>{label}</span>
+          {stats && <small>{stats}</small>}
+        </span>
+        {node && (
+          <button className="btn-ghost small sub-open" onClick={() => void select(sessionId, node.id)}>
+            {t('chat.openChat')} →
+          </button>
+        )}
+      </div>
+      {prompt && (
+        <details className="sub-more">
+          <summary>{t('chat.subAsked')}</summary>
+          <LongText text={prompt} />
+        </details>
+      )}
+      {answer && (
+        <details className="sub-more">
+          <summary>{t('chat.subAnswered')}</summary>
+          <LongText text={answer} />
+        </details>
+      )}
+    </div>
+  );
+}
+
+/** The card of the subagent a tool call launched. */
+function SpawnCard({ block, result, sessionId }: { block: ToolUse; result: ToolResult | undefined; sessionId: string }) {
+  const input = parseInput(block);
+  return (
+    <SubagentCard
+      sessionId={sessionId}
+      agentId={block.spawnsAgentId}
+      type={String(input.subagent_type ?? block.name)}
+      description={String(input.description ?? block.summary ?? '')}
+      prompt={typeof input.prompt === 'string' ? input.prompt : ''}
+      answer={result && !result.isError ? result.preview : ''}
+      pending={!result}
+      failed={!!result?.isError}
+    />
   );
 }
 
@@ -359,7 +454,7 @@ function Block({ block, sessionId }: { block: TranscriptBlock; sessionId: string
         </details>
       );
     case 'tool_use':
-      return <ToolRow block={block} result={undefined} sessionId={sessionId} />;
+      return block.spawnsAgentId ? <SpawnCard block={block} result={undefined} sessionId={sessionId} /> : <ToolRow block={block} result={undefined} sessionId={sessionId} />;
     case 'tool_result':
       // Results whose call isn't on this page (the call is on an earlier one) still show on their own.
       return (
@@ -426,14 +521,14 @@ function TurnActions({ turn, last, meta }: { turn: Turn; last: boolean; meta: st
 }
 
 function RenderBlockView({ b, sessionId }: { b: RenderBlock; sessionId: string }) {
-  if (b.kind === 'tool') return <ToolRow block={b.use} result={b.result} sessionId={sessionId} />;
+  if (b.kind === 'tool') return b.use.spawnsAgentId ? <SpawnCard block={b.use} result={b.result} sessionId={sessionId} /> : <ToolRow block={b.use} result={b.result} sessionId={sessionId} />;
   if (b.kind === 'tasks') return <TaskList items={b.items} ops={b.ops} />;
   if (b.kind === 'quiet') return <QuietRow use={b.use} result={b.result} />;
   if (b.kind === 'group') return <ToolGroup tools={b.tools} sessionId={sessionId} />;
   return <Block block={b.block} sessionId={sessionId} />;
 }
 
-export function TranscriptEntries({ entries, sessionId, isSubagent }: { entries: TranscriptEntry[]; sessionId: string; isSubagent: boolean }) {
+export function TranscriptEntries({ entries, sessionId, isSubagent, who }: { entries: TranscriptEntry[]; sessionId: string; isSubagent: boolean; who?: Speakers }) {
   const t = useT();
   const locale = useStore((s) => s.locale);
   const fillComposer = useStore((s) => s.fillComposer);
@@ -503,8 +598,9 @@ export function TranscriptEntries({ entries, sessionId, isSubagent }: { entries:
             }
           >
             <TurnActions turn={turn} last={i === lastUser && !isSubagent} meta={[when, turn.role === 'assistant' && turn.model ? modelLabel(turn.model) : ''].filter(Boolean).join(' · ')} />
+            {who && (turn.role === 'user' ? <Who name={who.you ? who.asker : t('chat.asked', { name: who.asker })} you={who.you} /> : <Who name={who.agent} />)}
             <div className="entry-body">
-              {brief && <span className="brief-label">{t('agent.brief')}</span>}
+              {brief && !who && <span className="brief-label">{t('agent.brief')}</span>}
               {turn.blocks.map((b, j) => (
                 <RenderBlockView key={j} b={b} sessionId={sessionId} />
               ))}

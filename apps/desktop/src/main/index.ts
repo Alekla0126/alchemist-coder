@@ -76,8 +76,13 @@ function appInfo(): AppInfo {
           terminalSplit: process.argv.includes('--terminal-split'),
           review: process.argv.includes('--review'),
           usage: process.argv.includes('--usage'),
+          activity: process.argv.includes('--activity'),
+          scrollTo: arg('scroll-to') ?? null,
+          runUntil: arg('run-until') === 'subagent' ? 'subagent' : null,
+          orgGoal: arg('org-goal') ?? null,
+          orgApprove: process.argv.includes('--org-approve'),
           settings: (['general', 'agents', 'usage', 'backup', 'shortcuts', 'about'] as const).find((x) => x === arg('settings')) ?? null,
-          botsView: ['team', 'config', 'member', 'agent'].includes(arg('bots-view') ?? '') ? (arg('bots-view') as 'team' | 'config' | 'member' | 'agent') : null,
+          botsView: ['team', 'config', 'member', 'agent', 'chart'].includes(arg('bots-view') ?? '') ? (arg('bots-view') as 'team' | 'config' | 'member' | 'agent' | 'chart') : null,
           team: (() => {
             const [h, p, m] = (arg('team-agent') ?? '').split(',');
             const goal = arg('team');

@@ -4,13 +4,14 @@ import { useStore, useT, type RunState } from '../store';
 import { DiffPreview, PermissionCard } from './LiveRun';
 import { mainFields, QuestionForm, questionHeading } from './QuestionForm';
 import { Markdown } from './Markdown';
-import { QuietRow, ToolInput } from './Transcript';
+import { QuietRow, SubagentCard, ToolInput, Who, type Speakers } from './Transcript';
+import { WorkingRow } from './WorkingOrb';
 import { displaySummary } from '../transcript-model';
 
 const STATE_ICON: Record<string, string> = { pending: '…', running: '◐', done: '✓', failed: '✕' };
 
 /** The bot tools, named for people ("Created a bot"), and other MCP tools without their server prefix. */
-function toolLabel(name: string, t: ReturnType<typeof useT>): { label: string; icon: string | null } {
+export function toolLabel(name: string, t: ReturnType<typeof useT>): { label: string; icon: string | null } {
   const m = /^mcp__([^_].*?)__(.+)$/.exec(name);
   if (!m) return { label: name, icon: null };
   if (m[1] === 'alchemist_bots') {
@@ -45,7 +46,7 @@ function botCallSummary(tool: { name: string; input?: string; output?: string })
   return { text: name, botId: id };
 }
 
-function LiveToolRow({ tool }: { tool: Extract<LiveBlock, { kind: 'tool' }>['tool'] }) {
+function LiveToolRow({ tool, sessionId }: { tool: Extract<LiveBlock, { kind: 'tool' }>['tool']; sessionId: string | null }) {
   const t = useT();
   const [open, setOpen] = useState(tool.state === 'failed');
   const diffs = tool.diffs ?? [];
@@ -55,6 +56,29 @@ function LiveToolRow({ tool }: { tool: Extract<LiveBlock, { kind: 'tool' }>['too
   const canOpen = diffs.length > 0 || !!tool.input || !!tool.output;
   if (QUIET.has(tool.name)) {
     return <QuietRow use={{ kind: 'tool_use', id: tool.id ?? '', name: tool.name, summary: tool.summary, input: tool.input ?? '{}', spawnsAgentId: null }} result={undefined} />;
+  }
+  // Launching a subagent: the same card as in the saved conversation.
+  if (sessionId && (tool.name === 'Agent' || tool.name === 'Task')) {
+    let input: Record<string, unknown> = {};
+    try {
+      input = JSON.parse(tool.input ?? '{}') as Record<string, unknown>;
+    } catch {
+      input = {};
+    }
+    const ended = tool.state === 'done' || tool.state === 'failed';
+    return (
+      <SubagentCard
+        sessionId={sessionId}
+        toolUseId={tool.id}
+        type={String(input.subagent_type ?? tool.name)}
+        description={String(input.description ?? (tool.summary === tool.name ? '' : tool.summary))}
+        prompt={typeof input.prompt === 'string' ? input.prompt : ''}
+        answer={tool.state === 'done' ? (tool.output ?? '') : ''}
+        pending={!ended}
+        failed={tool.state === 'failed'}
+        live
+      />
+    );
   }
   return (
     <div className={`tool ${tool.state === 'failed' ? 'failed' : ''}`}>
@@ -108,7 +132,7 @@ function Block({ b, run, last }: { b: LiveBlock; run: RunState; last: boolean })
         </details>
       );
     case 'tool':
-      return <LiveToolRow tool={b.tool} />;
+      return <LiveToolRow tool={b.tool} sessionId={run.sessionId} />;
     case 'permission':
       if (!b.resolved) return <PermissionCard runId={run.runId} request={b.request} />;
       return (
@@ -127,13 +151,25 @@ function Block({ b, run, last }: { b: LiveBlock; run: RunState; last: boolean })
   }
 }
 
-function Turn({ turn, run, isLast }: { turn: LiveTurn; run: RunState; isLast: boolean }) {
+/** What the agent is doing right now, in a few words. */
+function activity(turn: LiveTurn, run: RunState, t: ReturnType<typeof useT>): string {
+  if (run.status === 'waiting') return t('run.waiting');
+  if (run.status === 'starting') return t('run.starting');
+  const last = turn.blocks.at(-1);
+  if (last?.kind === 'thinking') return t('run.thinking');
+  if (last?.kind === 'tool' && last.tool.state !== 'done' && last.tool.state !== 'failed') return t('run.usingTool', { tool: toolLabel(last.tool.name, t).label });
+  if (last?.kind === 'text') return t('run.writing');
+  return t('run.running');
+}
+
+function Turn({ turn, run, isLast, who }: { turn: LiveTurn; run: RunState; isLast: boolean; who?: Speakers }) {
   const t = useT();
   const working = isLast && turn.endedAt === null;
   return (
     <>
       {turn.prompt && (
         <div className="entry user live-entry">
+          {who && <Who name={who.asker} you={who.you} />}
           <div className="entry-body">
             <Markdown text={turn.prompt} />
             {!!turn.images?.length && (
@@ -154,6 +190,7 @@ function Turn({ turn, run, isLast }: { turn: LiveTurn; run: RunState; isLast: bo
       )}
       {(turn.blocks.length > 0 || working) && (
         <div className="entry assistant live-entry">
+          {who && <Who name={who.agent} />}
           <div className="entry-body">
             {turn.blocks.map((b, i) =>
               // The question card stands for the agent's AskUserQuestion call: no second row for it.
@@ -161,11 +198,7 @@ function Turn({ turn, run, isLast }: { turn: LiveTurn; run: RunState; isLast: bo
                 <Block key={i} b={b} run={run} last={i === turn.blocks.length - 1} />
               ),
             )}
-            {working && (
-              <span className={`live-working ${run.status === 'waiting' ? 'waiting' : ''}`} role="status">
-                <span className="live-dot" aria-hidden /> {t(run.status === 'waiting' ? 'run.waiting' : 'run.running')}
-              </span>
-            )}
+            {working && <WorkingRow state={run.status === 'waiting' ? 'waiting' : 'running'} label={activity(turn, run, t)} since={turn.startedAt} />}
           </div>
         </div>
       )}
@@ -174,13 +207,13 @@ function Turn({ turn, run, isLast }: { turn: LiveTurn; run: RunState; isLast: bo
 }
 
 /** The turns of a run as they happen, drawn like the rest of the conversation. */
-export function LiveTurns({ runId }: { runId: string }) {
+export function LiveTurns({ runId, who }: { runId: string; who?: Speakers }) {
   const run = useStore((s) => s.runs[runId]);
   if (!run?.turns.length) return null;
   return (
     <div className="entries live-turns">
       {run.turns.map((turn, i) => (
-        <Turn key={turn.startedAt} turn={turn} run={run} isLast={i === run.turns.length - 1} />
+        <Turn key={turn.startedAt} turn={turn} run={run} isLast={i === run.turns.length - 1} who={who} />
       ))}
     </div>
   );
