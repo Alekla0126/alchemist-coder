@@ -159,4 +159,6 @@ jobs:
           v="${TAG#v}"
           ls -la
           sha256sum * > SHA256SUMS
-          gh release create "$TAG" -R "$GITHUB_REPOSITORY" --draft --prerelease --title "Alchemist Coder $v (beta)" --notes "Installers for macOS, Windows and Linux. SHA256SUMS lists the checksums." *
+          # A suffix (v1.1.0-beta.1) makes a pre-release; a plain version is a release.
+          case "$v" in *-*) pre=(--prerelease) ;; *) pre=() ;; esac
+          gh release create "$TAG" -R "$GITHUB_REPOSITORY" --draft "${pre[@]}" --title "Alchemist Coder $v" --notes "Installers for macOS, Windows and Linux. SHA256SUMS lists the checksums." *
