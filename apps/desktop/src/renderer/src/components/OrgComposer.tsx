@@ -43,7 +43,9 @@ export function OrgComposer({ coordinator, examples: showExamples }: { coordinat
   const goal = useStore((s) => s.orgGoal);
   const setGoal = (orgGoal: string) => useStore.setState({ orgGoal });
   const open = useOpenProjects();
-  const [cwd, setCwd] = useState(() => orgProject || activeProject?.cwd || open[0]?.cwd || '');
+  // The project you picked on the chip; until then (or once it's closed) the one you're in, so switching projects in the rail takes the box with you.
+  const [picked, setPicked] = useState<string | null>(null);
+  const cwd = (picked && open.some((p) => p.cwd === picked) ? picked : '') || orgProject || activeProject?.cwd || open[0]?.cwd || '';
   const [guidance, setGuidance] = useState('');
   const [budget, setBudget] = useState('');
   const [reviewPlan, setReviewPlan] = useState(true);
@@ -51,18 +53,13 @@ export function OrgComposer({ coordinator, examples: showExamples }: { coordinat
   const [templates, setTemplates] = useState<Template[]>(loadTemplates);
   const [tplId, setTplId] = useState<string | null>(null);
   const box = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => {
-    if (orgProject) setCwd(orgProject);
-  }, [orgProject]);
+  // Filtering the organization to a project is picking it.
+  useEffect(() => setPicked(null), [orgProject]);
   // A goal started elsewhere ("Give <agent> a task"): the cursor goes after it, ready to type.
   useEffect(() => {
     const el = box.current;
     if (el && goal) el.setSelectionRange(goal.length, goal.length);
   }, []);
-  // Projects load after the first render: pick one as soon as there is one.
-  useEffect(() => {
-    if (!cwd) setCwd(orgProject || activeProject?.cwd || open[0]?.cwd || '');
-  }, [activeProject?.cwd, open.length]);
   // The box grows with what you write, up to a point.
   useEffect(() => {
     const el = box.current;
@@ -113,7 +110,7 @@ export function OrgComposer({ coordinator, examples: showExamples }: { coordinat
   };
   const pickProject = async () => {
     const id = await openMenu(open.map((p) => ({ id: p.cwd, label: p.name, checked: p.cwd === cwd })));
-    if (id) setCwd(id);
+    if (id) setPicked(id);
   };
   const pickBudget = async () => {
     const value = await promptText({ title: t('bots.budget'), message: t('bots.budgetHint'), value: budget, placeholder: t('bots.budgetNone'), confirmLabel: t('bots.save'), cancelLabel: t('dialog.cancel') });
@@ -142,8 +139,9 @@ export function OrgComposer({ coordinator, examples: showExamples }: { coordinat
   // --org-goal (screenshots): the assignment is given from this box, like you would.
   const shot = useStore((s) => s.info?.capture?.orgGoal ?? null);
   useEffect(() => {
-    // Once per launch: the view can mount twice while a capture sets its mode.
-    if (!shot || shotSent || !coordinator || !cwd) return;
+    // Once per launch (the view can mount twice while a capture sets its mode), in the project it asked for.
+    const wanted = useStore.getState().info?.capture?.project;
+    if (!shot || shotSent || !coordinator || !cwd || (wanted && open.find((p) => p.cwd === cwd)?.name !== wanted)) return;
     shotSent = true;
     setGoal(shot);
     setTimeout(() => document.querySelector<HTMLButtonElement>('.org-composer .btn-send')?.click(), 400);

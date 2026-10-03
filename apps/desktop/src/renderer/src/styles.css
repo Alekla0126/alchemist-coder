@@ -2048,3 +2048,8 @@ select.mk-chip { appearance: none; padding-right: 12px; }
 @media (prefers-reduced-motion: reduce) { .sk { animation: none; } }
 .org-callout-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .org-callout-go { flex: none; white-space: nowrap; }
+/* A narrow sidebar: the section's name gives way to its button, and nothing scrolls sideways. */
+.org-side { overflow-x: hidden; }
+.org-side .sec { gap: 8px; }
+.org-side .sec > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.org-side .sec > .new-btn { flex: none; }
