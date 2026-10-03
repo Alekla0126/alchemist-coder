@@ -46,23 +46,38 @@ jobs:
             Windows) pnpm package:win ;;
           esac
 
-      - name: Smoke test (open the packaged app and take screenshots)
+      - name: Smoke test (install it as a user would, open it and take screenshots)
         shell: bash
         run: |
           set -uo pipefail
+          mkdir -p smoke
+          FAILED=0
+          REL="$PWD/apps/desktop/release"
+          # The installers themselves, not the unpacked app: the DMG's app copied out of it, the
+          # Windows setup run silently, the .deb through apt (which checks its dependencies).
           case "$RUNNER_OS" in
             macOS)
-              APP=("$PWD/apps/desktop/release/mac-arm64/Alchemist Coder.app/Contents/MacOS/Alchemist Coder")
+              hdiutil attach -nobrowse -readonly -mountpoint "$RUNNER_TEMP/dmg" "$REL"/*-arm64.dmg >/dev/null
+              ditto "$RUNNER_TEMP/dmg/Alchemist Coder.app" "$RUNNER_TEMP/Applications/Alchemist Coder.app"
+              hdiutil detach "$RUNNER_TEMP/dmg" >/dev/null
+              # Unsigned or half-signed, a downloaded app is "damaged" for macOS: the signature must hold.
+              codesign --verify --deep --strict "$RUNNER_TEMP/Applications/Alchemist Coder.app" > smoke/codesign.log 2>&1 \
+                && echo "ok codesign" || { echo "::error::the app's signature doesn't verify"; cat smoke/codesign.log; FAILED=1; }
+              APP=("$RUNNER_TEMP/Applications/Alchemist Coder.app/Contents/MacOS/Alchemist Coder")
               WS="$PWD"; OUT="$PWD/smoke"; PROFILES="$RUNNER_TEMP"; SEP=/ ;;
             Linux)
-              sudo apt-get update -qq && sudo apt-get install -y -qq xvfb >/dev/null
-              APP=(xvfb-run -a -s "-screen 0 1600x1000x24" "$PWD/apps/desktop/release/linux-unpacked/alchemist-coder" --no-sandbox)
+              sudo apt-get update -qq && sudo apt-get install -y -qq xvfb "$(ls "$REL"/*.deb)" > smoke/apt.log 2>&1 \
+                && echo "ok apt install" || { echo "::error::the .deb didn't install"; cat smoke/apt.log; FAILED=1; }
+              APP=(xvfb-run -a -s "-screen 0 1600x1000x24" /usr/bin/alchemist-coder --no-sandbox)
               WS="$PWD"; OUT="$PWD/smoke"; PROFILES="$RUNNER_TEMP"; SEP=/ ;;
             Windows)
-              APP=("$PWD/apps/desktop/release/win-unpacked/Alchemist Coder.exe")
+              powershell -NoProfile -Command "Start-Process -FilePath '$(cygpath -w "$(ls "$REL"/*-setup.exe)")' -ArgumentList '/S' -Wait"
+              EXE="$(find "$(cygpath -u "$LOCALAPPDATA")/Programs" -maxdepth 2 -name 'Alchemist Coder.exe' | head -1)"
+              if [ -n "$EXE" ]; then echo "ok installed at $EXE"; ls "$(dirname "$EXE")" | grep -i uninstall || { echo "::error::no uninstaller"; FAILED=1; }
+              else echo "::error::the setup didn't install the app"; FAILED=1; fi
+              APP=("$EXE")
               WS="$(cygpath -w "$PWD")"; OUT="$(cygpath -w "$PWD/smoke")"; PROFILES="$(cygpath -w "$RUNNER_TEMP")"; SEP='\' ;;
           esac
-          mkdir -p smoke
 
           # One short Claude Code conversation in this folder, so the app has a project to open.
           SESSION=cccccccc-3333-4333-8333-cccccccccccc
@@ -84,7 +99,6 @@ jobs:
           '
 
           PROJECT="$(basename "$PWD")"
-          FAILED=0
           # macOS runners have no `timeout`: perl's alarm does the same.
           limit() { if command -v timeout >/dev/null; then timeout 180 "$@"; else perl -e 'alarm shift; exec @ARGV' 180 "$@"; fi; }
           # Each screenshot gets its own profile: on Windows a closing app can still hold the last one's index.
@@ -99,6 +113,12 @@ jobs:
           cap terminal --project="$PROJECT" --mode=terminal
           cap settings --settings=about
           cap shortcuts --settings=shortcuts
+          if [ "$RUNNER_OS" = Linux ]; then
+            # The AppImage too, as downloaded: it must open without extra packages.
+            cp "$REL"/*.AppImage "$RUNNER_TEMP/ac.AppImage" && chmod +x "$RUNNER_TEMP/ac.AppImage"
+            APP=(xvfb-run -a -s "-screen 0 1600x1000x24" "$RUNNER_TEMP/ac.AppImage" --no-sandbox)
+            cap appimage
+          fi
           exit $FAILED
 
       - uses: actions/upload-artifact@v4

@@ -22,8 +22,10 @@ mac:
       arch: [arm64, x64]
   hardenedRuntime: true
   artifactName: Alchemist-Coder-${version}-${arch}.${ext}
-  # Signing and notarization need an Apple Developer ID; community builds are unsigned.
-  identity: null
+  # Notarization needs an Apple Developer ID. Without one, community builds are signed ad hoc ("-"):
+  # unsigned, a downloaded app's broken signature makes macOS call it "damaged". The default
+  # entitlements include disable-library-validation, which ad hoc signing with hardenedRuntime needs.
+  identity: "-"
 dmg:
   title: Alchemist Coder ${version}
 win:
@@ -42,3 +44,10 @@ linux:
 deb:
   # Debian package names are lowercase, without spaces.
   packageName: alchemist-coder
+  # electron-builder's defaults, plus ALSA: Electron won't start without it, and minimal installs
+  # don't have it (Ubuntu 24.04 renamed it libasound2t64).
+  depends: [libgtk-3-0, libnotify4, libnss3, libxss1, libxtst6, xdg-utils, libatspi2.0-0, libuuid1, libsecret-1-0, "libasound2t64 | libasound2"]
+  fpm: ["--category", "devel"]
+toolsets:
+  # The static AppImage runtime: the legacy one needs libfuse2, which Ubuntu 22.04 and later don't install.
+  appimage: "1.0.3"
