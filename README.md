@@ -10,7 +10,7 @@ Open several projects at once, follow every agent and every subagent it spawns, 
 
 </div>
 
-> **Status: public beta (0.1.7).** [Download](https://coder.alekla.com/#download) for macOS (Apple Silicon or Intel), Windows or Linux (AppImage or .deb), or from [Releases](https://github.com/Alekla0126/alchemist-coder/releases). The builds aren't signed yet: the first time, on a Mac right-click the app and choose Open; on Windows choose More info → Run anyway. Things move fast and may break; feedback and issues are welcome.
+> **Status: public beta (0.1.8).** [Download](https://coder.alekla.com/#download) for macOS (Apple Silicon or Intel), Windows or Linux (AppImage or .deb), or from [Releases](https://github.com/Alekla0126/alchemist-coder/releases). The builds aren't signed yet: the first time, on a Mac right-click the app and choose Open; on Windows choose More info → Run anyway. Things move fast and may break; feedback and issues are welcome.
 
 ## What it does
 
