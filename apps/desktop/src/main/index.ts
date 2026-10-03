@@ -23,6 +23,8 @@ import { blockPreviewNetwork, lockPreviewFrames, PreviewServer, registerPreviewS
 import { appMenu, editMenu } from './menus';
 import { adoptLoginShellPath } from './shell-path';
 import { TerminalManager } from './terminals';
+import { BoardService } from './board';
+import { AutomationHost } from './automation-host';
 import { Workspace } from './workspace';
 import { KeychainSecretStore } from './secrets';
 import { loadPersonalModule, loadProModule } from './extensions';
@@ -80,8 +82,11 @@ function appInfo(): AppInfo {
           scrollTo: arg('scroll-to') ?? null,
           runUntil: arg('run-until') === 'subagent' ? 'subagent' : null,
           orgGoal: arg('org-goal') ?? null,
+          automation: arg('automation') ?? null,
+          automationRun: process.argv.includes('--automation-run'),
+          automationAnswer: process.argv.includes('--automation-answer'),
           orgApprove: process.argv.includes('--org-approve'),
-          settings: (['general', 'agents', 'usage', 'backup', 'shortcuts', 'about'] as const).find((x) => x === arg('settings')) ?? null,
+          settings: (['general', 'agents', 'automations', 'usage', 'backup', 'shortcuts', 'about'] as const).find((x) => x === arg('settings')) ?? null,
           botsView: ['team', 'config', 'member', 'agent', 'chart'].includes(arg('bots-view') ?? '') ? (arg('bots-view') as 'team' | 'config' | 'member' | 'agent' | 'chart') : null,
           team: (() => {
             const [h, p, m] = (arg('team-agent') ?? '').split(',');
@@ -124,12 +129,18 @@ function send(channel: string, payload: unknown) {
 }
 
 let indexerWorker: Worker | null = null;
+/** Runs once the index is open: automations need to know your projects before they start. */
+let onIndexOpen: (() => void) | null = null;
 
 function startIndexer(dbPath: string, backupRoot: string | null) {
   const worker = new Worker(workerPath, { workerData: { dbPath, backupRoot } });
   indexerWorker = worker;
   worker.on('message', (m: { type: string; progress?: IndexProgress; ids?: string[]; message?: string }) => {
-    if (m.type === 'db-ready') reader = new IndexReader(dbPath);
+    if (m.type === 'db-ready') {
+      reader = new IndexReader(dbPath);
+      onIndexOpen?.();
+      onIndexOpen = null;
+    }
     else if (m.type === 'progress' && m.progress) {
       progress = m.progress;
       send(Channels.progress, progress);
@@ -257,16 +268,34 @@ void app.whenReady().then(async () => {
     (team) => send(Channels.botTeamChanged, team),
   );
   await bots.start();
+  const board = new BoardService(userData, (data) => send(Channels.boardChanged, data));
+  // Automations run with the window closed too: a notification brings it back on the automation.
+  const automations = new AutomationHost(userData, {
+    bots,
+    runner,
+    board,
+    secrets,
+    send,
+    channel: Channels.automationChanged,
+    lang: () => settings.get().locale ?? (app.getLocale().toLowerCase().startsWith('es') ? 'es' : 'en'),
+    show: (automationId) => {
+      if (!window || window.isDestroyed()) opened();
+      window?.show();
+      window?.focus();
+      setTimeout(() => send(Channels.appCommand, automationId ? `automation:${automationId}` : 'mode:bots'), window?.webContents.isLoading() ? 1500 : 0);
+    },
+  });
   const terminals = new TerminalManager((channel, payload) => send(channel === 'data' ? Channels.terminalData : Channels.terminalExit, payload));
   app.on('before-quit', () => {
     backup.stop();
     tasks.flush();
     bots.flush();
     bots.stopAll();
+    automations.stop();
     runner.stopAll();
     terminals.killAll();
   });
-  registerIpc({ info: appInfo, bots, settings, onSettingsChanged: (patch) => 'locale' in patch && buildMenu(), reader: () => reader, progress: () => progress, onRendered: () => void capture(), runner, tasks, preview, hub, backup, reviews, usage, exportSession: (id, format) => (reader ? exportSession(window, reader, id, format) : Promise.reject(new Error('The index is still loading'))), workspace, terminals, dataDir: userData });
+  registerIpc({ info: appInfo, bots, settings, onSettingsChanged: (patch) => 'locale' in patch && buildMenu(), reader: () => reader, progress: () => progress, onRendered: () => void capture(), runner, tasks, preview, hub, backup, reviews, usage, exportSession: (id, format) => (reader ? exportSession(window, reader, id, format) : Promise.reject(new Error('The index is still loading'))), workspace, terminals, dataDir: userData, board, automations });
   startIndexer(join(userData, 'index.db'), backup.root());
   backup.start();
   const menuLocale = () => settings.get().locale ?? (app.getLocale().toLowerCase().startsWith('es') ? 'es' : 'en');
@@ -283,6 +312,8 @@ void app.whenReady().then(async () => {
   // Terminals belong to the window that shows them (macOS keeps the app running without one).
   const opened = () => createWindow(() => terminals.killAll());
   opened();
+  if (reader) void automations.start();
+  else onIndexOpen = () => void automations.start();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) opened();
   });

@@ -1,5 +1,5 @@
 import type { ProjectSummary, SessionSummary } from '@alchemist-coder/core';
-import type { AgentChoice, ArenaTask, BotTeam } from '@shared/api';
+import type { AgentChoice, ArenaTask, AutomationState, BotTeam } from '@shared/api';
 import type { LiveTurn } from './live-turns';
 import { ACTIVE, botState } from './org-model';
 import { isInside } from './paths';
@@ -29,7 +29,8 @@ export type ActivityTarget =
   | { kind: 'session'; sessionId: string }
   | { kind: 'compose'; projectId: number }
   | { kind: 'project'; projectId: number }
-  | { kind: 'arena'; taskId: string };
+  | { kind: 'arena'; taskId: string }
+  | { kind: 'automation'; automationId: string };
 
 /** One line of the activity bar: an agent (or a conversation's agents) working or waiting for you. */
 export interface ActivityItem {
@@ -59,6 +60,8 @@ export interface ActivityInput {
   projects: ProjectSummary[];
   /** The conversations of the lists that are loaded (the working ones get a line). */
   sessions: SessionSummary[];
+  /** Automations: their questions for you get a line. */
+  automations?: AutomationState[];
 }
 
 const LIVE = ['starting', 'running', 'waiting'];
@@ -100,6 +103,14 @@ export function buildActivity(input: ActivityInput): ActivityItem[] {
     if (projectId != null) accounted.set(projectId, (accounted.get(projectId) ?? 0) + item.agents);
   };
   const sessionById = new Map(input.sessions.map((s) => [s.id, s]));
+
+  // An automation waiting for your answer: one line per question.
+  for (const s of input.automations ?? []) {
+    const run = s.runs[0];
+    for (const ask of run?.asks ?? []) {
+      items.push({ key: `ask:${run!.id}:${ask.id}`, state: 'waiting', name: s.automation.name, where: '', doing: { kind: 'text', text: ask.question }, since: null, costUsd: null, agents: 0, target: { kind: 'automation', automationId: s.automation.id } });
+    }
+  }
 
   for (const team of input.botTeams) {
     for (const bot of team.bots) {

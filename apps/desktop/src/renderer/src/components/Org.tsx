@@ -14,6 +14,7 @@ import { AgentAvatar } from './AgentAvatar';
 import { addToTeam, approvePlan, askPlanChanges, changeAvatar, dismissMember, giveTask, keepMember, openAssignment, removeMember, renameMember, setLead, showOnChart } from '../actions/org';
 import { OrgChart } from './OrgChart';
 import { OrgComposer } from './OrgComposer';
+import { AutomationList, AutomationView, NewAutomationDialog } from './Automations';
 import { PermissionCard } from './LiveRun';
 import { QuestionForm } from './QuestionForm';
 
@@ -657,6 +658,7 @@ export function OrgSidebar() {
             </div>
             <div className="task-row-meta">
               <span title={team.cwd}>
+                {team.origin && <span className="task-row-auto">⚡ {team.origin.label} · </span>}
                 📁 {folderName(team.cwd)} · {t('bots.count', { n: team.bots.length })}
                 {teamCost(team) > 0 && ` · ${money(teamCost(team), locale)}`}
               </span>
@@ -664,6 +666,7 @@ export function OrgSidebar() {
           </div>
         ))}
       </div>
+      <AutomationList />
     </aside>
   );
 }
@@ -1081,11 +1084,14 @@ function TeamSection({ member, coordinatorName }: { member: BotConfig; coordinat
 export function OrgView() {
   const team = useStore((s) => s.botTeams.find((x) => x.id === s.activeTeamId));
   const member = useStore((s) => s.botConfigs.find((c) => c.id === s.activeMemberId));
+  const automation = useStore((s) => s.automations.find((x) => x.automation.id === s.activeAutomationId));
+  const newAutomation = useStore((s) => s.automationDialog);
   // Opened from the sidebar or from the chart; with a lead, the new agent goes on that lead's team.
   const adding = useStore((s) => s.botConfigDialog);
   return (
     <>
-      {team ? <TeamView team={team} /> : member ? <MemberPanel key={member.id} member={member} /> : <OrgHome />}
+      {team ? <TeamView team={team} /> : member ? <MemberPanel key={member.id} member={member} /> : automation ? <AutomationView state={automation} /> : <OrgHome />}
+      {newAutomation && <NewAutomationDialog />}
       {adding && <AddAgentDialog leadId={typeof adding === 'object' ? adding.leadId : null} onClose={() => useStore.setState({ botConfigDialog: false })} />}
     </>
   );

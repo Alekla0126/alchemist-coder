@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { IndexProgress } from '@alchemist-coder/core';
-import { Channels, type AlchemistApi, type ArenaTask, type BackupStatus, type BotTeam, type RunnerEventMessage } from '../shared/api';
+import { Channels, type AlchemistApi, type ArenaTask, type AutomationState, type BackupStatus, type BoardData, type BotTeam, type RunnerEventMessage } from '../shared/api';
 
 const subscribe = <T>(channel: string, listener: (payload: T) => void) => {
   const handler = (_event: unknown, payload: T) => listener(payload);
@@ -22,7 +22,23 @@ const api: AlchemistApi = {
   marketingSave: (cwd, data) => ipcRenderer.invoke(Channels.marketingSave, cwd, data),
   marketingDrafts: (cwd) => ipcRenderer.invoke(Channels.marketingDrafts, cwd),
   boardLoad: () => ipcRenderer.invoke(Channels.boardLoad),
-  boardSave: (data) => ipcRenderer.invoke(Channels.boardSave, data),
+  boardSave: (data, seenAt) => ipcRenderer.invoke(Channels.boardSave, data, seenAt),
+  onBoardChanged: (listener) => subscribe<BoardData>(Channels.boardChanged, listener),
+  automations: () => ipcRenderer.invoke(Channels.automations),
+  saveAutomation: (automation) => ipcRenderer.invoke(Channels.automationSave, automation),
+  createAutomation: (input) => ipcRenderer.invoke(Channels.automationCreate, input),
+  reviseAutomation: (id, change) => ipcRenderer.invoke(Channels.automationRevise, id, change),
+  deleteAutomation: (id) => ipcRenderer.invoke(Channels.automationDelete, id),
+  setAutomationEnabled: (id, on) => ipcRenderer.invoke(Channels.automationEnable, id, on),
+  runAutomation: (id) => ipcRenderer.invoke(Channels.automationRun, id),
+  stopAutomationRun: (runId) => ipcRenderer.invoke(Channels.automationStop, runId),
+  answerAutomation: (runId, askId, choice) => ipcRenderer.invoke(Channels.automationAnswer, runId, askId, choice),
+  onAutomationChanged: (listener) => subscribe<AutomationState>(Channels.automationChanged, listener),
+  automationSettings: () => ipcRenderer.invoke(Channels.automationSettings),
+  setAutomationOptions: (patch) => ipcRenderer.invoke(Channels.automationOptions, patch),
+  connectTelegram: (token) => ipcRenderer.invoke(Channels.telegramConnect, token),
+  pairTelegram: () => ipcRenderer.invoke(Channels.telegramPair),
+  testTelegram: () => ipcRenderer.invoke(Channels.telegramTest),
   actionsList: (cwd) => ipcRenderer.invoke(Channels.actionsList, cwd),
   actionsCreate: (cwd, example) => ipcRenderer.invoke(Channels.actionsCreate, cwd, example),
   subagents: (cwd) => ipcRenderer.invoke(Channels.subagents, cwd),

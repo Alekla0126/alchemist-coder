@@ -466,6 +466,40 @@ describe('bots with their own copy', { timeout: 30_000 }, () => {
     rmSync(repo, { recursive: true, force: true });
   });
 
+  it("starts an agent's copy from the project as it is, uncommitted work included", async () => {
+    const repo = realpathSync(mkdtempSync(join(tmpdir(), 'bots-start-')));
+    const run = (...args: string[]) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' });
+    run('init', '-q');
+    run('config', 'core.autocrlf', 'false');
+    run('config', 'user.email', 't@example.com');
+    run('config', 'user.name', 'T');
+    writeFileSync(join(repo, 'app.txt'), 'one\n');
+    writeFileSync(join(repo, 'old.txt'), 'old\n');
+    run('add', '-A');
+    run('commit', '-qm', 'base');
+    // Work brought in earlier, not committed: an edit, a new file in a new folder, a deletion.
+    writeFileSync(join(repo, 'app.txt'), 'one\ntwo\n');
+    mkdirSync(join(repo, 'docs'));
+    writeFileSync(join(repo, 'docs', 'SUMMARY.md'), 'summary\n');
+    rmSync(join(repo, 'old.txt'));
+    const { bots } = setup();
+    const config = bots.saveConfig({ name: 'Tester', role: '', agent, permissionMode: 'acceptEdits' });
+    const team = await bots.startSolo({ configId: config.id, cwd: repo, task: 'Test the summary', ownWorktree: true });
+    const wt = team.bots[0]!.worktree!;
+    expect(readFileSync(join(wt.path, 'docs', 'SUMMARY.md'), 'utf8')).toBe('summary\n');
+    expect(readFileSync(join(wt.path, 'app.txt'), 'utf8')).toBe('one\ntwo\n');
+    expect(() => readFileSync(join(wt.path, 'old.txt'))).toThrow();
+    // None of that is its work; what it adds is, and applies cleanly on the folder.
+    expect(await bots.changesOf(team.id, 'b1')).toEqual([]);
+    writeFileSync(join(wt.path, 'docs', 'SUMMARY.md'), 'summary\nchecked\n');
+    expect((await bots.changesOf(team.id, 'b1')).map((c) => c.path)).toEqual(['docs/SUMMARY.md']);
+    bots.stop(team.id);
+    expect(await bots.apply(team.id, 'b1')).toContain('Applied');
+    expect(readFileSync(join(repo, 'docs', 'SUMMARY.md'), 'utf8')).toBe('summary\nchecked\n');
+    bots.stopAll();
+    rmSync(repo, { recursive: true, force: true });
+  });
+
   it("says when a bot's copy is gone instead of failing quietly", async () => {
     const repo = realpathSync(mkdtempSync(join(tmpdir(), 'bots-gone-')));
     const run = (...args: string[]) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' });

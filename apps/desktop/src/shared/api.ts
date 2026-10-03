@@ -67,6 +67,14 @@ export interface BoardTask {
   sessionId: string | null;
   createdAt: number;
   updatedAt: number;
+  /** The organization agent it's for (a configuration id): the employee who does it. */
+  assignee?: string | null;
+  /** The automation that wrote it down. */
+  automationId?: string | null;
+  /** The assignment working on it now (or last). */
+  teamId?: string | null;
+  /** Cards to finish before this one starts (their ids). */
+  after?: string[];
 }
 /** Where you put a conversation, and when: newer agent activity moves it on its own again. */
 export interface BoardPlacement {
@@ -175,12 +183,18 @@ export interface AppInfo {
     scrollTo?: string | null;
     /** With `run`: capture while the agent's first subagent works, instead of once the run settles. */
     runUntil?: 'subagent' | null;
+    /** Organization: open this automation ('new': the new automation dialog). */
+    automation?: string | null;
+    /** With `automation`: run it and capture once it asks you something or ends. */
+    automationRun?: boolean;
+    /** With `automationRun`: answer its questions with their first choice and allow agents' requests, and capture when it ends. */
+    automationAnswer?: boolean;
     /** Organization: give this assignment from the chart's message box and capture once its plan waits for you. */
     orgGoal?: string | null;
     /** With `orgGoal`: approve the plan and capture while its agents work. */
     orgApprove?: boolean;
     /** Open Settings at this section. */
-    settings: 'general' | 'agents' | 'usage' | 'backup' | 'shortcuts' | 'about' | null;
+    settings: 'general' | 'agents' | 'automations' | 'usage' | 'backup' | 'shortcuts' | 'about' | null;
     /** Starts a real agent run and captures once it asks for permission or finishes. */
     run: { harnessId: string; providerId: string; model: string; permissionMode: PermissionMode; prompt: string; cwd: string | null } | null;
     /** Bots mode: open the most recent team, the new-configuration dialog, or the chart with a plan to review on it. */
@@ -357,6 +371,130 @@ export interface BotTeam {
   /** What happened in the team, newest last (at most 200). */
   activity?: TeamEvent[];
   plan?: TeamPlan | null;
+  /** Started by an automation's step, not by you. */
+  origin?: TeamOrigin | null;
+}
+
+/** When an automation starts on its own: never (you start it), every so often, at a time of day, or again right after it ends. */
+export type AutomationTrigger =
+  | { kind: 'manual' }
+  | { kind: 'every'; minutes: number }
+  | { kind: 'daily'; at: string }
+  | { kind: 'continuous'; pauseMinutes: number };
+
+/**
+ * A step of an automation's diagram:
+ * - trigger: where it starts;
+ * - agent: an employee does a task;
+ * - decision: an employee picks one of `branches` (and says why);
+ * - human: you pick one of `branches` (a notification);
+ * - cards: the manager splits a goal into Board cards for the employees;
+ * - work: the employees do their cards on the Board;
+ * - notify: a message to you;
+ * - end.
+ */
+export type FlowNodeKind = 'trigger' | 'agent' | 'decision' | 'human' | 'cards' | 'work' | 'notify' | 'end';
+
+export interface FlowNode {
+  id: string;
+  kind: FlowNodeKind;
+  title: string;
+  /** The organization agent that does it (agent, decision, cards); none: the coordinator. */
+  agentId?: string | null;
+  /** The instruction, question or message. */
+  text?: string;
+  /** decision and human: the ways it can go. */
+  branches?: string[];
+}
+
+/** From one step to the next; from a decision or a question, for one of its branches. */
+export interface FlowEdge {
+  from: string;
+  to: string;
+  branch?: string | null;
+}
+
+/** What agents decide alone: see the plan's table (careful, balanced, autonomous). */
+export type Autonomy = 'careful' | 'balanced' | 'autonomous';
+
+export interface Automation {
+  id: string;
+  name: string;
+  /** What you asked for, in your words. */
+  prompt: string;
+  /** The project it works in. */
+  cwd: string;
+  enabled: boolean;
+  trigger: AutomationTrigger;
+  autonomy: Autonomy;
+  /** US$ a day at most; reaching it pauses the automation. */
+  budgetUsdPerDay: number | null;
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** Something a run waits for you to decide. */
+export interface AutomationAsk {
+  id: string;
+  question: string;
+  /** Longer context (what the agent found), shown under the question. */
+  detail: string;
+  choices: string[];
+  /** A card's changes to bring into the project, when that's what it asks. */
+  cardId?: string | null;
+}
+
+export interface RunStep {
+  nodeId: string;
+  status: 'running' | 'waiting' | 'done' | 'failed';
+  startedAt: number;
+  endedAt: number | null;
+  /** What came out: the agent's answer, the decision and why, your choice. */
+  output: string;
+  branch?: string | null;
+  /** The assignments it started. */
+  teamIds: string[];
+}
+
+export interface AutomationRun {
+  id: string;
+  automationId: string;
+  startedAt: number;
+  endedAt: number | null;
+  status: 'running' | 'waiting' | 'done' | 'failed' | 'stopped';
+  steps: RunStep[];
+  costUsd: number;
+  /** Why it stopped or failed, in words. */
+  why?: string | null;
+  /** What it waits for you to decide now. */
+  asks: AutomationAsk[];
+}
+
+/** An automation with its latest runs and when it starts next. */
+export interface AutomationState {
+  automation: Automation;
+  runs: AutomationRun[];
+  nextAt: number | null;
+  /** Spent today (local day), in US$. */
+  spentToday: number;
+}
+
+/** The phone, and keeping the Mac awake for automations. */
+export interface AutomationSettings {
+  telegram: { connected: boolean; username: string | null; chatName: string | null; paired: boolean };
+  openAtLogin: boolean;
+  keepAwake: boolean;
+}
+
+/** Which automation, run and step started an assignment. */
+export interface TeamOrigin {
+  automationId: string;
+  runId: string;
+  nodeId: string;
+  /** The automation's name, to show where it came from. */
+  label: string;
 }
 
 export interface StartTeamRequest {
@@ -657,7 +795,28 @@ export interface AlchemistApi {
   marketingDrafts(cwd: string): Promise<MarketingDraft[]>;
   /** The board: tasks and where you put conversations. */
   boardLoad(): Promise<BoardData>;
-  boardSave(data: BoardData): Promise<BoardData>;
+  /** `seenAt`: when this window last got the board; the app's own changes since then are kept. */
+  boardSave(data: BoardData, seenAt: number): Promise<BoardData>;
+  /** The app changed the board (an automation added or moved cards). */
+  onBoardChanged(listener: (data: BoardData) => void): () => void;
+  automations(): Promise<AutomationState[]>;
+  saveAutomation(automation: Partial<Automation>): Promise<AutomationState>;
+  /** A new automation from your words: a ready-made diagram ('office', 'goal') or one an agent draws ('agent'). */
+  createAutomation(input: { prompt: string; cwd: string; template: 'agent' | 'office' | 'goal'; autonomy?: Autonomy }): Promise<AutomationState>;
+  /** Changes an automation's diagram as you ask. */
+  reviseAutomation(automationId: string, change: string): Promise<AutomationState>;
+  deleteAutomation(automationId: string): Promise<void>;
+  setAutomationEnabled(automationId: string, on: boolean): Promise<AutomationState>;
+  runAutomation(automationId: string): Promise<void>;
+  stopAutomationRun(runId: string): Promise<void>;
+  answerAutomation(runId: string, askId: string, choice: string): Promise<boolean>;
+  onAutomationChanged(listener: (state: AutomationState) => void): () => void;
+  automationSettings(): Promise<AutomationSettings>;
+  setAutomationOptions(patch: { openAtLogin?: boolean; keepAwake?: boolean }): Promise<AutomationSettings>;
+  /** Your own Telegram bot's token (from @BotFather); null disconnects it. */
+  connectTelegram(token: string | null): Promise<{ ok: boolean; error?: string; settings: AutomationSettings }>;
+  pairTelegram(): Promise<AutomationSettings>;
+  testTelegram(): Promise<boolean>;
   /** The project's ai-actions.md prompts (exists: whether the file is there). */
   actionsList(cwd: string): Promise<{ exists: boolean; path: string; actions: ActionPrompt[] }>;
   /** Subagent types defined in the project's and your .claude/agents folders. */
@@ -837,6 +996,22 @@ export const Channels = {
   marketingDrafts: 'marketing:drafts',
   boardLoad: 'board:load',
   boardSave: 'board:save',
+  boardChanged: 'board:changed',
+  automations: 'auto:list',
+  automationSave: 'auto:save',
+  automationCreate: 'auto:create',
+  automationRevise: 'auto:revise',
+  automationDelete: 'auto:delete',
+  automationEnable: 'auto:enable',
+  automationRun: 'auto:run',
+  automationStop: 'auto:stop',
+  automationAnswer: 'auto:answer',
+  automationChanged: 'auto:changed',
+  automationSettings: 'auto:settings',
+  automationOptions: 'auto:options',
+  telegramConnect: 'auto:telegramConnect',
+  telegramPair: 'auto:telegramPair',
+  telegramTest: 'auto:telegramTest',
   actionsList: 'actions:list',
   actionsCreate: 'actions:create',
   subagents: 'agents:subagents',

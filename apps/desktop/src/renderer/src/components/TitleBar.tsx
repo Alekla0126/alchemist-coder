@@ -24,12 +24,20 @@ export function TitleBar() {
   const waitingList = useStore(useShallow((s) => waitingRuns(s).map((w) => `${w.sessionId ?? ''}|${w.projectId ?? ''}`)));
   // Plans to review count even when the coordinator stopped: answering resumes it (the same rule as the list).
   const plans = useStore(useShallow((s) => s.botTeams.filter((x) => x.plan?.status === 'pending' && needsYou(x)).map((x) => x.id)));
-  const waiting = [...waitingList, ...plans];
+  // An automation's questions count too.
+  const asks = useStore(useShallow((s) => s.automations.flatMap((x) => (x.runs[0]?.asks ?? []).map((a) => `${x.automation.id}:${a.id}`))));
+  const waiting = [...waitingList, ...plans, ...asks];
   /** The next conversation (or new one) whose agent waits for you. */
   const goToWaiting = async () => {
     const s = useStore.getState();
     const next = waitingRuns(s)[0];
     const plan = s.botTeams.find((x) => x.plan?.status === 'pending');
+    const asking = s.automations.find((x) => x.runs[0]?.asks.length);
+    if (!next && !plan && asking) {
+      s.setMode('bots');
+      useStore.setState({ activeAutomationId: asking.automation.id, activeTeamId: null, activeMemberId: null, activeBotId: null });
+      return;
+    }
     if (!next && plan) {
       s.setMode('bots');
       useStore.setState({ activeTeamId: plan.id, activeBotId: plan.bots[0]?.id ?? null, activeMemberId: null });

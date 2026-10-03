@@ -65,7 +65,8 @@ function useActivity(): ActivityItem[] {
   const projects = useStore((s) => s.projects);
   const here = useStore((s) => (s.settings.activeProjectId != null ? s.sessions[s.settings.activeProjectId] : undefined));
   const elsewhere = useWorkingElsewhere();
-  return buildActivity({ runs, runByTarget, botTeams, tasks, projects, sessions: [...(here ?? []), ...elsewhere] });
+  const automations = useStore((s) => s.automations);
+  return buildActivity({ runs, runByTarget, botTeams, tasks, projects, sessions: [...(here ?? []), ...elsewhere], automations });
 }
 
 function doingLabel(doing: Doing, t: T): string {
@@ -103,6 +104,9 @@ async function goTo(item: ActivityItem) {
   if (target.kind === 'bot') {
     s.setMode('bots');
     useStore.setState({ activeTeamId: target.teamId, activeBotId: target.botId, activeMemberId: null });
+  } else if (target.kind === 'automation') {
+    s.setMode('bots');
+    useStore.setState({ activeAutomationId: target.automationId, activeTeamId: null, activeMemberId: null, activeBotId: null });
   } else if (target.kind === 'arena') {
     s.setMode('arena');
     s.setActiveTask(target.taskId);

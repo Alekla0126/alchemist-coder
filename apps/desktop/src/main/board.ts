@@ -15,6 +15,8 @@ const str = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : Date.now());
 const phase = (v: unknown): BoardPhase => (PHASES.includes(v as BoardPhase) ? (v as BoardPhase) : 'backlog');
 const SESSION_ID = /^[\w.:-]{1,128}$/;
+const REF = /^[\w-]{1,64}$/;
+const ref = (v: unknown) => (typeof v === 'string' && REF.test(v) ? v : null);
 
 /** Whatever was stored or sent, as a valid board: unknown fields dropped, sizes capped. */
 export function cleanBoard(raw: unknown): BoardData {
@@ -38,6 +40,10 @@ export function cleanBoard(raw: unknown): BoardData {
       sessionId: SESSION_ID.test(sessionId) ? sessionId : null,
       createdAt: num(x.createdAt),
       updatedAt: num(x.updatedAt),
+      assignee: ref(x.assignee),
+      automationId: ref(x.automationId),
+      teamId: ref(x.teamId),
+      after: Array.isArray(x.after) ? x.after.map(ref).filter((v): v is string => !!v).slice(0, 10) : [],
     });
   }
   const placed: Record<string, BoardPlacement> = {};
@@ -67,6 +73,55 @@ export function saveBoard(dir: string, raw: unknown): BoardData {
   writeFileSync(tmp, JSON.stringify(data));
   renameSync(tmp, file);
   return data;
+}
+
+/**
+ * Your window's copy of the board against the app's: what the window changed wins, but cards the app
+ * added or moved after the window last got the board (`seenAt`) stay. A card only the app has is kept
+ * when it changed since then; otherwise the window deleted it.
+ */
+export function mergeBoard(app: BoardData, win: BoardData, seenAt: number): BoardData {
+  const appTasks = new Map(app.tasks.map((t) => [t.id, t]));
+  const tasks = win.tasks.map((t) => {
+    const mine = appTasks.get(t.id);
+    return mine && mine.updatedAt > seenAt && mine.updatedAt > t.updatedAt ? mine : t;
+  });
+  const inWin = new Set(win.tasks.map((t) => t.id));
+  for (const t of app.tasks) if (!inWin.has(t.id) && t.updatedAt > seenAt) tasks.push(t);
+  const placed = { ...win.placed };
+  for (const [id, p] of Object.entries(app.placed)) if (p.at > seenAt && (!placed[id] || placed[id].at < p.at)) placed[id] = p;
+  return { tasks, placed };
+}
+
+/** The board as the app keeps it: the window and the automations both change it. */
+export class BoardService {
+  private data: BoardData;
+
+  constructor(
+    private readonly dir: string,
+    private readonly onChange: (data: BoardData) => void,
+  ) {
+    this.data = loadBoard(dir);
+  }
+
+  get(): BoardData {
+    return structuredClone(this.data);
+  }
+
+  /** A save from the window, merged with what the app changed meanwhile; returns the result. */
+  saveFromWindow(raw: unknown, seenAt: number): BoardData {
+    this.data = saveBoard(this.dir, mergeBoard(this.data, cleanBoard(raw), Number.isFinite(seenAt) ? seenAt : 0));
+    return this.get();
+  }
+
+  /** The app's own change (an automation): saved, and the window hears of it. */
+  patch(fn: (data: BoardData) => void): BoardData {
+    const next = this.get();
+    fn(next);
+    this.data = saveBoard(this.dir, next);
+    this.onChange(this.get());
+    return this.get();
+  }
 }
 
 /**

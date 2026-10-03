@@ -21,7 +21,8 @@ import type { TerminalManager } from './terminals';
 import { browsableRoot, type Workspace } from './workspace';
 import { createProjectFolder } from './new-project';
 import { loadMarketing, readDrafts, saveMarketing } from './marketing';
-import { createActions, listActions, loadBoard, saveBoard } from './board';
+import { createActions, listActions, type BoardService } from './board';
+import type { AutomationHost } from './automation-host';
 import { listSubagents } from './subagents';
 import { gitAction, gitOverview } from './git-overview';
 
@@ -52,8 +53,10 @@ export interface IpcDeps {
   exportSession: (sessionId: string, format: ExportFormat) => Promise<string | null>;
   workspace: Workspace;
   terminals: TerminalManager;
-  /** The app's data folder (board.json lives there). */
+  /** The app's data folder. */
   dataDir: string;
+  board: BoardService;
+  automations: AutomationHost;
 }
 
 /** Every handler validates its arguments: the renderer is treated as untrusted. */
@@ -97,11 +100,38 @@ export function registerIpc(deps: IpcDeps): void {
     return saveMarketing(deps.workspace.projectFolder(cwd), data);
   });
   ipcMain.handle(Channels.marketingDrafts, (_e, cwd: unknown) => readDrafts(deps.workspace.projectFolder(cwd)));
-  ipcMain.handle(Channels.boardLoad, () => loadBoard(deps.dataDir));
-  ipcMain.handle(Channels.boardSave, (_e, data: unknown) => {
+  ipcMain.handle(Channels.boardLoad, () => deps.board.get());
+  ipcMain.handle(Channels.boardSave, (_e, data: unknown, seenAt: unknown) => {
     if (JSON.stringify(data ?? null).length > 4_000_000) throw new Error('The board is too large to save');
-    return saveBoard(deps.dataDir, data);
+    return deps.board.saveFromWindow(data, typeof seenAt === 'number' ? seenAt : 0);
   });
+  // Automations: the project they work in is always one of yours.
+  const autoId = (v: unknown) => text(v, 'automation id', 60);
+  ipcMain.handle(Channels.automations, () => deps.automations.list());
+  ipcMain.handle(Channels.automationSave, (_e, a: unknown) => {
+    const x = (a && typeof a === 'object' ? a : {}) as Record<string, unknown>;
+    if (JSON.stringify(x).length > 400_000) throw new Error('This automation is too large');
+    return deps.automations.manager.save({ ...x, cwd: deps.workspace.projectFolder(x.cwd) });
+  });
+  ipcMain.handle(Channels.automationCreate, (_e, input: unknown) => {
+    const x = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
+    const template = x.template === 'office' || x.template === 'goal' ? x.template : 'agent';
+    const autonomy = x.autonomy === 'careful' || x.autonomy === 'autonomous' ? x.autonomy : 'balanced';
+    return deps.automations.manager.create({ prompt: text(x.prompt, 'prompt', 8000), cwd: deps.workspace.projectFolder(x.cwd), template, autonomy });
+  });
+  ipcMain.handle(Channels.automationRevise, (_e, id: unknown, change: unknown) => deps.automations.manager.revise(autoId(id), text(change, 'change', 4000)));
+  ipcMain.handle(Channels.automationDelete, (_e, id: unknown) => deps.automations.manager.remove(autoId(id)));
+  ipcMain.handle(Channels.automationEnable, (_e, id: unknown, on: unknown) => deps.automations.manager.setEnabled(autoId(id), on === true));
+  ipcMain.handle(Channels.automationRun, async (_e, id: unknown) => {
+    await deps.automations.manager.runNow(autoId(id));
+  });
+  ipcMain.handle(Channels.automationStop, (_e, runId: unknown) => deps.automations.manager.stopRun(text(runId, 'run id', 60)));
+  ipcMain.handle(Channels.automationAnswer, (_e, runId: unknown, askId: unknown, choice: unknown) => deps.automations.manager.answer(text(runId, 'run id', 60), text(askId, 'question id', 60), text(choice, 'choice', 60)));
+  ipcMain.handle(Channels.automationSettings, () => deps.automations.settings());
+  ipcMain.handle(Channels.automationOptions, (_e, patch: unknown) => deps.automations.setOptions((patch && typeof patch === 'object' ? patch : {}) as Record<string, unknown>));
+  ipcMain.handle(Channels.telegramConnect, (_e, token: unknown) => deps.automations.connect(token === null ? null : text(token, 'token', 200)));
+  ipcMain.handle(Channels.telegramPair, () => deps.automations.pair());
+  ipcMain.handle(Channels.telegramTest, () => deps.automations.test());
   // ai-actions.md: read from, and created in, your projects' folders only.
   ipcMain.handle(Channels.actionsList, (_e, cwd: unknown) => listActions(deps.workspace.projectFolder(cwd)));
   ipcMain.handle(Channels.subagents, (_e, cwd: unknown) => listSubagents(deps.workspace.projectFolder(cwd)));

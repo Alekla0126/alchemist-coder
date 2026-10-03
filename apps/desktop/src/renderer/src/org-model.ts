@@ -22,8 +22,9 @@ export function teamState(team: BotTeam): TeamState {
   if (team.bots.some((b) => b.status === 'working' || b.status === 'starting')) return 'working';
   if (team.stoppedReason || team.bots[0]?.status === 'stopped') return 'stopped';
   if (team.bots[0]?.status === 'error') return 'failed';
-  // Finished only when the coordinator said so (finish_team); otherwise it ended its turn for you.
-  return team.finished ? 'finished' : 'yourTurn';
+  // Finished only when the coordinator said so (finish_team); otherwise it ended its turn for you. An
+  // automation's step is done when its agent is: the automation reviews it, not you.
+  return team.finished || team.origin ? 'finished' : 'yourTurn';
 }
 
 /** Whether an agent works in the project at `cwd` (no projects = all of them). */

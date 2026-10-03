@@ -1,7 +1,7 @@
 import { openFolderAsProject, openNewProject } from './components/NewProject';
 import { create } from 'zustand';
 import type { AgentNode, AgentOption, FileDiff, PromptImage, SlashCommand, IndexProgress, PermissionChoice, PlanEntry, ProjectSummary, QuestionAnswer, SearchHit, SessionSummary, ToolState } from '@alchemist-coder/core';
-import type { AgentReview, AppInfo, ArenaTask, BotConfig, BotTeam, Locale, Mode, OrgSettings, PlanUsage, RunnerCatalog, RunnerEventMessage, Settings, StartRunRequest } from '@shared/api';
+import type { AgentReview, AppInfo, ArenaTask, AutomationState, BotConfig, BotTeam, Locale, Mode, OrgSettings, PlanUsage, RunnerCatalog, RunnerEventMessage, Settings, StartRunRequest } from '@shared/api';
 import { resolveLocale, translate, type MessageKey } from './i18n';
 import { moveComposerState } from './composer-state';
 import { applyToTurns, markQuestion, startTurn, type LiveQuestion, type LiveTurn } from './live-turns';
@@ -138,6 +138,13 @@ interface State {
   orgFocusTeamId: string | null;
   /** What you're writing as the next assignment: kept while you look at an agent or an assignment. */
   orgGoal: string;
+  /** The organization's automations, with their latest runs. */
+  automations: AutomationState[];
+  /** The automation open in the organization view. */
+  activeAutomationId: string | null;
+  /** The new automation dialog is showing. */
+  automationDialog: boolean;
+  loadAutomations(): Promise<void>;
   /** Unsaved edits to agent profiles, by agent: kept while you look at other things. */
   orgDrafts: Record<string, Record<string, unknown>>;
   /** Opens the new bot configuration dialog (screenshots). */
@@ -172,7 +179,7 @@ interface State {
   /** The Settings screen is showing. */
   settingsOpen: boolean;
   /** Which Settings section opens next. */
-  settingsSection: 'general' | 'agents' | 'usage' | 'backup' | 'shortcuts' | 'about' | null;
+  settingsSection: 'general' | 'agents' | 'automations' | 'usage' | 'backup' | 'shortcuts' | 'about' | null;
   /** The ⌘K command palette is showing. */
   paletteOpen: boolean;
   /** ⌘W in Code/Split: the editor closes its active tab (asking about unsaved edits). */
@@ -289,6 +296,9 @@ export const useStore = create<State>((set, get) => ({
   orgProject: '',
   orgFocusTeamId: null,
   orgGoal: '',
+  automations: [],
+  activeAutomationId: null,
+  automationDialog: false,
   orgDrafts: {},
   botConfigDialog: false,
   planUsage: null,
@@ -340,6 +350,13 @@ export const useStore = create<State>((set, get) => ({
     if (info.capture?.scope) set({ agentsScope: info.capture.scope });
     api.onTaskChanged((task) => get().upsertTask(task));
     api.onBotTeamChanged((team) => get().upsertTeam(team));
+    api.onAutomationChanged((state) =>
+      set((s) => {
+        const i = s.automations.findIndex((x) => x.automation.id === state.automation.id);
+        return { automations: i >= 0 ? s.automations.map((x, j) => (j === i ? state : x)) : [state, ...s.automations] };
+      }),
+    );
+    void get().loadAutomations();
     await get().refreshProjects();
     if (wantsRecent(get())) void get().loadRecent();
     const capture = info.capture?.select;
@@ -443,6 +460,33 @@ export const useStore = create<State>((set, get) => ({
       const latest = get().botTeams[0];
       if (info.capture.botsView === 'team' && latest) set({ activeTeamId: latest.id, activeBotId: latest.bots[0]?.id ?? null });
       if (info.capture.botsView === 'config') set({ botConfigDialog: true });
+      // --automation=<id|new> (screenshots): an automation open, maybe running.
+      const auto = info.capture.automation;
+      if (auto === 'new') set({ automationDialog: true });
+      else if (auto) {
+        await get().loadAutomations();
+        set({ activeAutomationId: auto, settings: { ...get().settings, mode: 'bots' } });
+        if (info.capture.automationRun) {
+          await window.alchemist.runAutomation(auto).catch(() => {});
+          const began = Date.now();
+          await new Promise<void>((resolve) => {
+            const timer = setInterval(() => {
+              const run = get().automations.find((x) => x.automation.id === auto)?.runs[0];
+              // --automation-answer: you, saying yes to everything (its questions, agents' permissions).
+              if (info.capture?.automationAnswer && run) {
+                for (const ask of run.asks) void window.alchemist.answerAutomation(run.id, ask.id, ask.choices[0]!);
+                for (const r of Object.values(get().runs)) for (const p of r.permissions) void get().respondPermission(r.runId, p.requestId, p.choices.find((c) => c.kind === 'allow_once')?.id ?? p.choices[0]?.id ?? null);
+              }
+              const settled = run && (['done', 'failed', 'stopped'].includes(run.status) || (!info.capture?.automationAnswer && run.asks.length));
+              if (Date.now() - began > 12 * 60_000 || settled) {
+                clearInterval(timer);
+                setTimeout(resolve, 1500);
+              }
+            }, 1000);
+          });
+          set({ captureReady: true });
+        }
+      }
       if (info.capture.botsView === 'chart') set({ orgFocusTeamId: (get().botTeams.find((x) => x.plan?.status === 'pending') ?? latest)?.id ?? null });
       // The organization is set up on first open: wait for its coordinator before picking a profile.
       if (info.capture.botsView === 'member' || info.capture.botsView === 'agent') {
@@ -671,6 +715,10 @@ export const useStore = create<State>((set, get) => ({
     }
   },
 
+  async loadAutomations() {
+    set({ automations: await api.automations() });
+  },
+
   async loadBots() {
     const [botTeams, botConfigs, orgSettings] = await Promise.all([api.botTeams(), api.botConfigs(), api.orgSettings()]);
     set({ botTeams, botConfigs, orgSettings });
@@ -890,6 +938,12 @@ function reloadRecentSoon() {
 function runAppCommand(command: string) {
   const s = useStore.getState();
   const projectId = s.settings.activeProjectId;
+  // A notification of an automation: open it.
+  if (command.startsWith('automation:')) {
+    s.setMode('bots');
+    useStore.setState({ activeAutomationId: command.slice(11), activeTeamId: null, activeMemberId: null, activeBotId: null });
+    return;
+  }
   if (command.startsWith('mode:')) {
     const mode = command.slice(5) as Mode;
     if (MODES.includes(mode)) s.setMode(mode);

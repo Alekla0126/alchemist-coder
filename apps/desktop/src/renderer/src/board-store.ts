@@ -21,6 +21,23 @@ interface BoardState {
 
 let timer: ReturnType<typeof setTimeout> | null = null;
 let loading: Promise<void> | null = null;
+/** When this window last got the board from the app: the app's changes after that survive our saves. */
+let seenAt = 0;
+
+/** Saves what's on screen now; the app answers with the board merged with its own changes. */
+async function flush() {
+  if (timer) clearTimeout(timer);
+  timer = null;
+  const data = useBoard.getState().data;
+  if (!data) return;
+  try {
+    const merged = await window.alchemist.boardSave(data, seenAt);
+    seenAt = Date.now();
+    useBoard.setState({ data: merged });
+  } catch (e) {
+    toast(e instanceof Error ? e.message : String(e));
+  }
+}
 
 /** The board's tasks and placements, saved a moment after each change. */
 export const useBoard = create<BoardState>((set, get) => ({
@@ -30,7 +47,16 @@ export const useBoard = create<BoardState>((set, get) => ({
     if (get().data) return Promise.resolve();
     loading ??= window.alchemist
       .boardLoad()
-      .then((data) => set({ data }))
+      .then((data) => {
+        seenAt = Date.now();
+        set({ data });
+        // An automation added or moved cards: take them (saving ours first, so nothing is lost).
+        window.alchemist.onBoardChanged((next) => {
+          if (timer) return void flush();
+          seenAt = Date.now();
+          set({ data: next });
+        });
+      })
       .catch((e) => {
         loading = null;
         toast(e instanceof Error ? e.message : String(e));
@@ -43,10 +69,7 @@ export const useBoard = create<BoardState>((set, get) => ({
     const data = fn(current);
     set({ data });
     if (timer) clearTimeout(timer);
-    timer = setTimeout(() => {
-      timer = null;
-      void window.alchemist.boardSave(data).catch((e) => toast(e instanceof Error ? e.message : String(e)));
-    }, 400);
+    timer = setTimeout(() => void flush(), 400);
   },
 }));
 

@@ -8,11 +8,13 @@ import { NOTIFY_KEY } from '../store';
 import { BackupCard } from './HistoryView';
 import { ThemePicker } from './ThemePicker';
 import { UsageDetails } from './UsageMeter';
+import { AutomationSettingsCard } from './Automations';
 
-type Section = 'general' | 'agents' | 'usage' | 'backup' | 'shortcuts' | 'about';
+type Section = 'general' | 'agents' | 'automations' | 'usage' | 'backup' | 'shortcuts' | 'about';
 const SECTIONS: Array<[Section, string]> = [
   ['general', '⚙'],
   ['agents', '🧩'],
+  ['automations', '⚡'],
   ['usage', '📊'],
   ['backup', '🛟'],
   ['shortcuts', '⌨'],
@@ -336,6 +338,7 @@ export function Settings() {
           </div>
           {section === 'general' && <General />}
           {section === 'agents' && <Agents />}
+          {section === 'automations' && <AutomationSettingsCard />}
           {section === 'usage' && <Usage />}
           {section === 'backup' && <BackupCard />}
           {section === 'shortcuts' && <Shortcuts />}

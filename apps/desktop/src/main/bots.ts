@@ -1,10 +1,10 @@
 import { randomBytes } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { dirname, join, relative } from 'node:path';
 import { commitAll, createWorktree, git, headCommit, listChanges, repoRoot } from '@alchemist-coder/arena';
 import type { SessionMcpServer } from '@alchemist-coder/core';
-import type { AgentChoice, BotConfig, BotMember, BotStatus, BotTeam, OrgSettings, PermissionMode, PlannedBot, RunnerEventMessage, StartTeamRequest, TeamEventKind, TeamPlan } from '../shared/api';
+import type { AgentChoice, BotConfig, BotMember, BotStatus, BotTeam, OrgSettings, PermissionMode, PlannedBot, RunnerEventMessage, StartTeamRequest, TeamEventKind, TeamOrigin, TeamPlan } from '../shared/api';
 import type { RunnerManager } from './runner';
 
 /** Coordinator (0), the bots it creates (1), and theirs (2). */
@@ -191,6 +191,44 @@ function workerPrompt(bot: BotMember, parentName: string, orgInstructions = '', 
     .join('\n');
 }
 
+/** Copies the project's uncommitted edits and new files into a copy of it; returns how many. */
+async function copyUncommitted(root: string, dest: string): Promise<number> {
+  const out = await git(root, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
+  const parts = out.split('\0');
+  let n = 0;
+  for (let i = 0; i < parts.length && n < 3000; i++) {
+    const entry = parts[i]!;
+    if (entry.length < 4) continue;
+    // A rename or copy is followed by the path it came from.
+    if (entry[0] === 'R' || entry[0] === 'C') i++;
+    const file = entry.slice(3);
+    const from = join(root, file);
+    const to = join(dest, file);
+    if (existsSync(from)) {
+      if (!statSync(from).isFile()) continue;
+      mkdirSync(dirname(to), { recursive: true });
+      copyFileSync(from, to);
+    } else rmSync(to, { force: true });
+    n++;
+  }
+  return n;
+}
+
+/** One organization agent doing a task by itself (an automation's step): no team, no bots to create. */
+function soloPrompt(config: BotConfig, task: string, orgName: string, orgInstructions: string, worktree: string | null, readOnly: boolean): string {
+  return [
+    `You are "${config.name}", an agent of the organization "${orgName}" in Alchemist Coder. An automation gave you this task; nobody is watching live, so work on it until it's done.`,
+    config.role && `Your role: ${config.role}`,
+    orgInstructions && `Organization instructions:\n${orgInstructions}`,
+    `Your task: ${task}`,
+    readOnly ? "Don't change any file: read, think and answer." : '',
+    worktree ? `You work in your own copy of the project (${worktree}); the user decides whether your changes reach the main folder, so finish them completely there.` : '',
+    'End your turn with a short summary of what you did and anything left open, in the language of the task.',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
 /**
  * Bot teams: a coordinator works on a goal and creates bots (from saved configurations or defined
  * on the spot) through the app's own MCP tools; bots allowed to can create their own. Each bot is
@@ -216,6 +254,8 @@ export class BotManager {
   /** The name each tool call started with, by run and call: its updates come without it. */
   private readonly toolNames = new Map<string, string>();
   private readonly waiters = new Map<string, Array<() => void>>();
+  /** Others in the app that follow assignments (the automations). */
+  private readonly watchers = new Set<(team: BotTeam) => void>();
   private server: Server | null = null;
   private port = 0;
   private saveTimer: NodeJS.Timeout | null = null;
@@ -578,6 +618,65 @@ export class BotManager {
     team.updatedAt = Date.now();
     this.saveSoon();
     this.emit(structuredClone(team));
+    for (const fn of this.watchers) fn(structuredClone(team));
+  }
+
+  /** Follows every change to every assignment; returns the way to stop. */
+  watch(fn: (team: BotTeam) => void): () => void {
+    this.watchers.add(fn);
+    return () => this.watchers.delete(fn);
+  }
+
+  /** The assignment and bot a run belongs to, if it's a bot's. */
+  botOfRun(runId: string): { team: BotTeam; botId: string } | null {
+    const caller = this.runs.get(runId);
+    const team = caller && this.teams.find((t) => t.id === caller.teamId);
+    return team ? { team: structuredClone(team), botId: caller.botId } : null;
+  }
+
+  team(teamId: string): BotTeam | undefined {
+    const team = this.teams.find((t) => t.id === teamId);
+    return team ? structuredClone(team) : undefined;
+  }
+
+  /**
+   * An automation's step: one organization agent works alone on a task, as an assignment of its own
+   * (so it shows, asks and stops like any other), in its own copy of the project when asked and the
+   * project uses git.
+   */
+  async startSolo(input: { configId: string; cwd: string; task: string; title?: string; ownWorktree?: boolean; readOnly?: boolean; permissionMode?: PermissionMode; noCopyPermission?: PermissionMode; origin?: TeamOrigin | null }): Promise<BotTeam> {
+    const config = this.configs.find((c) => c.id === input.configId);
+    if (!config) throw new Error('That agent is no longer in the organization');
+    const task = str(input.task);
+    if (!task) throw new Error('The step has no task');
+    const cwd = this.resolveProject(input.cwd);
+    const now = Date.now();
+    const team: BotTeam = { id: `team-${randomBytes(4).toString('hex')}`, title: str(input.title, 120) || teamTitle(task), goal: task, cwd, createdAt: now, updatedAt: now, bots: [], budgetUsd: null, origin: input.origin ?? null };
+    const bot: BotMember = {
+      id: 'b1',
+      name: config.name,
+      configId: config.id,
+      role: config.role,
+      agent: { ...config.agent },
+      permissionMode: input.permissionMode ?? config.permissionMode,
+      canSpawn: false,
+      parentId: null,
+      depth: 0,
+      runId: null,
+      status: 'starting',
+      task,
+      lastReply: '',
+      costUsd: null,
+      createdAt: now,
+    };
+    team.bots.push(bot);
+    this.teams.unshift(team);
+    // Not a git project: it works in the folder itself, asking first when told to.
+    const workIn = input.ownWorktree && !input.readOnly ? await this.makeWorktree(team, bot).catch(() => cwd) : cwd;
+    if (input.ownWorktree && !bot.worktree && input.noCopyPermission) bot.permissionMode = input.noCopyPermission;
+    this.launch(team, bot, soloPrompt(config, task, this.org.name, this.org.instructions, bot.worktree?.path ?? null, input.readOnly === true), workIn);
+    this.changed(team);
+    return structuredClone(team);
   }
 
   /** What a bot changed in its own copy since it was last applied. */
@@ -640,7 +739,11 @@ export class BotManager {
     if (!root) throw new Error("The project isn't a git repository, so bots can't get their own copy.");
     const base = await headCommit(root);
     const wt = await createWorktree(root, `bots-${team.id}`, bot.id, base);
-    bot.worktree = { path: wt.path, branch: wt.branch, base, root };
+    // It starts from the project as it is now, uncommitted edits included (work other agents already
+    // brought in is there); only what it does from here on counts as its changes.
+    const copied = await copyUncommitted(root, wt.path).catch(() => 0);
+    const start = copied ? ((await commitAll(wt.path, 'The project as it was when this agent started').catch(() => null)) ?? base) : base;
+    bot.worktree = { path: wt.path, branch: wt.branch, base: start, root };
     // The same subfolder inside the copy as the team works in.
     return join(wt.path, relative(root, team.cwd));
   }

@@ -8,6 +8,7 @@ import { sourceOf } from '../sources';
 import { useStore, useT } from '../store';
 import { confirmAction, openMenu, toast } from '../ui';
 import { AgentPanel } from './AgentPanel';
+import { AgentAvatar } from './AgentAvatar';
 import { Icon } from './Icon';
 import { Resizer } from './Resizer';
 import { keys } from '../keys';
@@ -248,6 +249,8 @@ export function BoardView() {
   };
 
   const projectOf = (card: BoardCard) => projects.find((p) => p.id === card.projectId);
+  const configs = useStore((s) => s.botConfigs);
+  const automations = useStore((s) => s.automations);
   const renderCard = (group: BoardCard[]) => {
     const card = group[0]!;
     const p = projectOf(card);
@@ -262,6 +265,9 @@ export function BoardView() {
       <span className="bcard-when">{started ? relativeTime(card.session!.lastTs, locale) : t('board.notStarted')}</span>
     );
     const src = card.session ? sourceOf(card.session.source) : null;
+    // The employee it's for, and the automation that wrote it down.
+    const who = card.task?.assignee ? configs.find((c) => c.id === card.task!.assignee) : undefined;
+    const auto = card.task?.automationId ? automations.find((x) => x.automation.id === card.task!.automationId) : undefined;
     return (
       <article
         key={card.key}
@@ -276,15 +282,22 @@ export function BoardView() {
           void more(group);
         }}
       >
-        {(scope === 'all' || !started) && (
+        {(scope === 'all' || !started || who) && (
           <div className="bcard-top">
+            {who && (
+              <span className="bcard-who" title={t('board.assignedTo', { name: who.name })}>
+                <AgentAvatar name={who.name} avatar={who.avatar} size={18} state={card.live === 'waiting' ? 'waiting' : card.live ? 'working' : null} />
+                {who.name}
+              </span>
+            )}
+            {auto && <span className="bcard-kind" title={auto.automation.prompt}>⚡ {auto.automation.name}</span>}
             {scope === 'all' && p && (
               <span className="bcard-proj" title={p.cwd}>
                 <span className="avatar xs" style={{ background: projectGradient(p.name) }}>{initials(p.name)}</span>
                 {p.name}
               </span>
             )}
-            {!started && <span className="bcard-kind">{t('board.task')}</span>}
+            {!started && !auto && <span className="bcard-kind">{t('board.task')}</span>}
           </div>
         )}
         <button className="bcard-title" onClick={() => void open(card)} title={started ? t('board.openConversation') : t('board.edit')}>

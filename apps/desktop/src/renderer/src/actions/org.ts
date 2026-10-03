@@ -15,7 +15,7 @@ export const openMember = (member: BotConfig) => useStore.setState({ activeMembe
 export const openAssignment = (team: BotTeam, botId?: string | null) => useStore.setState({ activeTeamId: team.id, activeBotId: botId ?? team.bots[0]?.id ?? null, activeMemberId: null });
 
 /** Back to the organization's chart; with an id (or null) it also changes which assignment shows on it. */
-export const showOnChart = (teamId?: string | null) => useStore.setState({ activeTeamId: null, activeBotId: null, activeMemberId: null, ...(teamId === undefined ? {} : { orgFocusTeamId: teamId }) });
+export const showOnChart = (teamId?: string | null) => useStore.setState({ activeTeamId: null, activeBotId: null, activeMemberId: null, activeAutomationId: null, ...(teamId === undefined ? {} : { orgFocusTeamId: teamId }) });
 
 /** Starts writing an assignment for one agent ("Ask Tester to …"), on the chart's message box. */
 export function giveTask(member: BotConfig) {
