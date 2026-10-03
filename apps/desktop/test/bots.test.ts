@@ -224,6 +224,19 @@ describe('bot teams', () => {
     expect(bots.listTeams()[0]!.bots[0]!.doing).toBe('@wait_for_bot:W');
   });
 
+  it('keeps a picture you chose and drops anything that is not one', () => {
+    const { bots } = setup();
+    const png = 'data:image/png;base64,iVBORw0KGgo=';
+    const saved = bots.saveConfig({ name: 'Pic', role: '', agent, permissionMode: 'acceptEdits', avatar: png });
+    expect(saved.avatar).toBe(png);
+    expect(bots.saveConfig({ ...saved, avatar: 'emoji:🧪' }).avatar).toBe('emoji:🧪');
+    expect(bots.saveConfig({ ...saved, avatar: 'javascript:alert(1)' }).avatar).toBeNull();
+    expect(bots.saveConfig({ ...saved, avatar: 'data:image/svg+xml;base64,PHN2Zz4=' }).avatar).toBeNull();
+    expect(bots.saveConfig({ ...saved, avatar: `data:image/png;base64,${'A'.repeat(400_001)}` }).avatar).toBeNull();
+    // Renaming keeps it.
+    expect(bots.saveConfig({ ...saved, name: 'Pic 2' }).avatar).toBe(png);
+  });
+
   it('keeps saying what a bot does when a call\'s updates come without its name', async () => {
     const { bots } = setup();
     const team = bots.startTeam({ goal: 'g', cwd: '/p', coordinator: { name: 'Lead', role: '', agent, permissionMode: 'acceptEdits' } });

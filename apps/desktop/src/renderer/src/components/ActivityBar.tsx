@@ -8,6 +8,7 @@ import { useStore, useT } from '../store';
 import { doingText } from './Bots';
 import { toolLabel } from './LiveTurns';
 import { useNow, WorkingOrb } from './WorkingOrb';
+import { AgentAvatar } from './AgentAvatar';
 
 type T = ReturnType<typeof useT>;
 
@@ -122,6 +123,7 @@ async function goTo(item: ActivityItem) {
 
 function Popover({ items, now, onClose }: { items: ActivityItem[]; now: number; onClose: () => void }) {
   const t = useT();
+  const configs = useStore((s) => s.botConfigs);
   const locale = useStore((s) => s.locale);
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -140,7 +142,11 @@ function Popover({ items, now, onClose }: { items: ActivityItem[]; now: number; 
   const working = items.filter((x) => x.state === 'working');
   const row = (item: ActivityItem) => (
     <button key={item.key} className={`act-row ${item.state}`} onClick={() => (onClose(), void goTo(item))}>
-      <WorkingOrb state={item.state === 'waiting' ? 'waiting' : 'running'} size={14} />
+      {item.target.kind === 'bot' ? (
+        <AgentAvatar name={nameOf(item)} avatar={configs.find((c) => c.id === item.configId)?.avatar} size={22} state={item.state === 'waiting' ? 'waiting' : 'working'} />
+      ) : (
+        <WorkingOrb state={item.state === 'waiting' ? 'waiting' : 'running'} size={14} />
+      )}
       <span className="act-main">
         <b>{nameOf(item)}</b>
         <small>{doingLabel(item.doing, t)}</small>

@@ -47,6 +47,8 @@ export interface ActivityItem {
   /** How many agents the line stands for (a conversation with subagents: several). */
   agents: number;
   target: ActivityTarget;
+  /** The organization agent it is, for its picture. */
+  configId?: string | null;
 }
 
 export interface ActivityInput {
@@ -121,6 +123,7 @@ export function buildActivity(input: ActivityInput): ActivityItem[] {
           costUsd: bot.costUsd,
           agents: 1,
           target: { kind: 'bot', teamId: team.id, botId: bot.id },
+          configId: bot.configId,
         },
         projectOf(team.cwd)?.id,
       );

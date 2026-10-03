@@ -2053,3 +2053,21 @@ select.mk-chip { appearance: none; padding-right: 12px; }
 .org-side .sec { gap: 8px; }
 .org-side .sec > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .org-side .sec > .new-btn { flex: none; }
+
+/* ---------- agent pictures ---------- */
+.agent-av { --av: 24px; position: relative; display: inline-grid; place-items: center; flex: none; width: var(--av); height: var(--av); border-radius: 50%; color: #1a0d05; font-weight: 700; font-size: calc(var(--av) * 0.4); line-height: 1; user-select: none; }
+.agent-av img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+.agent-av-emoji { font-size: calc(var(--av) * 0.56); line-height: 1; }
+.agent-av-initials { letter-spacing: -0.02em; }
+.agent-av-dot { position: absolute; right: -1px; bottom: -1px; width: max(7px, calc(var(--av) * 0.32)); height: max(7px, calc(var(--av) * 0.32)); border-radius: 50%; border: 2px solid var(--bg-side); background: var(--fg-3); }
+.agent-av.st-working .agent-av-dot { background: var(--green); animation: pulse 1.6s ease-in-out infinite; }
+.agent-av.st-waiting .agent-av-dot { background: var(--amber); }
+.agent-av.st-error .agent-av-dot { background: var(--red); }
+.agent-av.st-working { box-shadow: 0 0 0 2px color-mix(in srgb, var(--green) 55%, transparent); }
+.agent-av.st-waiting { box-shadow: 0 0 0 2px var(--amber); }
+.oc-card .agent-av-dot { border-color: var(--bg-card); }
+.av-edit { position: relative; display: grid; place-items: center; border-radius: 50%; padding: 0; flex: none; }
+.av-edit:hover .agent-av { box-shadow: 0 0 0 2px var(--accent); }
+.av-edit:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bot-row .agent-av { margin-right: 2px; }
+@media (prefers-reduced-motion: reduce) { .agent-av.st-working .agent-av-dot { animation: none; } }

@@ -10,6 +10,7 @@ import { Markdown } from './Markdown';
 import { TranscriptEntries } from './Transcript';
 import { CommitDialog } from './CommitDialog';
 import { Icon } from './Icon';
+import { AgentAvatar } from './AgentAvatar';
 import { parsePatch } from '../diff';
 import { relativePath, tailOf } from '../paths';
 import { ACTIVE, botState, needsYou, teamActive, teamCost, teamState, type TeamState } from '../org-model';
@@ -69,9 +70,7 @@ function BotRow({ bot, selected, onSelect, team }: { bot: BotMember; selected: b
       )}
       title={bot.role || bot.task}
     >
-      <span className={`bot-st st-${state}`} title={t(`bots.status.${state}`)}>
-        {STATUS_ICON[state]}
-      </span>
+      <AgentAvatar name={config?.name ?? bot.name} avatar={config?.avatar} size={20} state={state === 'working' || state === 'starting' ? 'working' : state === 'waiting' ? 'waiting' : state === 'error' ? 'error' : null} label={t(`bots.status.${state}`)} />
       <span className="tt">
         {bot.name}
         {running && doing && <small className={`bot-doing ${doing.words ? 'words' : ''}`}>{doing.text}</small>}

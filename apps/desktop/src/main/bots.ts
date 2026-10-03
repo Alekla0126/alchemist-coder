@@ -196,6 +196,14 @@ function workerPrompt(bot: BotMember, parentName: string, orgInstructions = '', 
  * on the spot) through the app's own MCP tools; bots allowed to can create their own. Each bot is
  * an ordinary agent run. Runs don't survive a restart; teams and configurations do.
  */
+/** A picture you chose (a small image, already resized by the app) or one of the app's own; anything else is dropped. */
+export function avatarOf(v: unknown): string | null {
+  if (typeof v !== 'string') return null;
+  if (/^emoji:\S{1,16}$/u.test(v)) return v;
+  if (v.length <= 400_000 && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(v)) return v;
+  return null;
+}
+
 export class BotManager {
   private configs: BotConfig[] = [];
   private teams: BotTeam[] = [];
@@ -350,6 +358,7 @@ export class BotManager {
       kind: c.kind === 'coordinator' ? 'coordinator' : 'member',
       projects: Array.isArray(c.projects) ? c.projects.filter((p): p is string => typeof p === 'string' && p.startsWith('/')).slice(0, 50).map((p) => p.replace(/\/+$/, '').slice(0, 1000)) : [],
       proposed: c.proposed === true,
+      avatar: avatarOf(c.avatar),
     };
     // A team is one level deep, like the teams themselves: a top-level agent leads, its team reports to it.
     const lead = typeof c.leadId === 'string' ? this.configs.find((x) => x.id === c.leadId) : undefined;

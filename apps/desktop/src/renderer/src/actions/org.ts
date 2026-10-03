@@ -1,6 +1,7 @@
 import type { BotConfig, BotTeam } from '@shared/api';
 import { translate, type MessageKey } from '../i18n';
 import { canMove } from '../org-model';
+import { AVATAR_EMOJI, chooseImage, resizeImage } from '../avatar';
 import { useStore } from '../store';
 import { confirmAction, openMenu, promptText, toast } from '../ui';
 
@@ -36,6 +37,32 @@ export async function renameMember(member: BotConfig) {
     await window.alchemist.saveBotConfig({ ...member, name });
     const draft = useStore.getState().orgDrafts[member.id];
     if (draft) useStore.setState((s) => ({ orgDrafts: { ...s.orgDrafts, [member.id]: { ...draft, name } } }));
+    await useStore.getState().loadBots();
+  } catch (e) {
+    toast(errorText(e));
+  }
+}
+
+/** Gives an agent a picture: one of yours (cropped and made small), one of the app's, or none (its initials). */
+export async function changeAvatar(member: BotConfig) {
+  const id = await openMenu([
+    { id: 'upload', label: `${t('avatar.upload')}…` },
+    { id: 'emoji', label: t('avatar.pick'), submenu: AVATAR_EMOJI.map((e, i) => ({ id: `e:${i}`, label: e, checked: member.avatar === `emoji:${e}` })) },
+    ...(member.avatar ? [{ type: 'separator' as const }, { id: 'none', label: t('avatar.remove') }] : []),
+  ]);
+  if (!id) return;
+  let avatar: string | null = null;
+  if (id === 'upload') {
+    const file = await chooseImage();
+    if (!file) return;
+    try {
+      avatar = await resizeImage(file);
+    } catch {
+      return toast(t('avatar.unreadable'));
+    }
+  } else if (id.startsWith('e:')) avatar = `emoji:${AVATAR_EMOJI[Number(id.slice(2))]}`;
+  try {
+    await window.alchemist.saveBotConfig({ ...member, avatar });
     await useStore.getState().loadBots();
   } catch (e) {
     toast(errorText(e));

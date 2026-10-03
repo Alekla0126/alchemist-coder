@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { BotConfig, BotTeam } from '@shared/api';
-import { addToTeam, giveTask, openAssignment, openMember, removeMember, renameMember, setLead } from '../actions/org';
+import { addToTeam, changeAvatar, giveTask, openAssignment, openMember, removeMember, renameMember, setLead } from '../actions/org';
+import { AgentAvatar } from './AgentAvatar';
 import { money, modelLabel } from '../format';
 import { activityOf, canMove, chartOf, extrasIn, inFolder, workIn, type CardWork } from '../org-model';
 import { baseName } from '../paths';
@@ -9,14 +10,11 @@ import { useStore, useT } from '../store';
 import { contextMenu } from '../ui';
 import { doingText } from './Bots';
 import { Icon } from './Icon';
-import { WorkingOrb } from './WorkingOrb';
 
 type T = ReturnType<typeof useT>;
 
 /** Below this width per top-level agent, the chart stacks instead of spreading them in a row. */
 const MIN_COLUMN = 150;
-/** Planned has no glyph: its mark is a dashed ring, a place still to be filled. */
-const WORK_ICON: Record<CardWork['state'], string> = { planned: '', waiting: '!', working: '◐', error: '✕', done: '✓', stopped: '■' };
 
 /** An agent's first sentence of role, to say what it is in a line. */
 const roleLine = (role: string) => role.replace(/\s+/g, ' ').split(/(?<=[.!?])\s/)[0]?.slice(0, 110) ?? '';
@@ -95,6 +93,7 @@ function Card({ member, teams, focus, drag, hasTeam }: { member: BotConfig; team
           ...(member.proposed ? [] : [{ id: 'task', label: lead ? t('bots.newTeam') : t('org.giveTask', { name: member.name }) }]),
           { type: 'separator' as const },
           { id: 'rename', label: `${t('org.renameAgent')}…` },
+          { id: 'avatar', label: `${t('avatar.change')}…` },
           ...(lead ? [{ id: 'add-org', label: `${t('org.addAgent')}…` }] : teamLead ? [{ id: 'add-team', label: `${t('org.addToTeam')}…` }] : []),
           ...(movable && destinations.length ? [{ id: 'move', label: t('org.moveTo'), submenu: destinations.map((c) => ({ id: `to:${c.id}`, label: t('org.teamOf', { name: c.name }) })) }] : []),
           ...(onTeamOf ? [{ id: 'leave', label: t('org.leaveTeam', { name: onTeamOf.name }) }] : []),
@@ -104,6 +103,7 @@ function Card({ member, teams, focus, drag, hasTeam }: { member: BotConfig; team
           if (id === 'profile') openMember(member);
           if (id === 'task') giveTask(member);
           if (id === 'rename') void renameMember(member);
+          if (id === 'avatar') void changeAvatar(member);
           if (id === 'add-org') useStore.setState({ botConfigDialog: true });
           if (id === 'add-team') void addToTeam(member, configs);
           if (id === 'leave') void setLead(member, null);
@@ -114,9 +114,8 @@ function Card({ member, teams, focus, drag, hasTeam }: { member: BotConfig; team
       )}
     >
       <div className="oc-head">
-        {busy ? <WorkingOrb state={state === 'waiting' ? 'waiting' : 'running'} size={13} label={status} /> : <span className={`oc-mark st-${state}`} role="img" aria-label={status} title={status}>{focus && work ? WORK_ICON[work.state] : ''}</span>}
+        <AgentAvatar name={member.name} avatar={member.avatar} size={28} state={state === 'working' ? 'working' : state === 'waiting' ? 'waiting' : state === 'error' ? 'error' : null} label={status} />
         <b className="oc-name">
-          {lead && <span className="org-lead-mark">⚗ </span>}
           {member.name}
           {unsaved && (
             <span className="org-unsaved" title={t('org.unsaved')} aria-label={t('org.unsaved')}>
@@ -198,7 +197,7 @@ function ExtraCard({ name, role, work, focus }: { name: string; role: string; wo
       }}
     >
       <div className="oc-head">
-        {busy ? <WorkingOrb state={work.state === 'waiting' ? 'waiting' : 'running'} size={13} label={status} /> : <span className={`oc-mark st-${work.state}`} role="img" aria-label={status} title={status}>{WORK_ICON[work.state]}</span>}
+        <AgentAvatar name={name} size={28} state={work.state === 'working' ? 'working' : work.state === 'waiting' ? 'waiting' : work.state === 'error' ? 'error' : null} label={status} />
         <b className="oc-name">{name}</b>
         <span className="bot-badge" title={t('bots.definedHere')}>
           {t('org.work.new')}

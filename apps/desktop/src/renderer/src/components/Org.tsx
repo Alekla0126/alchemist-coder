@@ -10,7 +10,8 @@ import { baseName } from '../paths';
 import { AgentPicker, defaultChoice } from './AgentPicker';
 import { confirmDeleteTeam, doingText, errorText, teamActive, teamCost, teamState, TeamView } from './Bots';
 import { activityOf, inFolder, inProject, resultIn, type Focus, type Need } from '../org-model';
-import { addToTeam, approvePlan, askPlanChanges, dismissMember, giveTask, keepMember, openAssignment, removeMember, renameMember, setLead, showOnChart } from '../actions/org';
+import { AgentAvatar } from './AgentAvatar';
+import { addToTeam, approvePlan, askPlanChanges, changeAvatar, dismissMember, giveTask, keepMember, openAssignment, removeMember, renameMember, setLead, showOnChart } from '../actions/org';
 import { OrgChart } from './OrgChart';
 import { OrgComposer } from './OrgComposer';
 import { PermissionCard } from './LiveRun';
@@ -387,12 +388,14 @@ function MemberRow({ member, depth, teams, compact, focus }: { member: BotConfig
       onContextMenu={contextMenu(
         () => [
           { id: 'rename', label: `${t('org.renameAgent')}…` },
+          { id: 'avatar', label: `${t('avatar.change')}…` },
           ...(lead ? [{ id: 'add-org', label: `${t('org.addAgent')}…` }] : teamLead ? [{ id: 'add-team', label: `${t('org.addToTeam')}…` }] : []),
           ...(onTeamOf ? [{ id: 'leave', label: t('org.leaveTeam', { name: onTeamOf.name }) }] : []),
           ...(lead ? [] : [{ type: 'separator' as const }, { id: 'delete', label: t('org.deleteAgent') }]),
         ],
         (id) => {
           if (id === 'rename') void renameMember(member);
+          if (id === 'avatar') void changeAvatar(member);
           if (id === 'add-org') useStore.setState({ botConfigDialog: true });
           if (id === 'add-team') void addToTeam(member, configs);
           if (id === 'leave') void setLead(member, null);
@@ -401,7 +404,7 @@ function MemberRow({ member, depth, teams, compact, focus }: { member: BotConfig
       )}
       title={member.role || undefined}
     >
-      <span className={`org-dot st-${a.status}`} role="img" aria-label={status} title={status} />
+      <AgentAvatar name={member.name} avatar={member.avatar} size={24} state={a.status === 'idle' ? null : a.status} label={status} />
       <span className="tt">
         <span className="org-member-name" onDoubleClick={(e) => (e.stopPropagation(), void renameMember(member))} title={t('org.renameHint2')}>
           {lead && <span className="org-lead-mark">⚗ </span>}
@@ -904,6 +907,9 @@ function MemberPanel({ member }: { member: BotConfig }) {
       <header className="team-head">
         <button className="icon-btn ic-btn" onClick={() => showOnChart()} title={t('org.backToChart')} aria-label={t('org.backToChart')}>
           <Icon name="chevronLeft" size={16} />
+        </button>
+        <button className="av-edit" onClick={() => void changeAvatar(member)} title={t('avatar.change')} aria-label={t('avatar.change')}>
+          <AgentAvatar name={member.name} avatar={member.avatar} size={36} />
         </button>
         <div className="team-title">
           <span className={`team-state ts-${pill === 'idle' ? 'idle' : pill}`}>{member.proposed ? t('org.proposed') : t(`org.status.${a.status}`)}</span>
