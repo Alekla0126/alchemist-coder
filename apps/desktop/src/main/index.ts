@@ -83,6 +83,7 @@ function appInfo(): AppInfo {
           runUntil: arg('run-until') === 'subagent' ? 'subagent' : null,
           orgGoal: arg('org-goal') ?? null,
           automation: arg('automation') ?? null,
+          automationPrompt: arg('automation-prompt') ?? null,
           automationRun: process.argv.includes('--automation-run'),
           automationAnswer: process.argv.includes('--automation-answer'),
           orgApprove: process.argv.includes('--org-approve'),
@@ -277,7 +278,8 @@ void app.whenReady().then(async () => {
     secrets,
     send,
     channel: Channels.automationChanged,
-    lang: () => settings.get().locale ?? (app.getLocale().toLowerCase().startsWith('es') ? 'es' : 'en'),
+    // The language you see the app in (a capture's --locale too).
+    lang: () => (capturePath && (arg('locale') === 'es' || arg('locale') === 'en') ? (arg('locale') as 'es' | 'en') : null) ?? settings.get().locale ?? (app.getLocale().toLowerCase().startsWith('es') ? 'es' : 'en'),
     show: (automationId) => {
       if (!window || window.isDestroyed()) opened();
       window?.show();

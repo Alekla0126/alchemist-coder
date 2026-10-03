@@ -117,7 +117,9 @@ export function layoutFlow(nodes: FlowNode[], edges: FlowEdge[]): { placed: Plac
       const x2 = b.x + NODE_W / 2 + spread / 4;
       const y2 = b.y;
       const mid = y1 + Math.min(GAP_Y, (y2 - y1) / 2);
-      arrows.push({ edge, back, path: `M ${x1} ${y1} C ${x1 + spread} ${mid}, ${x2} ${mid}, ${x2} ${y2 - 6}`, lx: x1 + spread * 0.6 + (x2 - x1) * 0.35, ly: y1 + Math.min(GAP_Y, (y2 - y1) / 2) * 0.62 });
+      // Their labels one above the other, so they don't cover each other.
+      const step = (twins.indexOf(edge) - (twins.length - 1) / 2) * 24;
+      arrows.push({ edge, back, path: `M ${x1} ${y1} C ${x1 + spread} ${mid}, ${x2} ${mid}, ${x2} ${y2 - 6}`, lx: x1 + spread * 0.6 + (x2 - x1) * 0.35, ly: y1 + Math.min(GAP_Y, (y2 - y1) / 2) * 0.62 + step });
     } else {
       // Around the right edge of the widest row, a little further out for each loop.
       const outX = Math.max(inner, maxX) + 34 + 16 * loops++;

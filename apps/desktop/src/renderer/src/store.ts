@@ -460,6 +460,17 @@ export const useStore = create<State>((set, get) => ({
       const latest = get().botTeams[0];
       if (info.capture.botsView === 'team' && latest) set({ activeTeamId: latest.id, activeBotId: latest.bots[0]?.id ?? null });
       if (info.capture.botsView === 'config') set({ botConfigDialog: true });
+      // --automation-prompt (screenshots): an agent draws one from these words.
+      if (info.capture.automationPrompt) {
+        await indexed;
+        const project = get().projects.find((p) => p.name === info.capture!.project) ?? get().projects.find((p) => p.id === get().settings.activeProjectId);
+        const made = project ? await window.alchemist.createAutomation({ prompt: info.capture.automationPrompt, cwd: project.cwd, template: 'agent' }).catch((e: unknown) => (console.error('[automation]', e), null)) : null;
+        if (made) {
+          await get().loadAutomations();
+          set({ activeAutomationId: made.automation.id, settings: { ...get().settings, mode: 'bots' } });
+        }
+        set({ captureReady: true });
+      }
       // --automation=<id|new> (screenshots): an automation open, maybe running.
       const auto = info.capture.automation;
       if (auto === 'new') set({ automationDialog: true });

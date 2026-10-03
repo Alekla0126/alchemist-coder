@@ -162,6 +162,8 @@ export interface AutomationDeps {
 
 const str = (v: unknown, max = 20_000) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 const clip = (s: string, max = CLIP) => (s.length > max ? `${s.slice(0, max)}…` : s);
+/** A word as people mean it: no case, no accents ("si" is "Sí"). */
+const loose = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
 const id = (prefix: string) => `${prefix}-${randomBytes(4).toString('hex')}`;
 
 function cleanTrigger(v: unknown): AutomationTrigger {
@@ -171,7 +173,11 @@ function cleanTrigger(v: unknown): AutomationTrigger {
     return Number.isFinite(v) ? Math.min(max, Math.max(min, Math.round(v))) : def;
   };
   if (t.kind === 'every') return { kind: 'every', minutes: n(t.minutes, 5, 7 * 24 * 60, 60) };
-  if (t.kind === 'daily') return { kind: 'daily', at: /^([01]\d|2[0-3]):[0-5]\d$/.test(String(t.at)) ? String(t.at) : '08:00' };
+  if (t.kind === 'daily') {
+    const days = [...new Set((Array.isArray(t.days) ? t.days : []).map(Number).filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))].sort();
+    const at = /^([01]?\d|2[0-3]):[0-5]\d$/.test(String(t.at)) ? String(t.at).padStart(5, '0') : '08:00';
+    return { kind: 'daily', at, ...(days.length && days.length < 7 ? { days } : {}) };
+  }
   if (t.kind === 'continuous') return { kind: 'continuous', pauseMinutes: n(t.pauseMinutes, 1, 24 * 60, 5) };
   return { kind: 'manual' };
 }
@@ -201,8 +207,10 @@ export function cleanFlow(rawNodes: unknown, rawEdges: unknown, configs: BotConf
     const text = str(x.text, 8000);
     if (text) node.text = text;
     if (kind === 'decision' || kind === 'human') {
-      const branches = (Array.isArray(x.branches) ? x.branches : []).map((b) => str(b, 60)).filter(Boolean);
-      node.branches = [...new Set(branches)].slice(0, 6);
+      // No branches on the step: the ones its arrows name.
+      const named = Array.isArray(x.branches) && x.branches.length ? x.branches : (Array.isArray(rawEdges) ? rawEdges : []).filter((e) => str((e as Record<string, unknown>)?.from, 40) === str(x.id, 40)).map((e) => (e as Record<string, unknown>).branch);
+      const branches = named.map((b) => str(b, 60)).filter(Boolean).map((b) => b[0]!.toUpperCase() + b.slice(1));
+      node.branches = branches.filter((b, i) => branches.findIndex((o) => loose(o) === loose(b)) === i).slice(0, 6);
       if (node.branches.length < 2) node.branches = kind === 'human' ? [w.approve, w.reject] : [w.yes, w.no];
     }
     nodes.push(node);
@@ -216,20 +224,38 @@ export function cleanFlow(rawNodes: unknown, rawEdges: unknown, configs: BotConf
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const edges: FlowEdge[] = [];
   const edgeKeys = new Set<string>();
+  const add = (from: string, to: string, branch: string | null) => {
+    const key = `${from}|${branch ?? ''}`;
+    if (edgeKeys.has(key)) return;
+    edgeKeys.add(key);
+    edges.push({ from, to, ...(branch ? { branch } : {}) });
+  };
+  const unnamed: Array<{ from: string; to: string }> = [];
   for (const raw of Array.isArray(rawEdges) ? rawEdges.slice(0, MAX_NODES * 4) : []) {
     const x = (raw ?? {}) as Record<string, unknown>;
     const from = str(x.from, 40);
     const to = str(x.to, 40);
     if (!ids.has(from) || !ids.has(to) || byId.get(to)!.kind === 'trigger') continue;
     const node = byId.get(from)!;
-    let branch: string | null = str(x.branch, 60) || null;
-    if (node.branches) branch = node.branches.find((b) => b.toLowerCase() === branch?.toLowerCase()) ?? null;
-    else branch = null;
-    if (node.branches && !branch) continue;
-    const key = `${from}|${branch ?? ''}`;
-    if (edgeKeys.has(key)) continue;
-    edgeKeys.add(key);
-    edges.push({ from, to, ...(branch ? { branch } : {}) });
+    if (!node.branches) {
+      add(from, to, null);
+      continue;
+    }
+    const said = str(x.branch, 60);
+    if (!said) {
+      unnamed.push({ from, to });
+      continue;
+    }
+    // Branches as written on the step, whatever the case or accents ("si" is "Sí"); a branch the step
+    // doesn't have yet becomes one of its options, rather than losing the arrow.
+    let branch = node.branches.find((b) => loose(b) === loose(said));
+    if (!branch && node.branches.length < 6) node.branches.push((branch = said[0]!.toUpperCase() + said.slice(1)));
+    if (branch) add(from, to, branch);
+  }
+  // An arrow out of a decision without a branch: the first of its branches with no arrow yet.
+  for (const { from, to } of unnamed) {
+    const free = byId.get(from)!.branches!.find((b) => !edgeKeys.has(`${from}|${b}`));
+    if (free) add(from, to, free);
   }
   return { nodes, edges };
 }
@@ -244,9 +270,9 @@ export function nextNode(automation: Pick<Automation, 'nodes' | 'edges'>, from: 
 /** The option an agent picked: its last line "DECISION: <option>" (or DECISIÓN), matched to the branches. */
 export function parseDecision(text: string, branches: string[]): string | null {
   const lines = [...text.matchAll(/DECISI[OÓ]N\s*:\s*(.+)/gi)];
-  const said = lines.at(-1)?.[1]?.trim().replace(/[*_`"«».]+/g, '').trim().toLowerCase();
+  const said = loose(lines.at(-1)?.[1]?.replace(/[*_`"«».]+/g, '') ?? '');
   if (!said) return null;
-  return branches.find((b) => b.toLowerCase() === said) ?? branches.find((b) => said.startsWith(b.toLowerCase()) || b.toLowerCase().startsWith(said)) ?? null;
+  return branches.find((b) => loose(b) === said) ?? branches.find((b) => said.startsWith(loose(b)) || loose(b).startsWith(said)) ?? null;
 }
 
 /** The cards a manager wrote down: a JSON block `{"cards":[{title, assignee, detail}]}`, or a bare list. */
@@ -281,6 +307,8 @@ export function nextRunAt(a: Pick<Automation, 'enabled' | 'trigger' | 'updatedAt
   const slot = new Date(ref);
   slot.setHours(h, m, 0, 0);
   if (slot.getTime() <= ref) slot.setDate(slot.getDate() + 1);
+  // Only on its weekdays, when it has them.
+  for (let i = 0; i < 7 && t.days?.length && !t.days.includes(slot.getDay()); i++) slot.setDate(slot.getDate() + 1);
   return slot.getTime();
 }
 
@@ -358,11 +386,12 @@ export function designPrompt(prompt: string, configs: BotConfig[], current?: Pic
     '- notify: a message to the user ("text").',
     '- end.',
     'Edges go from one step to the next; from a decision or a human step, give "branch" (one of its branches). Loops are allowed, back to an earlier step.',
-    'Triggers: {"kind":"manual"} | {"kind":"every","minutes":N} | {"kind":"daily","at":"HH:MM"} | {"kind":"continuous","pauseMinutes":N}.',
+    'Triggers: {"kind":"manual"} | {"kind":"every","minutes":N} | {"kind":"daily","at":"HH:MM"} (add "days":[1] for Mondays only; 0 = Sunday … 6 = Saturday) | {"kind":"continuous","pauseMinutes":N}.',
+    'Every decision and human step needs "branches" (at least two), and each of its edges names one of them exactly in "branch". An agent step works on its own copy and already asks the user before its changes go into the project: no extra step, and no human step, just for that.',
     '',
     'Keep it small (at most 12 steps), write titles and texts in the user\'s language, and never invent facts or numbers. Reply with only a JSON block:',
     '```json',
-    '{"name":"…","trigger":{"kind":"daily","at":"08:00"},"nodes":[{"id":"start","kind":"trigger","title":"…"},{"id":"…","kind":"agent","title":"…","agent":"<agent name>","text":"…"}],"edges":[{"from":"start","to":"…"}]}',
+    '{"name":"…","trigger":{"kind":"daily","at":"08:00"},"nodes":[{"id":"start","kind":"trigger","title":"…"},{"id":"read","kind":"agent","title":"…","agent":"<agent name>","text":"…"},{"id":"pick","kind":"decision","title":"…?","agent":"<agent name>","text":"…?","branches":["<option A>","<option B>"]},{"id":"tell","kind":"notify","title":"…","text":"…"},{"id":"end","kind":"end","title":"…"}],"edges":[{"from":"start","to":"read"},{"from":"read","to":"pick"},{"from":"pick","to":"tell","branch":"<option A>"},{"from":"pick","to":"end","branch":"<option B>"},{"from":"tell","to":"end"}]}',
     '```',
   ].join('\n');
 }

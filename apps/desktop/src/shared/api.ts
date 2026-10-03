@@ -185,6 +185,8 @@ export interface AppInfo {
     runUntil?: 'subagent' | null;
     /** Organization: open this automation ('new': the new automation dialog). */
     automation?: string | null;
+    /** Organization: have an agent draw an automation from these words, in the project of --project, and show it. */
+    automationPrompt?: string | null;
     /** With `automation`: run it and capture once it asks you something or ends. */
     automationRun?: boolean;
     /** With `automationRun`: answer its questions with their first choice and allow agents' requests, and capture when it ends. */
@@ -379,7 +381,8 @@ export interface BotTeam {
 export type AutomationTrigger =
   | { kind: 'manual' }
   | { kind: 'every'; minutes: number }
-  | { kind: 'daily'; at: string }
+  /** At a time of day; with `days`, only those weekdays (0 = Sunday … 6 = Saturday). */
+  | { kind: 'daily'; at: string; days?: number[] }
   | { kind: 'continuous'; pauseMinutes: number };
 
 /**

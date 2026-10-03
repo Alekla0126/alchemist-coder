@@ -53,6 +53,34 @@ describe('automation diagrams', () => {
     ]);
   });
 
+  it('takes a step\'s branches from its arrows when the agent forgot them', () => {
+    const { nodes, edges } = cleanFlow([{ id: 'd', kind: 'decision', title: '¿Vale?' }, { id: 'y', kind: 'agent', title: 'Y' }], [{ from: 'start', to: 'd' }, { from: 'd', to: 'y', branch: 'Sí' }, { from: 'd', to: 'start', branch: 'No' }, { from: 'd', to: 'y', branch: 'Quizá' }], configs, 'en');
+    expect(nodes[1]!.branches).toEqual(['Sí', 'No', 'Quizá']);
+    expect(edges.filter((e) => e.from === 'd').map((e) => e.branch)).toEqual(['Sí', 'Quizá']);
+  });
+
+  it('keeps the arrows an agent named loosely, or not at all', () => {
+    const { nodes, edges } = cleanFlow(
+      [
+        { id: 'd', kind: 'decision', title: '¿Vale?', branches: ['Sí', 'No'] },
+        { id: 'h', kind: 'human', title: '¿Lo llevo?', branches: ['Aprobar', 'Rechazar'] },
+        { id: 'y', kind: 'agent', title: 'Y' },
+      ],
+      [
+        { from: 'd', to: 'h', branch: 'si' },
+        { from: 'd', to: 'y' },
+        { from: 'h', to: 'y', branch: 'Más tarde' },
+        { from: 'h', to: 'y', branch: 'APROBAR' },
+      ],
+      configs,
+      'es',
+    );
+    expect(edges.filter((e) => e.from === 'd')).toEqual([{ from: 'd', to: 'h', branch: 'Sí' }, { from: 'd', to: 'y', branch: 'No' }]);
+    expect(nodes.find((n) => n.id === 'h')!.branches).toEqual(['Aprobar', 'Rechazar', 'Más tarde']);
+    expect(edges.filter((e) => e.from === 'h').map((e) => e.branch)).toEqual(['Más tarde', 'Aprobar']);
+    expect(parseDecision('Lo pensé.\nDECISIÓN: **si**', ['Sí', 'No'])).toBe('Sí');
+  });
+
   it('follows branches, and reads what an agent decided', () => {
     const t = templateFlow('office', 'Ship the CSV export', configs, 'es');
     expect(nextNode(t, 'check', 'Más tarjetas')?.id).toBe('plan');
@@ -88,6 +116,8 @@ describe('automation diagrams', () => {
     expect(nextRunAt({ ...base, trigger: { kind: 'daily', at: '12:00' } }, null, now)).toBe(new Date(2026, 9, 3, 12, 0).getTime());
     // Missed while the app was closed: due as soon as it opens.
     expect(nextRunAt({ ...base, trigger: { kind: 'daily', at: '08:00' } }, { startedAt: new Date(2026, 9, 2, 8, 0).getTime(), endedAt: null }, now)).toBe(new Date(2026, 9, 3, 8, 0).getTime());
+    // Mondays at 09:00 (3 Oct 2026 is a Saturday): next Monday.
+    expect(nextRunAt({ ...base, trigger: { kind: 'daily', at: '09:00', days: [1] } }, null, now)).toBe(new Date(2026, 9, 5, 9, 0).getTime());
     expect(nextRunAt({ ...base, trigger: { kind: 'continuous', pauseMinutes: 5 } }, { startedAt: now - 60_000, endedAt: now - 60_000 }, now)).toBe(now + 4 * 60_000);
   });
 });

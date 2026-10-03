@@ -23,7 +23,7 @@ const live = (r: AutomationRun | undefined) => !!r && (r.status === 'running' ||
 /** "Every day at 08:00", "Every 6 h", "Non-stop (5 min pause)", "When you start it". */
 export function triggerText(tr: AutomationTrigger, t: T): string {
   if (tr.kind === 'every') return tr.minutes % 60 === 0 ? t('auto.trigger.everyH', { n: tr.minutes / 60 }) : t('auto.trigger.everyMin', { n: tr.minutes });
-  if (tr.kind === 'daily') return t('auto.trigger.daily', { at: tr.at });
+  if (tr.kind === 'daily') return tr.days?.length ? t('auto.trigger.weekly', { days: tr.days.map((d) => t(`auto.day.${d}` as never)).join(', '), at: tr.at }) : t('auto.trigger.daily', { at: tr.at });
   if (tr.kind === 'continuous') return t('auto.trigger.continuous', { n: tr.pauseMinutes });
   return t('auto.trigger.manual');
 }
@@ -496,10 +496,19 @@ export function AutomationView({ state }: { state: AutomationState }) {
       { type: 'separator' },
       ...EVERY.map((m) => ({ id: `every:${m}`, label: m % 60 === 0 ? t('auto.trigger.everyH', { n: m / 60 }) : t('auto.trigger.everyMin', { n: m }), checked: draft.trigger.kind === 'every' && draft.trigger.minutes === m })),
       { type: 'separator' },
-      { id: 'daily', label: `${t('auto.trigger.dailyPick')}…`, checked: draft.trigger.kind === 'daily' },
+      { id: 'daily', label: `${t('auto.trigger.dailyPick')}…`, checked: draft.trigger.kind === 'daily' && !draft.trigger.days?.length },
+      { id: 'weekly', label: t('auto.trigger.weeklyPick'), submenu: [1, 2, 3, 4, 5, 6, 0].map((d) => ({ id: `day:${d}`, label: t(`auto.day.${d}` as never), checked: draft.trigger.kind === 'daily' && !!draft.trigger.days?.includes(d) })) },
       { id: 'continuous', label: t('auto.trigger.continuous', { n: 5 }), checked: draft.trigger.kind === 'continuous' },
     ]);
     if (!id) return;
+    if (id.startsWith('day:')) {
+      // Weekdays add up: tick Monday and Thursday for both.
+      const d = Number(id.slice(4));
+      const days = draft.trigger.kind === 'daily' ? (draft.trigger.days ?? []) : [];
+      const next = days.includes(d) ? days.filter((x) => x !== d) : [...days, d];
+      edit({ trigger: { kind: 'daily', at: draft.trigger.kind === 'daily' ? draft.trigger.at : '09:00', ...(next.length ? { days: next } : {}) } });
+      return;
+    }
     if (id === 'daily') {
       const at = await promptText({ title: t('auto.trigger.dailyPick'), message: t('auto.trigger.dailyHint'), value: draft.trigger.kind === 'daily' ? draft.trigger.at : '08:00', confirmLabel: t('bots.save'), cancelLabel: t('dialog.cancel') });
       if (at && /^([01]?\d|2[0-3]):[0-5]\d$/.test(at.trim())) edit({ trigger: { kind: 'daily', at: at.trim().padStart(5, '0') } });
