@@ -35,9 +35,21 @@ jobs:
           winget validate --manifest $dir
           if ($LASTEXITCODE -ne 0) { exit 1 }
           winget settings --enable LocalManifestFiles
+          # winget marks the download as from the internet, and Windows holds an unsigned .exe with that
+          # mark at a security warning nobody can click on a runner (on a PC, you click Run). Here only,
+          # .exe counts as low risk so the install can go on.
+          $assoc = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Associations'
+          New-Item -Path $assoc -Force | Out-Null
+          New-ItemProperty -Path $assoc -Name LowRiskFileTypes -Value '.exe' -PropertyType String -Force | Out-Null
           # A silent install takes seconds: one that hangs fails here instead of holding the runner.
           $install = Start-Process winget -ArgumentList @('install', '--manifest', $dir, '--accept-package-agreements', '--accept-source-agreements', '--silent', '--disable-interactivity') -NoNewWindow -PassThru
-          if (-not $install.WaitForExit(300000)) { Stop-Process -Id $install.Id -Force; Write-Error 'winget install took more than 5 minutes'; exit 1 }
+          if (-not $install.WaitForExit(300000)) {
+            # What's still running, and what winget logged, before giving up.
+            Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'setup|Alchemist|winget|Uninstall' } | Format-Table ProcessId, ParentProcessId, Name, CommandLine -AutoSize -Wrap | Out-String -Width 400
+            Get-ChildItem "$env:LOCALAPPDATA\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalState\DiagOutputDir" -Filter *.log -ErrorAction SilentlyContinue | Sort-Object LastWriteTime | Select-Object -Last 1 | Get-Content -Tail 40
+            Stop-Process -Id $install.Id -Force
+            Write-Error 'winget install took more than 5 minutes'; exit 1
+          }
           if ($install.ExitCode -ne 0) { Write-Error "winget install failed ($($install.ExitCode))"; exit 1 }
           $exe = Get-ChildItem "$env:LOCALAPPDATA\Programs" -Recurse -Filter 'Alchemist Coder.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
           if (-not $exe) { Write-Error 'The app was not installed'; exit 1 }
