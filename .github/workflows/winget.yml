@@ -16,6 +16,7 @@ permissions:
 jobs:
   winget:
     runs-on: windows-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - name: Get winget if this runner lacks it
@@ -34,8 +35,10 @@ jobs:
           winget validate --manifest $dir
           if ($LASTEXITCODE -ne 0) { exit 1 }
           winget settings --enable LocalManifestFiles
-          winget install --manifest $dir --accept-package-agreements --accept-source-agreements --silent --disable-interactivity
-          if ($LASTEXITCODE -ne 0) { exit 1 }
+          # A silent install takes seconds: one that hangs fails here instead of holding the runner.
+          $install = Start-Process winget -ArgumentList @('install', '--manifest', $dir, '--accept-package-agreements', '--accept-source-agreements', '--silent', '--disable-interactivity') -NoNewWindow -PassThru
+          if (-not $install.WaitForExit(300000)) { Stop-Process -Id $install.Id -Force; Write-Error 'winget install took more than 5 minutes'; exit 1 }
+          if ($install.ExitCode -ne 0) { Write-Error "winget install failed ($($install.ExitCode))"; exit 1 }
           $exe = Get-ChildItem "$env:LOCALAPPDATA\Programs" -Recurse -Filter 'Alchemist Coder.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
           if (-not $exe) { Write-Error 'The app was not installed'; exit 1 }
           Write-Output "Installed at $($exe.FullName)"

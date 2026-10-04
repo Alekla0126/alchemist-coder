@@ -15,14 +15,5 @@ Installers:
   Scope: user
   InstallerUrl: https://github.com/Alekla0126/alchemist-coder/releases/download/v1.0.0/Alchemist-Coder-1.0.0-setup.exe
   InstallerSha256: 437A609B330B99737D60B1A6495399341CE8DC5B7864BB4450E621D4549520D4
-  InstallerSwitches:
-    Custom: /currentuser
-- Architecture: x64
-  Scope: machine
-  InstallerUrl: https://github.com/Alekla0126/alchemist-coder/releases/download/v1.0.0/Alchemist-Coder-1.0.0-setup.exe
-  InstallerSha256: 437A609B330B99737D60B1A6495399341CE8DC5B7864BB4450E621D4549520D4
-  InstallerSwitches:
-    Custom: /allusers
-  ElevationRequirement: elevatesSelf
 ManifestType: installer
 ManifestVersion: 1.10.0
