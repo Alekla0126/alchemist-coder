@@ -38,7 +38,8 @@ jobs:
         # Built on the runner itself (Ubuntu 22.04, the same as the snap's core22 base), without LXD.
         env:
           SNAP_DESTRUCTIVE_MODE: "true"
-        run: pnpm exec electron-vite build && pnpm exec electron-builder --linux snap --publish never
+        # In place, snapcraft installs the snap's build packages with apt: as root.
+        run: pnpm exec electron-vite build && sudo -E env "PATH=$PATH" pnpm exec electron-builder --linux snap --publish never
       - name: Install it and open it
         shell: bash
         run: |
