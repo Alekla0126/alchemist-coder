@@ -1,0 +1,39 @@
+name: winget
+
+# Validates a version's winget manifest and installs Alchemist Coder from it on Windows, the way
+# `winget install` will once Microsoft accepts it. Run it before submitting the manifest:
+#   gh workflow run winget.yml -f version=1.0.0
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: A version under packaging/winget
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  winget:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Cyberboss/install-winget@v1
+      - name: Validate the manifest, install from it, and check the uninstall entry
+        shell: pwsh
+        run: |
+          $dir = "packaging/winget/TheAlchemistCode.AlchemistCoder/${{ inputs.version }}"
+          winget --version
+          winget validate --manifest $dir
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          winget settings --enable LocalManifestFiles
+          winget install --manifest $dir --accept-package-agreements --accept-source-agreements --silent --disable-interactivity
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          $exe = Get-ChildItem "$env:LOCALAPPDATA\Programs" -Recurse -Filter 'Alchemist Coder.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $exe) { Write-Error 'The app was not installed'; exit 1 }
+          Write-Output "Installed at $($exe.FullName)"
+          # winget finds an installed package by the ProductCode: the installer's uninstall key.
+          $code = (Select-String -Path "$dir/*.installer.yaml" -Pattern '^ProductCode: (.+)$').Matches[0].Groups[1].Value
+          $entry = Get-ChildItem 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall' | Where-Object { (Get-ItemProperty $_.PSPath).DisplayName -like 'Alchemist Coder*' } | Select-Object -First 1
+          Write-Output "Uninstall key: $($entry.PSChildName) (manifest: $code)"
+          if (-not $entry -or $entry.PSChildName.Trim('{}') -ne $code) { Write-Error 'The ProductCode does not match the uninstall key'; exit 1 }
