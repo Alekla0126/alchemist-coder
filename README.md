@@ -8,6 +8,8 @@ Open several projects at once, follow every agent and every subagent it spawns, 
 
 [coder.alekla.com](https://coder.alekla.com) · [Español](#español) · AGPL-3.0
 
+<img src="https://coder.alekla.com/shots/en-org-1440.webp" alt="Alchemist Coder organization chart: a coordinator, six agents with their pictures, and a plan waiting for approval" width="900">
+
 </div>
 
 > **Version 1.0.** [Download](https://coder.alekla.com/#download) for macOS (Apple Silicon or Intel), Windows or Linux (AppImage or .deb), or from [Releases](https://github.com/Alekla0126/alchemist-coder/releases). The builds aren't signed with an Apple or Microsoft certificate yet. The first time on a Mac, macOS says it can't verify the app: click Done, then open System Settings → Privacy & Security and click Open Anyway. On Windows, if SmartScreen warns you, choose More info → Run anyway. Feedback and issues are welcome.
@@ -18,6 +20,8 @@ Open several projects at once, follow every agent and every subagent it spawns, 
 - **Keep every conversation.** Claude Code deletes transcripts after 30 days by default; the opt-in versioned backup mirrors your Claude Code and Codex history into a git repository you choose, and conversations the CLIs delete stay in the app. Export any conversation, subagents included, to Markdown, HTML or JSON.
 - **An organization of agents.** A standing coordinator takes your assignments, plans them (review the plan first if you like) and hands the work to the agents you add over time, each with its own role and instructions, model, permissions and projects. Write what you need once, in one box: you stay on the organization chart, where each agent's card shows its task and what it's doing right now, and you approve the plan right there. Drag an agent onto another to put it on its team. A "Needs you" inbox gathers their questions, permission requests and plans, and each agent keeps a record of what it did.
 - **Automations.** Describe a routine in plain words and an agent draws it as a flow diagram: steps your agents do, decisions they make and the ones that wait for you. It runs on its own (every day, on some weekdays, every few minutes or nonstop) with a daily spending cap; you choose how much it decides alone, and its questions reach your Mac and your phone through your own Telegram bot. The office template hands cards on the Board to your agents like employees.
+<p align="center"><img src="https://coder.alekla.com/shots/en-auto-1440.webp" alt="An automation drawn as a flow diagram: a weekly ideas review with an agent step, a decision and a notice" width="760"></p>
+
 - **Every project's agents in one place.** Switch the sidebar to All projects to follow the conversations and agents of every open project without switching, and read each conversation as one clean document.
 - **Marketing mode.** A brand guide every agent reads (marketing/BRAND.md), a studio for posts, threads, emails, App Store and Google Play listings with real character limits and previews, an editorial calendar, and a marketing team in your organization. Agents may only claim what the brand guide lists.
 - **A board for the work.** The Board lays out every task and conversation by phase (backlog, planning, implementing, validating, done). Conversations move on their own as their agents work; write tasks down and hand one to an agent with a click; open, close and reopen cards from icons on each card.
