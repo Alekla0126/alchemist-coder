@@ -54,6 +54,9 @@ snap:
   # Classic: like any installed program, it runs your CLIs, git and terminals. The Snap Store
   # approves classic confinement for developer tools on request.
   confinement: classic
+  # The prebuilt template's launcher expects desktop-init.sh, which a classic snap doesn't have:
+  # snapcraft builds it instead.
+  useTemplateApp: false
   grade: stable
   summary: Desktop app for your coding agents. Claude Code, Codex, Gemini CLI
 toolsets:
