@@ -31,9 +31,13 @@ jobs:
       - name: Tools to build a snap
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq squashfs-tools xvfb >/dev/null
-          sudo snap install snapcraft --classic
+          # electron-builder's core22 build calls `snapcraft snap`, which snapcraft 8 renamed to `pack`.
+          sudo snap install snapcraft --classic --channel=7.x/stable
       - name: Build the snap
         working-directory: apps/desktop
+        # Built on the runner itself (Ubuntu 22.04, the same as the snap's core22 base), without LXD.
+        env:
+          SNAP_DESTRUCTIVE_MODE: "true"
         run: pnpm exec electron-vite build && pnpm exec electron-builder --linux snap --publish never
       - name: Install it and open it
         shell: bash
