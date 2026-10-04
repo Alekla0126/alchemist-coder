@@ -34,7 +34,7 @@ export function StatusBar() {
     <footer className="status">
       <span className="l status-index">
         {progress.phase === 'ready' ? (
-          t('index.ready', { sessions, projects: projects.length })
+          `${t('index.sessions', { n: sessions })} · ${t('index.projects', { n: projects.length })}`
         ) : progress.phase === 'scanning' ? (
           <>
             <span className="spin" /> {t('index.scanning')}
