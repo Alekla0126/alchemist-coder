@@ -1,0 +1,55 @@
+name: Snap
+
+# Builds the snap, installs it the way the Snap Store will (classic), opens it and takes a screenshot:
+#   gh workflow run snap.yml -f ref=main
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag or commit to build
+        default: main
+
+permissions:
+  contents: read
+
+jobs:
+  snap:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Tools to build a snap
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq squashfs-tools xvfb >/dev/null
+          sudo snap install snapcraft --classic
+      - name: Build the snap
+        working-directory: apps/desktop
+        run: pnpm exec electron-vite build && pnpm exec electron-builder --linux snap --publish never
+      - name: Install it and open it
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p smoke
+          ls -la apps/desktop/release/*.snap
+          sudo snap install --classic --dangerous apps/desktop/release/*.snap
+          snap info --verbose "$(ls apps/desktop/release/*.snap)" | head -20 || true
+          which alchemist-coder
+          timeout 180 xvfb-run -a -s "-screen 0 1600x1000x24" alchemist-coder --no-sandbox --capture="$PWD/smoke/snap-start.png" --profile="$RUNNER_TEMP/p" > smoke/snap-start.log 2>&1 || true
+          if [ -f smoke/snap-start.png ]; then echo "ok snap-start"; else echo "::error::no screenshot from the snap"; tail -40 smoke/snap-start.log; exit 1; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: snap
+          path: |
+            apps/desktop/release/*.snap
+            smoke/
