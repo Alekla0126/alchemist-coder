@@ -1614,22 +1614,22 @@ select.mk-chip { appearance: none; padding-right: 12px; }
 .side-edge:hover, .side-edge:focus-visible { background: color-mix(in srgb, var(--accent) 45%, transparent); }
 .split.side-off { grid-template-columns: minmax(0, 1fr); }
 .modes button { display: inline-flex; align-items: center; gap: 6px; }
-.modes .m-ic { display: none; }
+.modes .m-ic { display: block; flex: none; }
+/* Icon and name on every tab when there's room; then the name on the open tab only; then icons only
+   (the name shows on hover); then one menu. TitleBar measures which fits (every language differs). */
+.modes.fit-active button:not(.on) .m-label, .modes.fit-icons .m-label { display: none; }
+.modes.fit-active button:not(.on), .modes.fit-icons button { padding: 5px 8px; }
+.titlebar.modes-menu > .modes { display: none; }
+.titlebar.modes-menu .mode-menu { display: inline-flex; }
+.titlebar { position: relative; }
+.modes-measure { position: absolute; left: 0; top: 0; height: 0; width: max-content; overflow: hidden; visibility: hidden; pointer-events: none; display: flex; flex-direction: column; align-items: flex-start; }
 .mode-menu { display: none; align-items: center; gap: 6px; flex: none; padding: 4px 8px 4px 9px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--bg-input); color: var(--fg); font-size: 12px; }
 .mode-menu:hover { background: var(--bg-hl); }
 .title-search .ic { opacity: 0.8; }
-/* Mid-size windows: the modes keep one icon each (the name shows on hover). */
-@media (max-width: 1360px) {
-  .modes .m-ic { display: block; }
-  .modes .m-label { display: none; }
-  .modes button { padding: 5px 8px; }
-}
 @media (max-width: 1320px) { .titlebar .title-search { min-width: 0; } }
 @media (max-width: 1080px) { .brand > span:not(.logo) { display: none; } .chip.edition { display: none; } }
 /* Half a screen: one button lists the modes. */
 @media (max-width: 899px) {
-  .modes { display: none; }
-  .mode-menu { display: inline-flex; }
   .titlebar { gap: 8px; }
   .title-right { gap: 6px; }
   .needs-you-btn { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
