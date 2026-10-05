@@ -7,7 +7,7 @@ import { ExtensionRegistry } from '@alchemist-coder/core';
 import { claudeAgent, claudeCodeHarness, codexAgent, codexHarness, detectBinary, geminiAgent, grokAgent } from '@alchemist-coder/harness';
 import { lmStudioProvider, ollamaProvider } from '@alchemist-coder/providers-local';
 import type { IndexProgress } from '@alchemist-coder/core';
-import { Channels, type AppInfo, type Mode } from '../shared/api';
+import { Channels, isLocale, matchLocale, type AppInfo, type Locale, type Mode } from '../shared/api';
 import { registerIpc } from './ipc';
 import { SettingsStore } from './settings';
 import { RunnerManager } from './runner';
@@ -107,7 +107,7 @@ function appInfo(): AppInfo {
                 stopAt: arg('arena-stop') === 'review' ? 'review' : 'compare',
               }
             : null,
-          locale: arg('locale') === 'es' || arg('locale') === 'en' ? (arg('locale') as 'es' | 'en') : null,
+          locale: isLocale(arg('locale')) ? (arg('locale') as Locale) : null,
           newProject: process.argv.includes('--new-project'),
           drawer: process.argv.includes('--drawer'),
           boardNew: process.argv.includes('--board-new'),
@@ -279,7 +279,7 @@ void app.whenReady().then(async () => {
     send,
     channel: Channels.automationChanged,
     // The language you see the app in (a capture's --locale too).
-    lang: () => (capturePath && (arg('locale') === 'es' || arg('locale') === 'en') ? (arg('locale') as 'es' | 'en') : null) ?? settings.get().locale ?? (app.getLocale().toLowerCase().startsWith('es') ? 'es' : 'en'),
+    lang: () => (capturePath && isLocale(arg('locale')) ? (arg('locale') as Locale) : null) ?? settings.get().locale ?? matchLocale(app.getLocale()),
     show: (automationId) => {
       if (!window || window.isDestroyed()) opened();
       window?.show();
@@ -300,7 +300,7 @@ void app.whenReady().then(async () => {
   registerIpc({ info: appInfo, bots, settings, onSettingsChanged: (patch) => 'locale' in patch && buildMenu(), reader: () => reader, progress: () => progress, onRendered: () => void capture(), runner, tasks, preview, hub, backup, reviews, usage, exportSession: (id, format) => (reader ? exportSession(window, reader, id, format) : Promise.reject(new Error('The index is still loading'))), workspace, terminals, dataDir: userData, board, automations });
   startIndexer(join(userData, 'index.db'), backup.root());
   backup.start();
-  const menuLocale = () => settings.get().locale ?? (app.getLocale().toLowerCase().startsWith('es') ? 'es' : 'en');
+  const menuLocale = () => settings.get().locale ?? matchLocale(app.getLocale());
   const buildMenu = () =>
     appMenu((command) => send(Channels.appCommand, command), {
       debug: !!process.env.AC_DEBUG || !app.isPackaged,

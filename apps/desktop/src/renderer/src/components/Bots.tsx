@@ -601,10 +601,10 @@ export function TeamView({ team }: { team: BotTeam }) {
   const send = async () => {
     const v = text.trim();
     if (!v) return;
-    // "@Tester …" goes to that bot, "@todos …" to every bot that can still hear it.
+    // "@Tester …" goes to that bot, "@all …" (or the word in the app's language) to every bot that can still hear it.
     const m = /^@(\S+)\s+([\s\S]+)$/.exec(v);
     const key = m?.[1]!.toLowerCase();
-    const all = !!key && ['todos', 'todas', 'all', 'everyone'].includes(key);
+    const all = !!key && ['todos', 'todas', 'all', 'everyone', t('bots.mentionAll').toLowerCase()].includes(key);
     const named = key && !all ? team.bots.find((b) => b.name.toLowerCase().replace(/\s+/g, '') === key) : undefined;
     if (key && !all && !named) return toast(t('bots.noSuchBot', { name: m![1]! }));
     const targets = all ? team.bots.filter(reachable) : [named ?? bot];

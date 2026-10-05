@@ -96,7 +96,17 @@ export interface ActionPrompt {
   label: string;
   body: string;
 }
-export type Locale = 'en' | 'es';
+/** The app's languages (each locale has a file under renderer/src/locales and main/locales). */
+export const LOCALES = ['en', 'es', 'pt-BR', 'fr', 'de', 'it', 'ru', 'ja', 'ko', 'zh-CN', 'hi'] as const;
+export type Locale = (typeof LOCALES)[number];
+/** Each language in its own words, for the language picker. */
+export const LOCALE_NAMES: Record<Locale, string> = { en: 'English', es: 'Español', 'pt-BR': 'Português (Brasil)', fr: 'Français', de: 'Deutsch', it: 'Italiano', ru: 'Русский', ja: '日本語', ko: '한국어', 'zh-CN': '简体中文', hi: 'हिन्दी' };
+export const isLocale = (v: unknown): v is Locale => typeof v === 'string' && (LOCALES as readonly string[]).includes(v);
+/** The closest of the app's languages to a system one ("pt-PT" → Portuguese, "zh-TW" → Chinese); English otherwise. */
+export function matchLocale(system: string): Locale {
+  const s = system.toLowerCase();
+  return LOCALES.find((l) => l.toLowerCase() === s) ?? LOCALES.find((l) => l.split('-')[0] === s.split('-')[0]) ?? 'en';
+}
 
 export interface Settings {
   /** null = follow the system language. */

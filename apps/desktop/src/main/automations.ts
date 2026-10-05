@@ -1,5 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { mainWords } from './locales';
+import type { Locale } from '../shared/api';
 import type { Automation, AutomationAsk, AutomationRun, AutomationState, AutomationTrigger, Autonomy, BoardData, BotConfig, BotTeam, FlowEdge, FlowNode, FlowNodeKind, PermissionMode, RunStep, TeamOrigin } from '../shared/api';
 
 /**
@@ -22,121 +24,10 @@ const MAX_RUNS_KEPT = 30;
 const CLIP = 6000;
 
 export type Template = 'agent' | 'office' | 'goal';
-export type Lang = 'es' | 'en';
+export type Lang = Locale;
 
 /** What automations say to you (notifications, questions, run results), in the app's language. */
-const WORDS = {
-  es: {
-    start: 'Empezar',
-    approve: 'Aprobar',
-    reject: 'Rechazar',
-    yes: 'Sí',
-    no: 'No',
-    untitled: 'Automatización',
-    stopped: 'se detuvo',
-    paused: 'en pausa',
-    needsYou: 'te necesita',
-    chose: (c: string) => `Elegiste: ${c}`,
-    unclear: (title: string) => `${title}: el agente no decidió con claridad. ¿Qué hacemos?`,
-    bringIn: (name: string, title: string) => `¿Llevar al proyecto los cambios de ${name} en «${title}»?`,
-    files: (n: number, list: string) => `${n} archivos: ${list}`,
-    apply: 'Aplicar',
-    discard: 'Descartar',
-    notApplied: (name: string, branch: string) => `${name}: los cambios no se aplicaron (quedan en su rama ${branch}).`,
-    newCards: 'Tarjetas nuevas',
-    noCards: 'No hizo falta ninguna tarjeta nueva.',
-    noOpen: 'No había tarjetas pendientes.',
-    unfinished: 'no terminó',
-    noChanges: 'Sin cambios.',
-    loop: (title: string, n: number) => `«${title}» corrió ${n} veces en esta ejecución; se detuvo para no repetirse sin fin.`,
-    tooLong: (n: number) => `Pasó de ${n} pasos y se detuvo.`,
-    capPaused: (cap: number) => `Llegó al tope de hoy (US$ ${cap}).`,
-    capStop: (cap: number) => `Llegó al tope de gasto de hoy (US$ ${cap}) y quedó en pausa.`,
-    failed: (name: string, why: string) => `${name}: ${why || 'su ejecución falló'}`,
-    wasStopped: (name: string) => `${name} fue detenido.`,
-    noEmployees: 'La organización no tiene agentes para este proyecto a quienes dar tarjetas.',
-    noAgents: 'La organización todavía no tiene agentes.',
-    office: {
-      name: 'La oficina en el Board',
-      plan: 'El gerente reparte el trabajo en tarjetas',
-      work: 'Los empleados hacen sus tarjetas',
-      check: '¿Objetivo cumplido?',
-      checkText: (g: string) => `El objetivo era: ${g}\nCon lo que ya se hizo, ¿está cumplido o hacen falta más tarjetas?`,
-      more: 'Más tarjetas',
-      done: 'Cumplido',
-      tell: 'Te aviso del resultado',
-      tellText: 'Objetivo cumplido.',
-      end: 'Fin',
-    },
-    goal: {
-      name: 'Ciclo de objetivo',
-      start: 'Cada 6 horas',
-      measure: 'Medir cómo vamos',
-      measureText: (g: string) => `Mide cómo vamos hacia este objetivo: ${g}\nDa el valor actual de la métrica, cómo cambió desde la última vez y de dónde lo sacaste. No cambies archivos.`,
-      plan: 'Decidir los próximos pasos',
-      planText: (g: string) => `Con la medición anterior, decide las próximas tareas (como mucho 3) que más nos acercan a: ${g}`,
-      work: 'Los empleados hacen sus tarjetas',
-      report: 'Informe del ciclo',
-      reportText: 'Informe del ciclo.',
-      end: 'Fin',
-    },
-  },
-  en: {
-    start: 'Start',
-    approve: 'Approve',
-    reject: 'Reject',
-    yes: 'Yes',
-    no: 'No',
-    untitled: 'Automation',
-    stopped: 'stopped',
-    paused: 'paused',
-    needsYou: 'needs you',
-    chose: (c: string) => `You chose: ${c}`,
-    unclear: (title: string) => `${title}: the agent didn't decide clearly. What do we do?`,
-    bringIn: (name: string, title: string) => `Bring ${name}'s changes in "${title}" into the project?`,
-    files: (n: number, list: string) => `${n} files: ${list}`,
-    apply: 'Apply',
-    discard: 'Discard',
-    notApplied: (name: string, branch: string) => `${name}: the changes weren't applied (they stay on its branch ${branch}).`,
-    newCards: 'New cards',
-    noCards: 'No new card was needed.',
-    noOpen: 'There were no open cards.',
-    unfinished: "didn't finish",
-    noChanges: 'No changes.',
-    loop: (title: string, n: number) => `"${title}" ran ${n} times in this run; it stopped so it doesn't loop forever.`,
-    tooLong: (n: number) => `It took more than ${n} steps and stopped.`,
-    capPaused: (cap: number) => `Reached today's cap (US$ ${cap}).`,
-    capStop: (cap: number) => `It reached today's spending cap (US$ ${cap}) and was paused.`,
-    failed: (name: string, why: string) => `${name}: ${why || 'its run failed'}`,
-    wasStopped: (name: string) => `${name} was stopped.`,
-    noEmployees: 'The organization has no agents for this project to give cards to.',
-    noAgents: 'The organization has no agents yet.',
-    office: {
-      name: 'The office on the Board',
-      plan: 'The manager splits the work into cards',
-      work: 'The employees do their cards',
-      check: 'Goal reached?',
-      checkText: (g: string) => `The goal was: ${g}\nWith what was done, is it reached or are more cards needed?`,
-      more: 'More cards',
-      done: 'Reached',
-      tell: 'Tell you the result',
-      tellText: 'Goal reached.',
-      end: 'End',
-    },
-    goal: {
-      name: 'Goal cycle',
-      start: 'Every 6 hours',
-      measure: 'Measure how we are doing',
-      measureText: (g: string) => `Measure how we are doing toward this goal: ${g}\nGive the metric's current value, how it changed since last time and where you got it. Don't change files.`,
-      plan: 'Decide the next steps',
-      planText: (g: string) => `With the measurement above, decide the next tasks (at most 3) that bring us closest to: ${g}`,
-      work: 'The employees do their cards',
-      report: 'Cycle report',
-      reportText: 'Cycle report.',
-      end: 'End',
-    },
-  },
-};
+const WORDS = (lang: Lang) => mainWords(lang).automation;
 
 export interface AutomationDeps {
   configs(): BotConfig[];
@@ -187,7 +78,7 @@ function cleanTrigger(v: unknown): AutomationTrigger {
  * kinds, unique ids, agents that exist, branches on decisions and questions, edges between real steps.
  */
 export function cleanFlow(rawNodes: unknown, rawEdges: unknown, configs: BotConfig[], lang: Lang = 'en'): { nodes: FlowNode[]; edges: FlowEdge[] } {
-  const w = WORDS[lang];
+  const w = WORDS(lang);
   const agentOf = (v: unknown) => {
     const s = str(v, 100).toLowerCase();
     if (!s) return null;
@@ -321,7 +212,7 @@ const dayStart = (now: number) => {
 /** The diagrams the app offers ready-made, filled in with what you asked. */
 export function templateFlow(template: Exclude<Template, 'agent'>, prompt: string, configs: BotConfig[], lang: Lang = 'en'): { name: string; trigger: AutomationTrigger; nodes: FlowNode[]; edges: FlowEdge[] } {
   const goal = prompt.trim();
-  const w = WORDS[lang];
+  const w = WORDS(lang);
   if (template === 'office') {
     return {
       name: w.office.name,
@@ -417,7 +308,7 @@ export class AutomationManager {
   }
 
   private get w() {
-    return WORDS[this.lang];
+    return WORDS(this.lang);
   }
 
   constructor(

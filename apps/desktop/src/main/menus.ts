@@ -1,5 +1,6 @@
 import { BrowserWindow, Menu, type MenuItemConstructorOptions, type WebContents } from 'electron';
-import type { MenuItem } from '../shared/api';
+import type { Locale, MenuItem } from '../shared/api';
+import { mainWords } from './locales';
 
 const ID = /^[\w:.-]{1,80}$/;
 
@@ -49,23 +50,12 @@ export function editMenu(contents: WebContents) {
   });
 }
 
-const LABELS = {
-  en: {
-    settings: 'Settings…', file: 'File', newConversation: 'New Conversation', newProject: 'New Project…', openFolder: 'Open Folder…', newTerminal: 'New Terminal', openProject: 'Open Project…', closeTab: 'Close Tab',
-    view: 'View', agents: 'Agents', arena: 'Arena', code: 'Code', split: 'Split', terminal: 'Terminal', history: 'History', bots: 'Organization', marketing: 'Marketing', board: 'Board', sidebar: 'Toggle Sidebar', agentPanel: 'Toggle Agent Panel',
-    palette: 'Command Palette…', search: 'Search Conversations', website: 'Alchemist Coder Website', issue: 'Report an Issue',
-  },
-  es: {
-    settings: 'Ajustes…', file: 'Archivo', newConversation: 'Nueva conversación', newProject: 'Nuevo proyecto…', openFolder: 'Abrir carpeta…', newTerminal: 'Nueva terminal', openProject: 'Abrir proyecto…', closeTab: 'Cerrar pestaña',
-    view: 'Ver', agents: 'Agentes', arena: 'Arena', code: 'Código', split: 'Dividido', terminal: 'Terminal', history: 'Historial', bots: 'Organización', marketing: 'Marketing', board: 'Tablero', sidebar: 'Mostrar u ocultar barra lateral', agentPanel: 'Mostrar u ocultar panel del agente',
-    palette: 'Paleta de comandos…', search: 'Buscar conversaciones', website: 'Sitio de Alchemist Coder', issue: 'Reportar un problema',
-  },
-} as const;
+
 
 /** The menu bar. Commands the renderer handles are sent as `app:command` with an id. Call again when the language changes. */
-export function appMenu(send: (command: string) => void, options: { debug: boolean; name: string; issuesUrl: string; siteUrl: string; openExternal: (url: string) => void; locale?: 'en' | 'es' }) {
+export function appMenu(send: (command: string) => void, options: { debug: boolean; name: string; issuesUrl: string; siteUrl: string; openExternal: (url: string) => void; locale?: Locale }) {
   const cmd = (id: string) => () => send(id);
-  const L = LABELS[options.locale ?? 'en'];
+  const L = mainWords(options.locale ?? 'en').menu;
   const mac = process.platform === 'darwin';
   const template: MenuItemConstructorOptions[] = [
     ...(mac

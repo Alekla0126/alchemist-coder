@@ -1,6 +1,6 @@
 import { keys as shortcutText } from '../keys';
 import { useEffect, useState } from 'react';
-import type { PermissionMode } from '@shared/api';
+import { LOCALE_NAMES, LOCALES, isLocale, type PermissionMode } from '@shared/api';
 import { useStore, useT } from '../store';
 import { toast } from '../ui';
 import { SEND_KEY } from './Composer';
@@ -44,13 +44,14 @@ function General() {
         <div>
           <b>{t('settings.language')}</b>
         </div>
-        <div className="lang" role="group">
-          {(['en', 'es'] as const).map((l) => (
-            <button key={l} className={l === locale ? 'on' : ''} onClick={() => setLocale(l)}>
-              {l === 'en' ? 'English' : 'Español'}
-            </button>
+        {/* Each language named in itself, so anyone finds theirs. */}
+        <select value={locale} aria-label={t('settings.language')} onChange={(e) => isLocale(e.target.value) && setLocale(e.target.value)}>
+          {LOCALES.map((l) => (
+            <option key={l} value={l} lang={l}>
+              {LOCALE_NAMES[l]}
+            </option>
           ))}
-        </div>
+        </select>
       </div>
       <div className="set-row">
         <div>

@@ -5,6 +5,7 @@ import { app, Notification, powerSaveBlocker } from 'electron';
 import type { SecretStore } from '@alchemist-coder/core';
 import type { AutomationSettings, AutomationState, BotConfig, RunnerEventMessage } from '../shared/api';
 import { AutomationManager, type Lang } from './automations';
+import { mainWords } from './locales';
 import type { BoardService } from './board';
 import type { BotManager } from './bots';
 import type { RunnerManager } from './runner';
@@ -178,7 +179,7 @@ export class AutomationHost {
   }
 
   async test(): Promise<boolean> {
-    const text = this.deps.lang() === 'es' ? '✓ Alchemist Coder: así te llegarán los avisos de tus automatizaciones.' : "✓ Alchemist Coder: this is how your automations' notices will reach you.";
+    const text = mainWords(this.deps.lang()).host.telegramTest;
     return (await this.telegram?.send(text)) ?? false;
   }
 
@@ -224,7 +225,7 @@ export class AutomationHost {
       for (const [key, p] of this.permissions) {
         if (p.runId !== runId || p.requestId !== event.requestId) continue;
         this.permissions.delete(key);
-        void this.telegram?.resolve(key, this.deps.lang() === 'es' ? 'respondido' : 'answered');
+        void this.telegram?.resolve(key, mainWords(this.deps.lang()).host.answered);
       }
       return;
     }
@@ -232,8 +233,8 @@ export class AutomationHost {
     const key = `perm:${randomBytes(6).toString('hex')}`;
     const choices = event.choices.slice(0, 4).map((c) => ({ id: c.id, label: c.label }));
     this.permissions.set(key, { runId, requestId: event.requestId, choices });
-    const es = this.deps.lang() === 'es';
-    const title = `${of.team.origin.label}: ${bot?.name ?? (es ? 'Un agente' : 'An agent')} ${es ? 'pide permiso' : 'asks for permission'}`;
+    const words = mainWords(this.deps.lang()).host;
+    const title = `${of.team.origin.label}: ${words.asksPermission(bot?.name ?? words.anAgent)}`;
     if (Notification.isSupported()) {
       const n = new Notification({ title, body: event.title });
       n.on('click', () => this.deps.show(of.team.origin!.automationId));

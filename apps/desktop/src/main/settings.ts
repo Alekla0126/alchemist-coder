@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
-import type { Mode, Settings } from '../shared/api';
+import { isLocale, type Mode, type Settings } from '../shared/api';
 
 const MODES: Mode[] = ['agents', 'arena', 'code', 'split', 'terminal', 'history'];
 
@@ -11,7 +11,7 @@ export function sanitize(input: unknown, base: Settings): Settings {
   const o = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
   const ids = Array.isArray(o.openProjectIds) ? o.openProjectIds.filter((n): n is number => Number.isInteger(n)).slice(0, 24) : base.openProjectIds;
   return {
-    locale: o.locale === 'en' || o.locale === 'es' || o.locale === null ? o.locale : base.locale,
+    locale: isLocale(o.locale) || o.locale === null ? o.locale : base.locale,
     theme: typeof o.theme === 'string' && /^[\w.:-]{1,80}$/.test(o.theme) ? o.theme : base.theme,
     openProjectIds: ids,
     activeProjectId: Number.isInteger(o.activeProjectId) ? (o.activeProjectId as number) : o.activeProjectId === null ? null : base.activeProjectId,

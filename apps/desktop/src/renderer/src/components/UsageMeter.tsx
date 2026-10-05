@@ -10,16 +10,24 @@ export const useUsagePopover = create<{ open: boolean }>(() => ({ open: false })
 
 const level = (pct: number) => (pct >= 80 ? 'high' : pct >= 50 ? 'mid' : 'low');
 
-/** "in 2 h 13 min" / "en 2 h 13 min" style time until a reset. */
-function resetsIn(ts: number | null, locale: string): string {
+type Duration = { days?: number; hours?: number; minutes?: number };
+/** "2 h 13 min" in the language's own units (Intl.DurationFormat), or plain units where it's missing. */
+function duration(d: Duration, locale: string): string {
+  const DurationFormat = (Intl as unknown as { DurationFormat?: new (l: string, o: { style: string }) => { format(d: Duration): string } }).DurationFormat;
+  if (DurationFormat) return new DurationFormat(locale, { style: 'narrow' }).format(d);
+  return [d.days && `${d.days} d`, d.hours && `${d.hours} h`, d.minutes && `${d.minutes} min`].filter(Boolean).join(' ');
+}
+
+/** "in 2 h 13 min" style time until a reset. */
+function resetsIn(ts: number | null, locale: string, t: ReturnType<typeof useT>): string {
   if (!ts) return '';
   const mins = Math.max(0, Math.round((ts - Date.now()) / 60_000));
   const d = Math.floor(mins / 1440);
   const h = Math.floor((mins % 1440) / 60);
   const m = mins % 60;
   // "in <1 min", "in 16 h" (no "0 min"), "in 2 d 3 h".
-  const parts = d ? [`${d} d`, ...(h ? [`${h} h`] : [])] : h ? [`${h} h`, ...(m ? [`${m} min`] : [])] : [mins < 1 ? '<1 min' : `${m} min`];
-  return locale === 'es' ? `en ${parts.join(' ')}` : `in ${parts.join(' ')}`;
+  const time = mins < 1 ? `<${duration({ minutes: 1 }, locale)}` : duration(d ? { days: d, ...(h ? { hours: h } : {}) } : h ? { hours: h, ...(m ? { minutes: m } : {}) } : { minutes: m }, locale);
+  return t('usage.inTime', { time });
 }
 
 function Bar({ pct }: { pct: number }) {
@@ -36,7 +44,7 @@ function LimitRow({ label, w }: { label: string; w: LimitWindow }) {
       <span className="usage-label">{label}</span>
       <Bar pct={reset ? 0 : w.percent} />
       <span className="usage-pct">{reset ? '—' : `${Math.round(w.percent)}%`}</span>
-      <span className="usage-reset">{reset ? t('usage.resetSince') : t('usage.resets', { when: resetsIn(w.resetsAt, locale) })}</span>
+      <span className="usage-reset">{reset ? t('usage.resetSince') : t('usage.resets', { when: resetsIn(w.resetsAt, locale, t) })}</span>
     </div>
   );
 }
