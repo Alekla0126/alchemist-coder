@@ -25,6 +25,7 @@ import { createActions, listActions, type BoardService } from './board';
 import type { AutomationHost } from './automation-host';
 import { listSubagents } from './subagents';
 import { gitAction, gitOverview } from './git-overview';
+import { showAttention } from './dock';
 
 const text = (value: unknown, name: string, max = 512): string => {
   if (typeof value !== 'string' || value.length === 0 || value.length > max) throw new Error(`Invalid ${name}`);
@@ -333,6 +334,11 @@ export function registerIpc(deps: IpcDeps): void {
   ipcMain.handle(Channels.searchThemes, (_e, query: unknown) => searchThemes(typeof query === 'string' ? query.trim() : ''));
   ipcMain.handle(Channels.installTheme, (_e, namespace: unknown, name: unknown) => installFromOpenVsx(text(namespace, 'publisher', 100), text(name, 'extension', 100)));
   ipcMain.on(Channels.rendered, () => deps.onRendered());
+  ipcMain.on(Channels.setAttention, (e, value: unknown) => {
+    const v = (value ?? {}) as Record<string, unknown>;
+    const label = typeof v.label === 'string' ? v.label.slice(0, 200) : '';
+    showAttention(BrowserWindow.fromWebContents(e.sender), { waiting: count(v.waiting, 0, 999), working: count(v.working, 0, 999), label, notify: v.notify === true });
+  });
 }
 
 /** A question's answer from the renderer: accept with plain values, decline, or null (cancel). */

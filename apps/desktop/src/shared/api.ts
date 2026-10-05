@@ -994,6 +994,20 @@ export interface AlchemistApi {
   installTheme(namespace: string, name: string): Promise<unknown[]>;
   /** Tells the main process the first screen is on screen (used by --capture). */
   rendered(): void;
+  /** What needs you and who's working, for the Dock or taskbar icon. */
+  setAttention(attention: Attention): void;
+}
+
+/** What needs you and who's working, shown on the app's Dock or taskbar icon. */
+export interface Attention {
+  /** Things waiting for you: permissions, questions, plans. */
+  waiting: number;
+  /** Agents working. */
+  working: number;
+  /** The same in words, in the app's language (read aloud for the taskbar's dot). */
+  label: string;
+  /** Your "notify me" setting: when off, nothing bounces or flashes. */
+  notify: boolean;
 }
 
 export const Channels = {
@@ -1132,4 +1146,5 @@ export const Channels = {
   importTheme: 'theme:import',
   searchThemes: 'theme:search',
   installTheme: 'theme:install',
+  setAttention: 'app:attention',
 } as const;

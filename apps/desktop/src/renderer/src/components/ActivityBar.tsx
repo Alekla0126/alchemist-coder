@@ -4,7 +4,8 @@ import { useShallow } from 'zustand/react/shallow';
 import { activityTotals, buildActivity, type ActivityItem, type Doing } from '../activity-model';
 import { duration, modelLabel, money } from '../format';
 import { sourceOf } from '../sources';
-import { useStore, useT } from '../store';
+import { NOTIFY_KEY, useStore, useT } from '../store';
+import { translate } from '../i18n';
 import { doingText } from './Bots';
 import { toolLabel } from './LiveTurns';
 import { useNow, WorkingOrb } from './WorkingOrb';
@@ -188,6 +189,20 @@ function Popover({ items, now, onClose }: { items: ActivityItem[]; now: number; 
   );
 }
 
+/** The same counts on the app's Dock or taskbar icon, for when you're in another app. */
+function useDockIcon(waiting: number, working: number, capture: boolean) {
+  const locale = useStore((s) => s.locale);
+  useEffect(() => {
+    if (capture) return;
+    // Agents start and finish in bursts: the icon follows once the counts settle.
+    const timer = setTimeout(() => {
+      const label = [waiting > 0 && translate(locale, 'attention.needYou', { n: waiting }), working > 0 && translate(locale, 'status.runningAgents', { n: working })].filter(Boolean).join(' · ');
+      window.alchemist.setAttention({ waiting, working, label, notify: localStorage.getItem(NOTIFY_KEY) !== 'off' });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [waiting, working, capture, locale]);
+}
+
 /**
  * The status bar's activity: who needs you and who is working right now, what each one is doing and
  * for how long. A click on an agent takes you to it; the summary lists everyone.
@@ -204,6 +219,7 @@ export function ActivityBar() {
   }, [capture]);
   const now = useNow(items.some((x) => x.since != null));
   const totals = activityTotals(items);
+  useDockIcon(totals.waiting, totals.working, capture);
   const chips = items.slice(0, useChipCount());
   // Without chips, the summary already stands for everyone.
   const rest = chips.length ? items.length - chips.length : 0;

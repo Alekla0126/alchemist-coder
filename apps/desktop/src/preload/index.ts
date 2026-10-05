@@ -146,6 +146,7 @@ const api: AlchemistApi = {
   searchThemes: (query) => ipcRenderer.invoke(Channels.searchThemes, query),
   installTheme: (namespace, name) => ipcRenderer.invoke(Channels.installTheme, namespace, name),
   rendered: () => ipcRenderer.send(Channels.rendered),
+  setAttention: (attention) => ipcRenderer.send(Channels.setAttention, attention),
 };
 
 contextBridge.exposeInMainWorld('alchemist', api);
