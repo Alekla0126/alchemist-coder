@@ -7,13 +7,15 @@ const GUESSES: Array<[RegExp, string]> = [
   [/program|coder|develop|ingenier/i, '🧑‍💻'],
   [/test|qa\b|prueba/i, '🧪'],
   [/revis|review|audit/i, '🔍'],
-  [/investig|research|analista|analyst/i, '🧭'],
+  [/investig|research|analista|analyst|explor|search|busca/i, '🧭'],
   [/juez|judge|dise[ñn]|design|ui\b|ux\b|interfaz/i, '🎨'],
-  [/planific|plann|arquitect|architect/i, '📐'],
+  [/\bplan\b|planific|plann|arquitect|architect/i, '📐'],
   [/redact|writer|escrit|doc/i, '✍️'],
   [/market|redes|social|community|growth|seo|aso/i, '📣'],
   [/dato|data|m[ée]trica|metric/i, '📊'],
   [/segur|secur/i, '🛡️'],
+  // Claude Code's all-round subagent.
+  [/^general(-purpose)?$/i, '🤖'],
 ];
 
 /** What an agent shows: its picture, a picture guessed from its name, or nothing (its initials). */
@@ -22,6 +24,15 @@ export function avatarSource(name: string, avatar: string | null | undefined): {
   if (avatar?.startsWith('emoji:')) return { kind: 'emoji', emoji: avatar.slice(6) };
   const guess = GUESSES.find(([re]) => re.test(name))?.[1];
   return guess ? { kind: 'emoji', emoji: guess } : { kind: 'initials' };
+}
+
+/** The picture of the first name that suggests one (a subagent's kind, then what it was asked to do). */
+export function guessAvatar(...names: string[]): string | undefined {
+  for (const name of names) {
+    const guess = GUESSES.find(([re]) => re.test(name))?.[1];
+    if (guess) return `emoji:${guess}`;
+  }
+  return undefined;
 }
 
 /** A picture you picked, cropped to a square and made small enough to keep with the agent. */

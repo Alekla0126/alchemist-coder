@@ -308,7 +308,7 @@ export function AgentPanel() {
           <span className="ac ah-stats-chip">{stats}</span>
         </div>
       </div>
-      {tree && <AgentTabs sessionId={selection.sessionId} root={tree} selectedId={node.id} mainStatus={liveStatus ?? tree.status} />}
+      {tree && <AgentTabs sessionId={selection.sessionId} root={tree} selectedId={node.id} mainStatus={liveStatus ?? tree.status} source={session?.source} />}
       {finding && (
         <FindBar root={scroller} version={`${entries.length}:${start}:${liveTurns?.length ?? 0}`} onClose={() => setFinding(false)} more={start} onLoadMore={() => void loadEarlier()} />
       )}
