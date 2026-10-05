@@ -205,6 +205,8 @@ interface State {
   setActiveTerminal(projectId: number, id: string): void;
   closeTerminal(projectId: number, id: string): void;
   markTerminalExited(id: string): void;
+  /** A new shell in place of one that exited (same tab, same side). */
+  restartTerminal(projectId: number, id: string): Promise<void>;
   renameTerminal(projectId: number, id: string, title: string): void;
   loadCatalog(): Promise<void>;
   loadPlanUsage(refresh?: boolean): Promise<void>;
@@ -922,6 +924,19 @@ export const useStore = create<State>((set, get) => ({
       for (const [pid, list] of Object.entries(s.terminals)) terminals[Number(pid)] = list.map((t) => (t.id === id ? { ...t, exited: true } : t));
       return { terminals };
     });
+  },
+
+  async restartTerminal(projectId, id) {
+    const project = get().projects.find((p) => p.id === projectId);
+    if (!project) return;
+    const { id: fresh, shell } = await api.createTerminal(project.cwd, 100, 28, localStorage.getItem('alchemist.shell') ?? undefined);
+    api.killTerminal(id);
+    const swap = (v: string | null | undefined) => (v === id ? fresh : (v ?? null));
+    set((s) => ({
+      terminals: { ...s.terminals, [projectId]: (s.terminals[projectId] ?? []).map((t) => (t.id === id ? { id: fresh, title: shell, exited: false } : t)) },
+      activeTerminal: { ...s.activeTerminal, [projectId]: swap(s.activeTerminal[projectId]) },
+      splitTerminal: { ...s.splitTerminal, [projectId]: swap(s.splitTerminal[projectId]) },
+    }));
   },
 
   setCompose(projectId) {

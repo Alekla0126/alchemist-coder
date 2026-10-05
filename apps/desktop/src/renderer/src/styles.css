@@ -173,6 +173,8 @@ input { font: inherit; color: inherit; }
 .tx { flex: 1; overflow-y: auto; padding: 16px 22px 40px; user-select: text; }
 .panel-empty { flex: 1; display: grid; place-content: center; text-align: center; color: var(--fg-3); gap: 6px; padding: 40px; }
 .panel-empty.soon b { color: var(--fg-2); font-size: 15px; }
+.panel-empty.term-none b { color: var(--fg-2); font-size: 15px; }
+.panel-empty.term-none .btn-send { justify-self: center; margin-top: 8px; }
 .load-more { display: block; margin: 16px auto 0; padding: 7px 16px; border-radius: 8px; border: 1px solid var(--line-2); color: var(--fg-2); }
 
 /* transcript */

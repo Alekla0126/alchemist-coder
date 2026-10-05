@@ -6,6 +6,7 @@ import '@xterm/xterm/css/xterm.css';
 import { findLinks } from '../terminal-links';
 import { terminalTheme } from '../theme';
 import { useStore, useT } from '../store';
+import { translate } from '../i18n';
 import { contextMenu, promptText } from '../ui';
 
 interface Instance {
@@ -17,7 +18,11 @@ interface Instance {
 // Terminals keep running (and keep their scrollback) while you switch modes or projects.
 const instances = new Map<string, Instance>();
 const pending = new Map<string, string[]>();
-const autoStarted = new Set<number>();
+/** Projects whose terminal is being opened right now (so showing the panel twice opens one, not two). */
+const starting = new Set<number>();
+/** What Enter does in a terminal whose shell has exited: open a new one in its place. */
+const restarts = new Map<string, () => void>();
+const exited = (id: string) => Object.values(useStore.getState().terminals).some((list) => list.some((t) => t.id === id && t.exited));
 // Stable empty value: a fresh [] in a selector would re-render forever.
 const NO_TABS: never[] = [];
 let listening = false;
@@ -107,7 +112,7 @@ function listen() {
     else pending.set(id, [...(pending.get(id) ?? []), data]);
   });
   window.alchemist.onTerminalExit(({ id }) => {
-    instances.get(id)?.term.write('\r\n\x1b[2m[process exited]\x1b[0m\r\n');
+    instances.get(id)?.term.write(`\r\n\x1b[2m${translate(useStore.getState().locale, 'term.exitedLine')}\x1b[0m\r\n`);
     useStore.getState().markTerminalExited(id);
   });
 }
@@ -138,7 +143,10 @@ function TermPane({ id, split, projectId, cwd, onClose }: { id: string; split: b
       host.appendChild(el);
       term.open(el);
       addLinks(term, el, projectId, cwd, t('term.linkHint'));
-      term.onData((d) => window.alchemist.writeTerminal(id, d));
+      term.onData((d) => {
+        if (!exited(id)) window.alchemist.writeTerminal(id, d);
+        else if (d === '\r') restarts.get(id)?.();
+      });
       term.onResize(({ cols, rows }) => window.alchemist.resizeTerminal(id, cols, rows));
       inst = { term, fit, el };
       instances.set(id, inst);
@@ -161,8 +169,10 @@ function TermPane({ id, split, projectId, cwd, onClose }: { id: string; split: b
     });
     const ro = new ResizeObserver(refit);
     ro.observe(host);
+    restarts.set(id, () => void useStore.getState().restartTerminal(projectId, id));
     return () => {
       ro.disconnect();
+      restarts.delete(id);
       if (current.el.parentElement === host) host.removeChild(current.el);
     };
   }, [id]);
@@ -189,6 +199,7 @@ export function TerminalPanel({ projectId }: { projectId: number }) {
   const setActive = useStore((s) => s.setActiveTerminal);
   const closeTerminal = useStore((s) => s.closeTerminal);
   const [error, setError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
   const [shells, setShells] = useState<Array<{ path: string; label: string }>>([]);
   const [menu, setMenu] = useState(false);
   const renameTerminal = useStore((s) => s.renameTerminal);
@@ -224,6 +235,7 @@ export function TerminalPanel({ projectId }: { projectId: number }) {
 
   const create = async (command?: string, asSplit = false, shell = localStorage.getItem(SHELL_KEY) ?? undefined) => {
     if (!project) return;
+    setCreating(true);
     try {
       const { id, shell: used } = await window.alchemist.createTerminal(project.cwd, 100, 28, shell);
       setError(null);
@@ -232,6 +244,8 @@ export function TerminalPanel({ projectId }: { projectId: number }) {
     } catch (e) {
       // A late failure from the project you just left isn't about this one.
       if (shownProject.current === projectId) setError(e instanceof Error ? e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(e));
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -245,12 +259,28 @@ export function TerminalPanel({ projectId }: { projectId: number }) {
     listen();
     void window.alchemist.terminalAvailable().then((a) => {
       if (!a.ok) setError(t('term.unavailable', { error: a.error ?? '' }));
-      else if (!autoStarted.has(projectId) && (useStore.getState().terminals[projectId] ?? []).length === 0) {
-        autoStarted.add(projectId);
-        void create().then(() => (useStore.getState().info?.capture?.terminalSplit ? create(undefined, true) : undefined));
+      // Each time the terminal shows with none open in this project, one opens (not only the first
+      // time: a project whose terminals were all closed used to show an empty black panel).
+      else if (!starting.has(projectId) && (useStore.getState().terminals[projectId] ?? []).length === 0) {
+        starting.add(projectId);
+        void create()
+          .then(() => (useStore.getState().info?.capture?.terminalSplit ? create(undefined, true) : undefined))
+          .finally(() => starting.delete(projectId));
       }
     });
-  }, [projectId]);
+    // Also once the project is known: opened straight into Terminal, the projects load after this.
+  }, [projectId, !!project]);
+
+  useEffect(() => {
+    // A closed terminal's view (and its scrollback) goes with it.
+    const open = new Set(Object.values(useStore.getState().terminals).flatMap((list) => list.map((tab) => tab.id)));
+    for (const [id, inst] of instances) {
+      if (open.has(id)) continue;
+      inst.term.dispose();
+      instances.delete(id);
+      pending.delete(id);
+    }
+  }, [tabs]);
 
   useEffect(() => {
     if (!theme) return;
@@ -323,6 +353,15 @@ export function TerminalPanel({ projectId }: { projectId: number }) {
       </div>
       {error ? (
         <div className="panel-empty">{error}</div>
+      ) : tabs.length === 0 && !creating ? (
+        // You closed the last one: say so, with a way to open another (never a blank panel).
+        <div className="panel-empty term-none">
+          <b>{t('term.none')}</b>
+          <span>{t('term.noneHint')}</span>
+          <button className="btn-send" onClick={() => void create()}>
+            {t('term.new')}
+          </button>
+        </div>
       ) : (
         <div className="term-panes">
           {active && project && <TermPane key={`a-${active}`} id={active} split={false} projectId={projectId} cwd={project.cwd} />}
