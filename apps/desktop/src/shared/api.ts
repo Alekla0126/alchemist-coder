@@ -218,6 +218,16 @@ export interface AppInfo {
   } | null;
 }
 
+/** What an agent that isn't on this computer needs installed, and how. */
+export interface InstallStep {
+  /** Node.js (npx runs the agent's adapter), or the agent's own CLI. */
+  what: 'node' | 'cli';
+  /** The command that installs it, run in the app's terminal; null where there's no single one. */
+  command: string | null;
+  /** Where to download it otherwise. */
+  url: string;
+}
+
 export interface RunnerCatalog {
   harnesses: Array<{
     id: string;
@@ -231,6 +241,8 @@ export interface RunnerCatalog {
     signedIn: boolean | null;
     account: string | null;
     cliPath: string | null;
+    /** What to install when it isn't found; null when installed (or nothing to suggest). */
+    install: InstallStep | null;
   }>;
   providers: Array<{
     id: string;

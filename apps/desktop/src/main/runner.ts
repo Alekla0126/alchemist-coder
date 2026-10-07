@@ -1,5 +1,8 @@
 import { statSync } from 'node:fs';
 import { cliStatus } from './cli-status';
+import { installStep } from './install';
+import { cliSearchPath } from './shell-path';
+import { detectBinary } from '@alchemist-coder/harness';
 import { isLocalEndpoint, type ExtensionRegistry, type QuestionAnswer, type RunHandle, type SessionMcpServer, validImages } from '@alchemist-coder/core';
 import type { PermissionMode, RunnerCatalog, RunnerEventMessage, StartRunRequest } from '../shared/api';
 
@@ -18,13 +21,28 @@ export class RunnerManager {
     private readonly isProjectFolder?: (cwd: string) => boolean,
   ) {}
 
-  async catalog(): Promise<RunnerCatalog> {
-    const harnesses = await Promise.all(
+  private harnessStatus() {
+    return Promise.all(
       [...this.registry.harnesses.values()].map(async (h) => {
         const [d, cli] = await Promise.all([h.detect(), cliStatus(h.id).catch(() => ({ cliVersion: null, signedIn: null, account: null, cliPath: null }))]);
         return { id: h.id, label: h.label, installed: d.installed, version: d.version, ...cli };
       }),
     );
+  }
+
+  async catalog(): Promise<RunnerCatalog> {
+    const shellPath = cliSearchPath();
+    let found = await this.harnessStatus();
+    // Something not found: the login shell's PATH may still be on its way (it can take seconds). Look again with it.
+    if (found.some((h) => !h.installed)) {
+      await shellPath;
+      found = await this.harnessStatus();
+    }
+    // How to install what's missing (only looked into when something is).
+    const missing = found.some((h) => !h.installed);
+    const hasNpx = missing && (await detectBinary('npx')).installed;
+    const hasBrew = missing && process.platform === 'darwin' && (await detectBinary('brew')).installed;
+    const harnesses = found.map((h) => ({ ...h, install: installStep(h.id, { installed: h.installed, hasNpx, hasBrew, platform: process.platform }) }));
     const providers = await Promise.all(
       [...this.registry.providers.values()].map(async (p) => {
         const status = p.status ? await p.status() : { available: true };

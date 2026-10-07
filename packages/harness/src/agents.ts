@@ -15,6 +15,23 @@ function viaNpx(pkg: string, args: string[] = []): () => Promise<AcpLaunch | nul
   return async () => ((await detectBinary('npx')).installed ? { command: 'npx', args: ['-y', pkg, ...args], version: versionOf(pkg) } : null);
 }
 
+/**
+ * The ACP agent while Node's npx is there, else the CLI's own headless mode. Looked up again on every
+ * detection, so installing Node.js (or a PATH that arrives late) switches without a restart.
+ */
+export function npxOrHeadless(acp: HarnessAdapter, headless: HarnessAdapter, hasNpx: boolean, hasBinary = detectBinary): HarnessAdapter {
+  let useAcp = hasNpx;
+  return {
+    id: acp.id,
+    label: acp.label,
+    async detect() {
+      useAcp = (await hasBinary('npx')).installed;
+      return (useAcp ? acp : headless).detect();
+    },
+    run: (options) => (useAcp ? acp : headless).run(options),
+  };
+}
+
 interface AgentOptions {
   spawn?: SpawnFn;
 }

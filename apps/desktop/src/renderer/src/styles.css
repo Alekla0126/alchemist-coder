@@ -279,6 +279,15 @@ input { font: inherit; color: inherit; }
 .btn-send:disabled { opacity: 0.4; cursor: default; }
 .btn-stop { background: rgba(248, 81, 73, 0.15); color: var(--red); border: 1px solid rgba(248, 81, 73, 0.4); font-size: 12px; padding: 5px 12px; border-radius: 8px; }
 .composer-hint { font-size: 12px; color: var(--amber); margin-bottom: 8px; }
+.missing-agent { display: flex; flex-direction: column; gap: 6px; }
+.missing-agent > p { margin: 0; }
+.missing-others { color: var(--fg-3); }
+.missing-others > * + * { margin-left: 10px; }
+.missing-others > span { color: var(--fg-2); }
+.missing-others .link-btn { padding: 0; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.missing-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.missing-actions .btn-ghost.small { align-self: center; }
+.btn-send.small { font-size: 11px; padding: 4px 10px; }
 .composer-hint code { font-family: var(--mono); background: var(--bg-hl); padding: 1px 6px; border-radius: 4px; color: var(--fg-2); user-select: text; }
 .composer-note { font-size: 10.5px; color: var(--fg-3); margin-top: 6px; }
 .live-run { border: 1px solid var(--line-2); border-radius: 10px; background: var(--bg-card); margin-bottom: 10px; max-height: 260px; overflow-y: auto; }

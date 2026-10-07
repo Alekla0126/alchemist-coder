@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { LOCALE_NAMES, LOCALES, isLocale, type PermissionMode } from '@shared/api';
 import { useStore, useT } from '../store';
 import { toast } from '../ui';
+import { InstallButton } from './MissingAgent';
 import { SEND_KEY } from './Composer';
 import { NOTIFY_KEY } from '../store';
 import { BackupCard } from './HistoryView';
@@ -171,7 +172,7 @@ function Agents() {
           <div key={h.id} className="set-row">
             <div>
               <b>{h.label}</b>
-              <p title={h.cliPath ?? undefined}>{h.installed ? [t('settings.installed'), ...versions].join(' · ') : t('settings.notInstalled')}</p>
+              <p title={h.cliPath ?? undefined}>{h.installed ? [t('settings.installed'), ...versions].join(' · ') : h.install?.what === 'node' ? t('run.needsNode', { name: h.label }) : t('settings.notInstalled')}</p>
               {h.installed && h.cliPath && <p className="set-path">{h.cliPath.replace(/^\/Users\/[^/]+/, '~')}</p>}
               {h.installed && h.id === 'gemini' && <p>{t('settings.geminiKey')}</p>}
               {h.installed && signedIn != null && (
@@ -179,6 +180,7 @@ function Agents() {
               )}
             </div>
             <div className="set-key">
+              {!h.installed && h.install && <InstallButton harness={h} step={h.install} small />}
               {canLogIn && (
                 <button className={signedIn ? 'btn-ghost small' : 'btn-send'} onClick={() => logIn(login.command)}>
                   {signedIn ? t('settings.switchAccount') : t('settings.logIn')}

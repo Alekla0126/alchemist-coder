@@ -4,6 +4,7 @@ import type { SessionSummary, SlashCommand } from '@alchemist-coder/core';
 import type { MenuItem, PermissionMode } from '@shared/api';
 import type { PromptImage } from '@alchemist-coder/core';
 import { LiveRun } from './LiveRun';
+import { MissingAgent } from './MissingAgent';
 import { Suggest, type SuggestItem } from './Suggest';
 import { useContextFill } from './ContextMeter';
 import { matchModel } from '../format';
@@ -507,7 +508,7 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
   return (
     <div className="composer">
       {run && (busy || run.errors.length > 0 || run.notices.length > 0 || run.config || run.usage) && <LiveRun run={run} compact />}
-      {detected && catalog && !harness?.installed && <p className="composer-hint">{t('run.noHarness', { name: harness?.label ?? harnessId })}</p>}
+      {detected && catalog && !harness?.installed && <MissingAgent harnessId={harnessId} catalog={catalog} onSwitch={session ? undefined : (id) => setPrefs({ ...prefs, harnessId: id })} />}
       {session && !run && (session.runningAgents > 0 || session.status === 'running') && <p className="composer-hint">{t('run.liveElsewhere')}</p>}
       {noLocalModel && (
         <p className="composer-hint">

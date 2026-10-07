@@ -4,7 +4,7 @@ import { dirname, join, resolve } from 'node:path';
 import { Worker } from 'node:worker_threads';
 import { IndexReader } from '@alchemist-coder/indexer';
 import { ExtensionRegistry } from '@alchemist-coder/core';
-import { claudeAgent, claudeCodeHarness, codexAgent, codexHarness, detectBinary, geminiAgent, grokAgent } from '@alchemist-coder/harness';
+import { claudeAgent, claudeCodeHarness, codexAgent, codexHarness, detectBinary, geminiAgent, grokAgent, npxOrHeadless } from '@alchemist-coder/harness';
 import { lmStudioProvider, ollamaProvider } from '@alchemist-coder/providers-local';
 import type { IndexProgress } from '@alchemist-coder/core';
 import { Channels, isLocale, matchLocale, type AppInfo, type Locale, type Mode } from '../shared/api';
@@ -222,7 +222,7 @@ void app.whenReady().then(async () => {
   const userData = app.getPath('userData');
   mkdirSync(userData, { recursive: true });
   const settings = new SettingsStore(join(userData, 'settings.json'));
-  adoptLoginShellPath();
+  void adoptLoginShellPath();
   const secrets = new KeychainSecretStore(join(userData, 'secrets.json'));
   const pro = loadProModule(process.resourcesPath);
   edition = pro && (await pro.isPro({ userData, secrets }).catch(() => false)) ? 'pro' : 'community';
@@ -232,8 +232,8 @@ void app.whenReady().then(async () => {
   // Agents speak ACP (permissions, plans, diffs, modes). Without Node's npx, Claude Code and Codex
   // fall back to their headless stream-json mode.
   const hasNpx = (await detectBinary('npx')).installed;
-  registry.registerHarness(hasNpx ? claudeAgent() : claudeCodeHarness());
-  registry.registerHarness(hasNpx ? codexAgent() : codexHarness());
+  registry.registerHarness(npxOrHeadless(claudeAgent(), claudeCodeHarness(), hasNpx));
+  registry.registerHarness(npxOrHeadless(codexAgent(), codexHarness(), hasNpx));
   registry.registerHarness(geminiAgent());
   registry.registerHarness(grokAgent());
   registry.registerProvider(ollamaProvider());
