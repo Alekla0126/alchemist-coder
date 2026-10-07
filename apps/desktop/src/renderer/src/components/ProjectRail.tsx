@@ -5,6 +5,7 @@ import { initials, projectGradient } from '../format';
 import { useStore, useT, waitingProjectIds } from '../store';
 import { useShallow } from 'zustand/react/shallow';
 import { contextMenu, toast } from '../ui';
+import { RailUsage } from './UsageMeter';
 
 export function ProjectRail() {
   const t = useT();
@@ -81,10 +82,13 @@ export function ProjectRail() {
       <button className="proj add" title={t('plus.tip')} aria-label={t('plus.tip')} aria-haspopup="menu" onClick={() => void showNewMenu(t)}>
         +
       </button>
-      <span className="rail-sp" />
-      <button className="rail-gear" title={`${t('settings.title')} (${keys('⌘,')})`} onClick={() => useStore.setState({ settingsOpen: true })}>
-        ⚙
-      </button>
+      {/* Always in sight, however many projects are open. */}
+      <div className="rail-foot">
+        <RailUsage />
+        <button className="rail-gear" title={`${t('settings.title')} (${keys('⌘,')})`} onClick={() => useStore.setState({ settingsOpen: true })}>
+          ⚙
+        </button>
+      </div>
     </nav>
   );
 }

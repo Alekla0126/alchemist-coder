@@ -1,4 +1,4 @@
-import { createReadStream, existsSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import { closeSync, createReadStream, existsSync, openSync, readdirSync, readFileSync, readSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -188,25 +188,58 @@ function codexRollouts(root: string): string[] {
   return out;
 }
 
+type RateLimitsAt = { at: number; limits: Record<string, any> };
+
+/** How much of a session file's end is read first: Codex records its limits after every turn. */
+const TAIL_BYTES = 512 * 1024;
+
+/** The last limits Codex recorded in a session file, read from the end (sessions grow to megabytes). */
+async function lastRateLimits(file: string, size: number): Promise<RateLimitsAt | null> {
+  const parse = (line: string): RateLimitsAt | null => {
+    if (!line.includes('"rate_limits"')) return null;
+    try {
+      const o = JSON.parse(line);
+      const limits = o.payload?.rate_limits ?? o.rate_limits;
+      return limits?.primary || limits?.secondary ? { at: Date.parse(o.timestamp ?? '') || statSync(file).mtimeMs, limits } : null;
+    } catch {
+      return null; // partial line
+    }
+  };
+  const start = Math.max(0, size - TAIL_BYTES);
+  const buf = Buffer.alloc(size - start);
+  const fd = openSync(file, 'r');
+  try {
+    readSync(fd, buf, 0, buf.length, start);
+  } finally {
+    closeSync(fd);
+  }
+  const lines = buf.toString('utf8').split('\n');
+  if (start > 0) lines.shift(); // cut in the middle
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const found = parse(lines[i]!);
+    if (found) return found;
+  }
+  if (start === 0) return null;
+  // Not near the end: the whole file.
+  let last: RateLimitsAt | null = null;
+  await eachLine(file, (line) => (last = parse(line) ?? last));
+  return last;
+}
+
+/** What was found in each session file at a given size: files that didn't grow aren't read again. */
+export type CodexSeen = Map<string, { size: number; found: RateLimitsAt | null }>;
+
 /**
  * Codex: the plan and both usage windows (5 hours, weekly) exactly as OpenAI reported them in the
  * most recent session. A window whose reset time has passed shows as reset.
  */
-export async function codexUsage(homes: UsageHomes, now = Date.now()): Promise<PlanUsage['codex']> {
+export async function codexUsage(homes: UsageHomes, now = Date.now(), seen: CodexSeen = new Map()): Promise<PlanUsage['codex']> {
   for (const file of codexRollouts(homes.codexRoot)) {
-    let last: { at: number; limits: Record<string, any> } | null = null;
-    await eachLine(file, (line) => {
-      if (!line.includes('"rate_limits"')) return;
-      try {
-        const o = JSON.parse(line);
-        const limits = o.payload?.rate_limits ?? o.rate_limits;
-        if (limits?.primary || limits?.secondary) last = { at: Date.parse(o.timestamp ?? '') || statSync(file).mtimeMs, limits };
-      } catch {
-        // partial line
-      }
-    });
-    if (!last) continue;
-    const { at, limits } = last as { at: number; limits: Record<string, any> };
+    const size = statSync(file, { throwIfNoEntry: false })?.size ?? 0;
+    let entry = seen.get(file);
+    if (!entry || entry.size !== size) seen.set(file, (entry = { size, found: size ? await lastRateLimits(file, size) : null }));
+    if (!entry.found) continue;
+    const { at, limits } = entry.found;
     const window = (w: Record<string, any> | undefined, label: 'five_hour' | 'weekly') => {
       if (!w) return null;
       const resetsAt = Number(w.resets_at) * 1000 || (Number(w.resets_in_seconds) ? at + Number(w.resets_in_seconds) * 1000 : 0);
@@ -222,20 +255,51 @@ export async function codexUsage(homes: UsageHomes, now = Date.now()): Promise<P
   return null;
 }
 
-/** Plans and usage for the subscriptions this machine is signed in to, cached for a minute. */
+/**
+ * How often Claude's percentages are asked for. Only Anthropic's servers have them (Codex writes its
+ * own into its session files, which are read as they change, without any request).
+ */
+export const CLAUDE_GAP = {
+  /** While Claude Code writes on this computer: at most every 5 minutes, plus one once it stops. */
+  active: 5 * 60_000,
+  /** Otherwise (Claude used on claude.ai or another computer): every 30 minutes, with the window on screen. */
+  idle: 30 * 60_000,
+};
+/** Local recount (windows sliding past old replies, resets): no request involved. */
+const RECOUNT_MS = 5 * 60_000;
+/** Agents write in bursts: count once they pause. */
+const SETTLE_MS = 2000;
+
+type LimitsMode = 'idle' | 'active' | 'force';
+
+/**
+ * Plans and usage for the subscriptions this machine is signed in to, pushed to whoever listens
+ * whenever they change. Nothing polls: the CLIs' own files say when something happened.
+ */
 export class UsageService {
-  private cache: { at: number; value: PlanUsage } | null = null;
+  private value: PlanUsage | null = null;
   private pending: Promise<PlanUsage> | null = null;
   private readonly tallies = new Map<string, FileTally>();
+  private readonly codexSeen: CodexSeen = new Map();
   /** The latest check, good or not: Claude's percentages change slowly and the endpoint is rate-limited. */
   private checked: { at: number; value: ClaudeLimits } | null = null;
   /** The last numbers that came back fine, kept across launches. */
   private good: ClaudeLimits | null = null;
+  private readonly listeners = new Set<(usage: PlanUsage) => void>();
+  private pushed = '';
+  private settle: ReturnType<typeof setTimeout> | null = null;
+  private trailing: ReturnType<typeof setTimeout> | null = null;
+  private recount: ReturnType<typeof setInterval> | null = null;
+  /** Claude Code wrote since the last count / when it last wrote. */
+  private claudeTouched = false;
+  private claudeWroteAt = 0;
 
   constructor(
     private readonly homes: UsageHomes = defaultHomes(),
     private readonly claudeLimits?: () => Promise<ClaudeLimits>,
     private readonly cacheFile?: string,
+    /** Whether the app's window is on screen: checks with nothing happening wait until it is. */
+    private readonly onScreen: () => boolean = () => true,
   ) {
     try {
       const saved = cacheFile && existsSync(cacheFile) ? (JSON.parse(readFileSync(cacheFile, 'utf8')) as ClaudeLimits) : null;
@@ -245,17 +309,25 @@ export class UsageService {
     }
   }
 
-  /** How long a check stands: 30 minutes when it worked, less when it failed (longer when rate-limited). */
-  private static ttl(value: ClaudeLimits): number {
-    if (!value.error) return 30 * 60_000;
+  /** How long a failed check stands before the next one (longer when rate-limited). */
+  private static retry(value: ClaudeLimits): number {
     return value.error === 'rate-limited' ? 10 * 60_000 : 3 * 60_000;
   }
 
-  private async limitsFor(force: boolean): Promise<ClaudeLimits | null> {
+  /** Whether Claude's percentages should be asked for again, `gap` after the last good check. */
+  private due(gap: number): boolean {
+    if (!this.checked) return true;
+    const age = Date.now() - this.checked.at;
+    return age >= (this.checked.value.error ? UsageService.retry(this.checked.value) : gap);
+  }
+
+  private async limitsFor(mode: LimitsMode): Promise<ClaudeLimits | null> {
     if (!this.claudeLimits) return null;
-    // Even a forced refresh waits out a rate limit.
-    const fresh = this.checked && Date.now() - this.checked.at < UsageService.ttl(this.checked.value);
-    if (!fresh || (force && this.checked?.value.error !== 'rate-limited')) {
+    // Even a refresh by hand waits out a rate limit.
+    const rateLimited = this.checked?.value.error === 'rate-limited' && Date.now() - this.checked.at < UsageService.retry(this.checked.value);
+    const ask =
+      mode === 'force' ? !rateLimited : mode === 'active' ? this.due(CLAUDE_GAP.active) : this.due(CLAUDE_GAP.idle) && (!this.checked || this.onScreen());
+    if (ask) {
       const value = await this.claudeLimits().catch(() => null);
       if (value) {
         this.checked = { at: Date.now(), value };
@@ -280,14 +352,93 @@ export class UsageService {
     }
   }
 
-  get(force = false): Promise<PlanUsage> {
-    if (!force && this.cache && Date.now() - this.cache.at < 60_000) return Promise.resolve(this.cache.value);
-    this.pending ??= (async () => {
-      const [claude, codex, limits] = await Promise.all([claudeUsage(this.homes, Date.now(), this.tallies).catch(() => null), codexUsage(this.homes).catch(() => null), this.limitsFor(force)]);
-      const value = { claude: claude ? { ...claude, limits } : null, codex, at: Date.now() };
-      this.cache = { at: Date.now(), value };
+  /** One count at a time; a refresh by hand waits for the one running, then asks again. */
+  private compute(mode: LimitsMode): Promise<PlanUsage> {
+    if (this.pending && mode !== 'force') return this.pending;
+    const run = async (): Promise<PlanUsage> => {
+      const now = Date.now();
+      const [claude, codex, limits] = await Promise.all([
+        claudeUsage(this.homes, now, this.tallies).catch(() => null),
+        codexUsage(this.homes, now, this.codexSeen).catch(() => null),
+        this.limitsFor(mode),
+      ]);
+      const value: PlanUsage = { claude: claude ? { ...claude, limits } : null, codex, at: Date.now() };
+      this.value = value;
+      this.push(value);
       return value;
-    })().finally(() => (this.pending = null));
-    return this.pending;
+    };
+    const task = (this.pending ? this.pending.catch(() => null) : Promise.resolve(null)).then(run);
+    this.pending = task;
+    void task.finally(() => this.pending === task && (this.pending = null)).catch(() => {});
+    return task;
+  }
+
+  /** To every listener, only when something they'd see changed. */
+  private push(value: PlanUsage) {
+    const key = JSON.stringify({ ...value, at: 0 });
+    if (key === this.pushed) return;
+    this.pushed = key;
+    for (const listener of this.listeners) listener(value);
+  }
+
+  /** The latest numbers; `force` (the refresh button) also asks Claude's servers again. */
+  get(force = false): Promise<PlanUsage> {
+    if (!force && this.value) return Promise.resolve(this.value);
+    return this.compute(force ? 'force' : 'idle');
+  }
+
+  /** Gets the numbers now and every time they change. */
+  subscribe(listener: (usage: PlanUsage) => void): () => void {
+    this.listeners.add(listener);
+    if (this.value) listener(this.value);
+    this.recount ??= setInterval(() => void this.compute('idle'), RECOUNT_MS);
+    return () => {
+      this.listeners.delete(listener);
+      if (this.listeners.size || !this.recount) return;
+      clearInterval(this.recount);
+      this.recount = null;
+    };
+  }
+
+  /**
+   * A CLI wrote to its files (a reply, a finished turn): count again once it pauses. Codex's numbers
+   * come with its files; Claude's are asked for at most every few minutes while it works.
+   */
+  touch(source: string): void {
+    if (source === 'claude-code') {
+      this.claudeTouched = true;
+      this.claudeWroteAt = Date.now();
+    } else if (source !== 'codex') return;
+    if (this.settle) clearTimeout(this.settle);
+    this.settle = setTimeout(() => {
+      this.settle = null;
+      const active = this.claudeTouched;
+      this.claudeTouched = false;
+      void this.compute(active ? 'active' : 'idle').then(() => active && this.followUp());
+    }, SETTLE_MS);
+  }
+
+  /** Claude may keep working past the last check: once more when it's due, so the meter ends on the final numbers. */
+  private followUp() {
+    if (!this.claudeLimits || this.trailing || !this.checked) return;
+    const wait = this.checked.at + CLAUDE_GAP.active - Date.now();
+    this.trailing = setTimeout(
+      () => {
+        this.trailing = null;
+        if (this.checked && this.claudeWroteAt > this.checked.at) void this.compute('active');
+      },
+      Math.max(0, wait) + 1000,
+    );
+  }
+
+  /** Back to the window after a while: whatever changed meanwhile (Claude used elsewhere, resets). */
+  wake(): void {
+    if (!this.value || Date.now() - this.value.at > 60_000) void this.compute('idle');
+  }
+
+  dispose(): void {
+    for (const t of [this.settle, this.trailing]) if (t) clearTimeout(t);
+    if (this.recount) clearInterval(this.recount);
+    this.listeners.clear();
   }
 }

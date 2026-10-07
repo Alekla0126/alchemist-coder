@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { useStore, useT } from '../store';
-import { UsageMeter } from './UsageMeter';
 import { ActivityBar } from './ActivityBar';
 import { useGit } from '../git-store';
 import { gitSummary } from './GitPanel';
@@ -55,7 +54,6 @@ export function StatusBar() {
         </button>
       )}
       <span className="sp" />
-      <UsageMeter />
       {info && <span className="l">v{info.version}</span>}
     </footer>
   );

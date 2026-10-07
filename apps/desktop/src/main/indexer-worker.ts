@@ -9,7 +9,7 @@ const indexer = new Indexer({ dbPath, backupRoot, onError: (error, context) => p
 post({ type: 'db-ready' });
 indexer.indexAll((progress) => post({ type: 'progress', progress }));
 post({ type: 'ready' });
-indexer.watch((ids) => post({ type: 'changed', ids }));
+indexer.watch((ids, source) => post({ type: 'changed', ids, source }));
 
 // Turning the backup on (or moving it) changes where preserved sessions are read from.
 parentPort?.on('message', (m: { type: string; path?: string | null }) => {

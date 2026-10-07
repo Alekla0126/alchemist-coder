@@ -351,6 +351,8 @@ export const useStore = create<State>((set, get) => ({
     if (info.capture?.newProject) set({ newProjectOpen: true });
     if (info.capture?.scope) set({ agentsScope: info.capture.scope });
     api.onTaskChanged((task) => get().upsertTask(task));
+    // Plans' usage arrives whenever it changes.
+    api.onUsageChanged((planUsage) => set({ planUsage }));
     api.onBotTeamChanged((team) => get().upsertTeam(team));
     api.onAutomationChanged((state) =>
       set((s) => {

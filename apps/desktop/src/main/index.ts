@@ -133,10 +133,11 @@ let indexerWorker: Worker | null = null;
 /** Runs once the index is open: automations need to know your projects before they start. */
 let onIndexOpen: (() => void) | null = null;
 
-function startIndexer(dbPath: string, backupRoot: string | null) {
+/** `onWrote`: a CLI wrote to its conversation files (usage counts change with them). */
+function startIndexer(dbPath: string, backupRoot: string | null, onWrote: (source: string) => void) {
   const worker = new Worker(workerPath, { workerData: { dbPath, backupRoot } });
   indexerWorker = worker;
-  worker.on('message', (m: { type: string; progress?: IndexProgress; ids?: string[]; message?: string }) => {
+  worker.on('message', (m: { type: string; progress?: IndexProgress; ids?: string[]; source?: string; message?: string }) => {
     if (m.type === 'db-ready') {
       reader = new IndexReader(dbPath);
       onIndexOpen?.();
@@ -148,7 +149,10 @@ function startIndexer(dbPath: string, backupRoot: string | null) {
     } else if (m.type === 'ready') {
       progress = { ...progress, phase: 'ready' };
       send(Channels.progress, progress);
-    } else if (m.type === 'changed' && m.ids) send(Channels.changed, m.ids);
+    } else if (m.type === 'changed' && m.ids) {
+      send(Channels.changed, m.ids);
+      if (m.source) onWrote(m.source);
+    }
     else if (m.type === 'error') console.error('[indexer]', m.message);
   });
   worker.on('error', (e) => console.error('[indexer worker]', e));
@@ -256,8 +260,12 @@ void app.whenReady().then(async () => {
     defaultHomes(),
     claudeLimits ? async () => claudeLimits((await detectBinary('claude')).version ?? '2.1.0') : undefined,
     join(userData, 'claude-usage.json'),
+    () => !!window && !window.isDestroyed() && window.isVisible() && !window.isMinimized(),
   );
-  // The first read of a week of transcripts takes a few seconds: do it before anyone asks.
+  // Pushed to the window whenever the numbers change; the first read of a week of transcripts takes a
+  // few seconds, so it starts before anyone asks.
+  usage.subscribe((value) => send(Channels.usageChanged, value));
+  app.on('browser-window-focus', () => usage.wake());
   setTimeout(() => void usage.get().catch(() => {}), 20_000);
   const tasks = new TaskManager(join(userData, 'tasks.json'), runner, (cwd) => workspace.resolveInside(cwd), (task) => send(Channels.taskChanged, task));
   // Bot teams: bots reach the app's tools through a small MCP bridge run by Electron itself (as Node).
@@ -298,7 +306,7 @@ void app.whenReady().then(async () => {
     terminals.killAll();
   });
   registerIpc({ info: appInfo, bots, settings, onSettingsChanged: (patch) => 'locale' in patch && buildMenu(), reader: () => reader, progress: () => progress, onRendered: () => void capture(), runner, tasks, preview, hub, backup, reviews, usage, exportSession: (id, format) => (reader ? exportSession(window, reader, id, format) : Promise.reject(new Error('The index is still loading'))), workspace, terminals, dataDir: userData, board, automations });
-  startIndexer(join(userData, 'index.db'), backup.root());
+  startIndexer(join(userData, 'index.db'), backup.root(), (source) => usage.touch(source));
   backup.start();
   const menuLocale = () => settings.get().locale ?? matchLocale(app.getLocale());
   const buildMenu = () =>

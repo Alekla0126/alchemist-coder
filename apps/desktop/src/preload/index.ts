@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { IndexProgress } from '@alchemist-coder/core';
-import { Channels, type AlchemistApi, type ArenaTask, type AutomationState, type BackupStatus, type BoardData, type BotTeam, type RunnerEventMessage } from '../shared/api';
+import { Channels, type AlchemistApi, type ArenaTask, type AutomationState, type BackupStatus, type BoardData, type BotTeam, type PlanUsage, type RunnerEventMessage } from '../shared/api';
 
 const subscribe = <T>(channel: string, listener: (payload: T) => void) => {
   const handler = (_event: unknown, payload: T) => listener(payload);
@@ -80,6 +80,7 @@ const api: AlchemistApi = {
   backupOpen: () => ipcRenderer.invoke(Channels.backupOpen),
   onBackupStatus: (listener) => subscribe<BackupStatus>(Channels.backupChanged, listener),
   planUsage: (refresh) => ipcRenderer.invoke(Channels.planUsage, refresh === true),
+  onUsageChanged: (listener) => subscribe<PlanUsage>(Channels.usageChanged, listener),
   showMenu: (items) => ipcRenderer.invoke(Channels.showMenu, items),
   onAppCommand: (listener) => subscribe<string>(Channels.appCommand, listener),
   revealPath: (path) => ipcRenderer.invoke(Channels.revealPath, path),

@@ -921,6 +921,8 @@ export interface AlchemistApi {
   copyText(text: string): Promise<void>;
   /** Subscription plans and recent usage (Claude, Codex) from local data; `refresh` skips the one-minute cache. */
   planUsage(refresh?: boolean): Promise<PlanUsage>;
+  /** The plans' usage each time it changes (pushed from the CLIs' own files; no polling). */
+  onUsageChanged(listener: (usage: PlanUsage) => void): () => void;
   /** Agent runs in this project with changes still to review. */
   reviews(projectCwd: string): Promise<AgentReview[]>;
   reviewFile(reviewId: string, path: string): Promise<ReviewFileContent>;
@@ -1094,6 +1096,7 @@ export const Channels = {
   backupOpen: 'backup:open',
   backupChanged: 'backup:changed',
   planUsage: 'usage:plans',
+  usageChanged: 'usage:changed',
   showMenu: 'menu:show',
   appCommand: 'app:command',
   revealPath: 'shell:reveal',

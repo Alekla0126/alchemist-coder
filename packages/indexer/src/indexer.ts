@@ -479,7 +479,8 @@ export class Indexer {
 
   // ---------- live updates ----------
 
-  watch(onChange: (sessionIds: string[]) => void, debounceMs = 800): void {
+  /** `source`: the CLI that wrote (its usage may have changed too). */
+  watch(onChange: (sessionIds: string[], source: string) => void, debounceMs = 800): void {
     const schedule = (task: SessionTask) => {
       clearTimeout(this.timers.get(task.key));
       this.timers.set(
@@ -488,7 +489,7 @@ export class Indexer {
           this.timers.delete(task.key);
           try {
             const id = this.indexSession(task);
-            if (id) onChange([id]);
+            if (id) onChange([id], task.source);
           } catch (error) {
             this.onError(error, task.mainPath);
           }

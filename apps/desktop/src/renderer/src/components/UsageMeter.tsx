@@ -1,14 +1,13 @@
-import { whileVisible } from '../ui';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { LimitWindow } from '@shared/api';
 import { compactNumber, money, relativeTime } from '../format';
 import { create } from 'zustand';
 import { useStore, useT } from '../store';
+import { gauges, level, livePercent, nextReset, type Gauge } from '../usage-gauges';
 
-/** The popover is opened from the status bar and from the edition chip in the title bar. */
+/** The popover is opened from the rail's gauges. */
 export const useUsagePopover = create<{ open: boolean }>(() => ({ open: false }));
-
-const level = (pct: number) => (pct >= 80 ? 'high' : pct >= 50 ? 'mid' : 'low');
 
 type Duration = { days?: number; hours?: number; minutes?: number };
 /** "2 h 13 min" in the language's own units (Intl.DurationFormat), or plain units where it's missing. */
@@ -53,8 +52,8 @@ function Popover({ onClose }: { onClose: () => void }) {
   const t = useT();
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    // The pill and the edition chip toggle the popover themselves.
-    const away = (e: MouseEvent) => !box.current?.contains(e.target as Node) && !(e.target as Element).closest?.('.usage-pill, .chip.edition') && onClose();
+    // The rail's gauges and the edition chip toggle the popover themselves.
+    const away = (e: MouseEvent) => !box.current?.contains(e.target as Node) && !(e.target as Element).closest?.('.rail-usage .gauge, .chip.edition') && onClose();
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     document.addEventListener('mousedown', away);
     document.addEventListener('keydown', esc);
@@ -64,7 +63,7 @@ function Popover({ onClose }: { onClose: () => void }) {
     };
   }, [onClose]);
   return (
-    <div className="usage-pop" ref={box} role="dialog" aria-label={t('usage.title')}>
+    <div className="usage-pop from-rail" ref={box} role="dialog" aria-label={t('usage.title')}>
       <div className="usage-head">
         <b>{t('usage.title')}</b>
         <button className="link" onClick={() => (onClose(), useStore.setState({ settingsOpen: true, settingsSection: 'usage' }))}>
@@ -176,46 +175,106 @@ export function UsageDetails() {
   );
 }
 
-/** Status-bar pills for each signed-in plan; click for the details. */
-export function UsageMeter() {
+/** Two rings: the 5-hour session outside, the week inside. */
+function Rings({ session, week }: { session: number; week: number }) {
+  const arc = (r: number, width: number, pct: number, cls: string) => (
+    <>
+      <circle className="track" cx="18" cy="18" r={r} strokeWidth={width} />
+      {pct > 0 && <circle className={`val ${cls} ${level(pct)}`} cx="18" cy="18" r={r} strokeWidth={width} pathLength={100} strokeDasharray={`${Math.min(100, pct)} 100`} />}
+    </>
+  );
+  return (
+    <svg viewBox="0 0 36 36" aria-hidden>
+      {arc(15.5, 3.2, session, 'outer')}
+      {arc(10.4, 2.6, week, 'inner')}
+    </svg>
+  );
+}
+
+/** One plan in the rail: its rings, the percentage that limits you first, and the details on hover. */
+function RailGauge({ g, now, open, onToggle }: { g: Gauge; now: number; open: boolean; onToggle: () => void }) {
   const t = useT();
+  const locale = useStore((s) => s.locale);
+  // A short glow when the numbers change.
+  const [bump, setBump] = useState(false);
+  const last = useRef(g.percent);
+  useEffect(() => {
+    if (last.current === g.percent) return;
+    last.current = g.percent;
+    setBump(true);
+    const timer = setTimeout(() => setBump(false), 1200);
+    return () => clearTimeout(timer);
+  }, [g.percent]);
+  const row = (label: string, w: LimitWindow | null) => {
+    if (!w) return null;
+    const pct = livePercent(w, now);
+    const reset = !w.resetsAt || w.resetsAt <= now;
+    return `${label}: ${reset ? '—' : `${Math.round(pct)}%`} · ${reset ? t('usage.resetSince') : t('usage.resets', { when: resetsIn(w.resetsAt, locale, t) })}`;
+  };
+  const time = (ts: number) => new Date(ts).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+  const lines = [
+    `${g.glyph} ${g.name}${g.plan ? ` · ${g.plan}` : ''}`,
+    g.hit && t('usage.limitHit', { when: time(g.hit.resetsAt) }),
+    row(g.id === 'claude' ? t('usage.session') : t('usage.window5h'), g.session),
+    row(t('usage.windowWeek'), g.week),
+    g.percent == null && g.recent && `${t('usage.last5h')}: ${t('usage.requests', { n: compactNumber(g.recent.messages, locale) })}`,
+    g.stale && g.asOf ? t('usage.stale', { when: relativeTime(g.asOf, locale, now) }) : g.asOf ? (g.id === 'codex' ? t('usage.asOf', { when: relativeTime(g.asOf, locale, now) }) : t('usage.updated', { when: relativeTime(g.asOf, locale, now) })) : null,
+  ].filter(Boolean) as string[];
+  const pct = g.percent;
+  return (
+    <button
+      className={`gauge ${g.id} ${g.hit ? 'hit' : ''} ${g.stale ? 'stale' : ''} ${bump ? 'bump' : ''}`}
+      title={lines.join('\n')}
+      aria-label={lines.join('. ')}
+      aria-expanded={open}
+      aria-haspopup="dialog"
+      onClick={onToggle}
+    >
+      <span className="gauge-ring">
+        <Rings session={livePercent(g.session, now)} week={livePercent(g.week, now)} />
+        <span className="gauge-glyph">{g.glyph}</span>
+      </span>
+      <span className={`gauge-pct ${g.hit ? 'high' : pct != null ? level(pct) : ''}`}>{g.hit ? '⛔' : pct != null ? `${Math.round(pct)}%` : '—'}</span>
+    </button>
+  );
+}
+
+/**
+ * Each signed-in plan's usage, over the settings gear in the rail. The numbers are pushed whenever
+ * they change (see UsageService): Codex's from its own files, Claude's checked while it works.
+ */
+export function RailUsage() {
   const open = useUsagePopover((s) => s.open);
   const usage = useStore((s) => s.planUsage);
   const load = useStore((s) => s.loadPlanUsage);
   const captureUsage = useStore((s) => s.info?.capture?.usage ?? false);
+  const [now, setNow] = useState(Date.now);
   useEffect(() => {
     if (captureUsage) useUsagePopover.setState({ open: true });
   }, [captureUsage]);
   useEffect(() => {
     if (captureUsage && usage) useStore.getState().markCaptureReady();
   }, [captureUsage, usage]);
+  // What's there now; after that, every change arrives by itself.
+  useEffect(() => void load(), [load]);
+  const list = gauges(usage, now);
+  // A window that resets empties its ring right then; "updated 3 min ago" is fresh on hover.
+  const next = nextReset(list, now);
+  useEffect(() => setNow(Date.now()), [usage]);
   useEffect(() => {
-    void load();
-    return whileVisible(() => void load(), 5 * 60_000);
-  }, [load]);
-  useEffect(() => {
-    if (open) void load();
-  }, [open, load]);
-  const live = (w: LimitWindow | null | undefined) => (w && w.resetsAt && w.resetsAt > Date.now() ? w.percent : 0);
-  const codexPct = usage?.codex ? Math.max(0, ...usage.codex.windows.map((w) => live({ percent: w.usedPercent, resetsAt: w.resetsAt }))) : null;
-  const claude = usage?.claude;
-  const claudePct = claude?.limits && !claude.limits.error ? Math.max(live(claude.limits.fiveHour), live(claude.limits.sevenDay)) : null;
+    if (!next) return;
+    const timer = setTimeout(() => setNow(Date.now()), Math.min(next - Date.now() + 500, 2 ** 31 - 1));
+    return () => clearTimeout(timer);
+  }, [next]);
+  if (!list.length) return null;
+  const toggle = () => useUsagePopover.setState({ open: !open });
   return (
-    <span className="usage-meter">
-      <button className="usage-pill" title={t('usage.title')} onClick={() => useUsagePopover.setState({ open: !open })}>
-        {claude && (
-          <span className={claude.limit ? 'usage-hit' : claudePct != null ? `usage-codex ${level(claudePct)}` : ''}>
-            ✳ {claude.limit ? t('usage.limitShort') : claudePct != null ? `${Math.round(claudePct)}%` : (claude.plan ?? 'Claude')}
-          </span>
-        )}
-        {codexPct != null && (
-          <span className={`usage-codex ${level(codexPct)}`}>
-            ◎ {Math.round(codexPct)}%
-          </span>
-        )}
-        {!claude && codexPct == null && <span>{t('usage.title')}</span>}
-      </button>
-      {open && <Popover onClose={() => useUsagePopover.setState({ open: false })} />}
-    </span>
+    <div className="rail-usage" onMouseEnter={() => setNow(Date.now())}>
+      {list.map((g) => (
+        <RailGauge key={g.id} g={g} now={now} open={open} onToggle={toggle} />
+      ))}
+      {/* Over everything: the rail's foot is a layer of its own, under the panels beside it. */}
+      {open && createPortal(<Popover onClose={() => useUsagePopover.setState({ open: false })} />, document.body)}
+    </div>
   );
 }

@@ -1,9 +1,9 @@
 import { appendFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { claudeUsage, codexUsage, UsageService } from '../src/main/usage';
-import type { ClaudeLimits } from '../src/shared/api';
+import type { ClaudeLimits, PlanUsage } from '../src/shared/api';
 
 const root = realpathSync(mkdtempSync(join(tmpdir(), 'usage-')));
 afterAll(() => rmSync(root, { recursive: true, force: true }));
@@ -98,19 +98,98 @@ describe('Claude limits cache', () => {
     let calls = 0;
     const fetchLimits = async () => answers[Math.min(calls++, answers.length - 1)]!;
     // claudeUsage() is null with no account and no transcripts: read the cache through limits directly.
-    const svc = new UsageService(none, fetchLimits, file) as unknown as { limitsFor(force: boolean): Promise<ClaudeLimits | null> };
-    expect((await svc.limitsFor(false))?.fiveHour?.percent).toBe(40);
-    const stale = await svc.limitsFor(true);
+    const svc = new UsageService(none, fetchLimits, file) as unknown as { limitsFor(mode: string): Promise<ClaudeLimits | null> };
+    expect((await svc.limitsFor('idle'))?.fiveHour?.percent).toBe(40);
+    const stale = await svc.limitsFor('force');
     expect(stale?.fiveHour?.percent).toBe(40);
     expect(stale?.stale).toBe('rate-limited');
     // A rate limit is waited out even when refreshing by hand.
-    await svc.limitsFor(true);
+    await svc.limitsFor('force');
     expect(calls).toBe(2);
 
-    const restarted = new UsageService(none, async () => failed('offline'), file) as unknown as { limitsFor(force: boolean): Promise<ClaudeLimits | null> };
-    const after = await restarted.limitsFor(false);
+    const restarted = new UsageService(none, async () => failed('offline'), file) as unknown as { limitsFor(mode: string): Promise<ClaudeLimits | null> };
+    const after = await restarted.limitsFor('idle');
     expect(after?.fiveHour?.percent).toBe(40);
     expect(after?.stale).toBe('offline');
     rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+describe('usage pushed as it changes', () => {
+  const ok = (pct: number): ClaudeLimits => ({ fiveHour: { percent: pct, resetsAt: Date.now() + 3_600_000 }, sevenDay: null, sevenDayOpus: null, models: [], at: Date.now(), error: null });
+  const rateLimits = (pct: number) => ({ timestamp: new Date().toISOString(), type: 'event_msg', payload: { type: 'token_count', rate_limits: { primary: { used_percent: pct, window_minutes: 300, resets_at: (Date.now() + 3_600_000) / 1000 }, plan_type: 'plus' } } });
+  const MIN = 60_000;
+  afterEach(() => vi.useRealTimers());
+
+  it('pushes Codex’s new numbers when its session file grows, without asking anyone, and only when they change', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'], now });
+    const codexRoot = mkdtempSync(join(tmpdir(), 'codex-'));
+    const dir = join(codexRoot, 'sessions', '2026', '09', '27');
+    mkdirSync(dir, { recursive: true });
+    const file = join(dir, 'rollout-2026-09-27T10-00-00-y.jsonl');
+    writeFileSync(file, jsonl([rateLimits(42)]));
+    let calls = 0;
+    const svc = new UsageService({ claudeJson: '/nonexistent/a.json', claudeProjects: '/nonexistent/p', codexRoot }, async () => (calls++, ok(10)));
+    const pushes: PlanUsage[] = [];
+    svc.subscribe((u) => pushes.push(u));
+    await svc.get();
+    expect(pushes.at(-1)!.codex!.windows[0]!.usedPercent).toBe(42);
+    appendFileSync(file, jsonl([rateLimits(55)]));
+    svc.touch('codex');
+    await vi.advanceTimersByTimeAsync(2500);
+    expect(pushes.at(-1)!.codex!.windows[0]!.usedPercent).toBe(55);
+    // Nothing new: nothing pushed.
+    const count = pushes.length;
+    svc.touch('codex');
+    await vi.advanceTimersByTimeAsync(2500);
+    expect(pushes.length).toBe(count);
+    expect(calls).toBe(1); // only the first look
+    svc.dispose();
+    rmSync(codexRoot, { recursive: true, force: true });
+  });
+
+  it('asks for Claude’s percentages while it works at most every 5 minutes, once more after it stops, and rarely otherwise', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'], now });
+    let calls = 0;
+    let onScreen = true;
+    const none = { claudeJson: '/nonexistent/a.json', claudeProjects: '/nonexistent/p', codexRoot: '/nonexistent/c' };
+    const svc = new UsageService(none, async () => (calls++, ok(10 + calls)), undefined, () => onScreen);
+    svc.subscribe(() => {});
+    await svc.get();
+    expect(calls).toBe(1);
+    // Claude Code writes for a while: no new check before 5 minutes.
+    for (let i = 0; i < 4; i++) {
+      await vi.advanceTimersByTimeAsync(MIN);
+      svc.touch('claude-code');
+      await vi.advanceTimersByTimeAsync(2500);
+    }
+    expect(calls).toBe(1);
+    // It stops: one more check when it's due, so the meter ends on the final numbers.
+    await vi.advanceTimersByTimeAsync(2 * MIN);
+    expect(calls).toBe(2);
+    // Idle and off screen: no checks at all.
+    onScreen = false;
+    await vi.advanceTimersByTimeAsync(60 * MIN);
+    expect(calls).toBe(2);
+    // Back on screen: every 30 minutes (Claude may be used elsewhere).
+    onScreen = true;
+    await vi.advanceTimersByTimeAsync(5 * MIN);
+    expect(calls).toBe(3);
+    await vi.advanceTimersByTimeAsync(25 * MIN);
+    expect(calls).toBe(3);
+    svc.dispose();
+  });
+
+  it('finds Codex’s numbers near the end of a big session, or anywhere in it', async () => {
+    const codexRoot = mkdtempSync(join(tmpdir(), 'codex-big-'));
+    const dir = join(codexRoot, 'sessions', '2026', '09', '27');
+    mkdirSync(dir, { recursive: true });
+    const filler = jsonl(Array.from({ length: 3000 }, (_, i) => ({ type: 'response_item', payload: { text: 'x'.repeat(250), i } })));
+    const file = join(dir, 'rollout-2026-09-27T10-00-00-z.jsonl');
+    writeFileSync(file, filler + jsonl([{ ...rateLimits(61), timestamp: iso(1) }]));
+    expect((await codexUsage({ ...homes, codexRoot }, now))!.windows[0]!.usedPercent).toBe(61);
+    writeFileSync(file, jsonl([{ ...rateLimits(17), timestamp: iso(1) }]) + filler);
+    expect((await codexUsage({ ...homes, codexRoot }, now))!.windows[0]!.usedPercent).toBe(17);
+    rmSync(codexRoot, { recursive: true, force: true });
   });
 });

@@ -73,7 +73,8 @@ input { font: inherit; color: inherit; }
 .center { min-width: 0; min-height: 0; display: flex; }
 
 /* ---------- project rail ---------- */
-.rail { background: var(--bg-rail); border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 12px 0; overflow-y: auto; }
+.rail { background: var(--bg-rail); border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 12px 0; overflow-x: hidden; overflow-y: auto; scrollbar-width: none; }
+.rail::-webkit-scrollbar { display: none; }
 .rail-item { position: relative; }
 .proj { position: relative; width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; font-size: 11px; font-weight: 750; color: #14101a; transition: transform 0.15s; }
 .proj:hover { transform: translateY(-1px); }
@@ -717,12 +718,29 @@ input { font: inherit; color: inherit; }
 .jump-latest:hover { border-color: var(--accent); }
 
 /* ---------- plans & usage ---------- */
-.usage-meter { position: relative; display: inline-flex; }
-.usage-pill { display: inline-flex; gap: 10px; align-items: center; font-size: 11px; color: var(--fg-2); padding: 1px 8px; border-radius: 999px; border: 1px solid transparent; }
-.usage-pill:hover { border-color: var(--line-2); color: var(--fg); }
-.usage-codex.low { color: var(--green); }
-.usage-codex.mid { color: var(--amber); }
-.usage-codex.high, .usage-hit { color: var(--red); }
+/* The rail's gauges over the settings gear: outer ring = 5-hour session, inner = week. */
+.rail-usage { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.gauge { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 44px; padding: 5px 0 4px; border-radius: 10px; color: var(--fg-3); }
+.gauge:hover, .gauge[aria-expanded='true'] { background: var(--bg-hl); color: var(--fg); }
+.gauge-ring { position: relative; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; }
+.gauge-ring svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+.gauge-ring circle { fill: none; }
+.gauge .track { stroke: var(--line-2); }
+.gauge .val { stroke-linecap: round; transition: stroke-dasharray 0.7s ease, stroke 0.3s; }
+.gauge .val.low { stroke: var(--green); }
+.gauge .val.mid { stroke: var(--amber); }
+.gauge .val.high { stroke: var(--red); }
+.gauge .val.inner { opacity: 0.8; }
+.gauge-glyph { font-size: 11px; line-height: 1; color: var(--fg-2); }
+.gauge-pct { font-size: 10px; line-height: 1.1; font-weight: 650; font-variant-numeric: tabular-nums; }
+.gauge-pct.low { color: var(--green); }
+.gauge-pct.mid { color: var(--amber); }
+.gauge-pct.high { color: var(--red); }
+.gauge.stale { opacity: 0.6; }
+.gauge.bump .gauge-ring { animation: gauge-bump 1.2s ease; }
+@keyframes gauge-bump { 30% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 35%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .gauge .val { transition: none; } .gauge.bump .gauge-ring { animation: none; } }
+.usage-pop.from-rail { position: fixed; left: 64px; right: auto; bottom: 32px; max-height: calc(100vh - 80px); overflow-y: auto; }
 .usage-pop { position: absolute; right: 0; bottom: calc(100% + 8px); z-index: 60; width: 380px; background: var(--bg-side); border: 1px solid var(--line-2); border-radius: 12px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5); padding: 12px 14px; white-space: normal; color: var(--fg); font-size: 12px; }
 .usage-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .usage-sec { border-top: 1px solid var(--line); padding: 10px 0 4px; }
@@ -779,8 +797,9 @@ button.chip.edition { cursor: pointer; }
 .set-usage { max-width: 720px; }
 .set-shortcuts kbd { font-family: var(--mono); font-size: 11.5px; background: var(--bg-hl); border: 1px solid var(--line-2); border-radius: 5px; padding: 2px 7px; }
 .settings .backup-card { margin-top: 10px; }
-.rail-sp { flex: 1; }
-.rail-gear { width: 40px; height: 40px; border-radius: 10px; color: var(--fg-3); font-size: 17px; margin-bottom: 8px; }
+/* Usage and settings stay at the bottom of the rail; many projects scroll under them. */
+.rail-foot { position: sticky; bottom: -12px; margin: auto 0 -12px; padding: 8px 0 20px; display: flex; flex-direction: column; align-items: center; gap: 6px; background: var(--bg-rail); }
+.rail-gear { width: 40px; height: 40px; border-radius: 10px; color: var(--fg-3); font-size: 17px; }
 .rail-gear:hover { color: var(--fg); background: var(--bg-hl); }
 
 /* ---------- command palette ---------- */
