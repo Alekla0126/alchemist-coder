@@ -224,6 +224,7 @@ export function registerIpc(deps: IpcDeps): void {
     if (typeof value === 'string' && value.length <= 1_000_000) clipboard.writeText(value);
   });
   ipcMain.handle(Channels.planUsage, (_e, refresh: unknown) => deps.usage.get(refresh === true));
+  ipcMain.handle(Channels.cliVersions, () => deps.usage.refreshVersions());
   ipcMain.handle(Channels.reviews, (_e, cwd: unknown) => deps.reviews.list(cwd));
   ipcMain.handle(Channels.reviewFile, (_e, id: unknown, path: unknown) => deps.reviews.file(id, path));
   const textArg = (v: unknown) => (v === undefined || (typeof v === 'string' && v.length <= 8e6) ? v : null);

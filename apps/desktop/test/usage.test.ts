@@ -2,7 +2,7 @@ import { appendFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFile
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
-import { claudeUsage, codexUsage, UsageService } from '../src/main/usage';
+import { claudeUsage, codexUsage, parseKimiUsage, UsageService } from '../src/main/usage';
 import type { ClaudeLimits, PlanUsage } from '../src/shared/api';
 
 const root = realpathSync(mkdtempSync(join(tmpdir(), 'usage-')));
@@ -74,6 +74,7 @@ describe('plan usage', () => {
         { label: 'weekly', usedPercent: 12, windowMinutes: 10080, resetsAt: now + 86_400_000 },
       ],
       asOf: now - 3_600_000,
+      reached: false,
     });
     // After the reset time passes, the window shows as reset.
     expect((await codexUsage(homes, now + 2 * 3_600_000))!.windows[0]!.usedPercent).toBe(0);
@@ -191,5 +192,86 @@ describe('usage pushed as it changes', () => {
     writeFileSync(file, jsonl([{ ...rateLimits(17), timestamp: iso(1) }]) + filler);
     expect((await codexUsage({ ...homes, codexRoot }, now))!.windows[0]!.usedPercent).toBe(17);
     rmSync(codexRoot, { recursive: true, force: true });
+  });
+});
+
+describe('formats of each CLI version', () => {
+  it('reads Codex limits as early versions wrote them, sorts windows by length and notes a reached limit', async () => {
+    const codexRoot = mkdtempSync(join(tmpdir(), 'codex-old-'));
+    const dir = join(codexRoot, 'sessions', '2026', '09', '27');
+    mkdirSync(dir, { recursive: true });
+    const file = join(dir, 'rollout-2026-09-27T10-00-00-old.jsonl');
+    // Early Codex: flat fields, reset given in seconds from then.
+    writeFileSync(file, jsonl([{ timestamp: iso(1), type: 'event_msg', payload: { type: 'token_count', rate_limits: { primary_used_percent: 30, secondary_used_percent: 8, primary_window_minutes: 300, secondary_window_minutes: 10080, primary_resets_in_seconds: 7200 } } }]));
+    let u = await codexUsage({ ...homes, codexRoot }, now);
+    expect(u!.windows).toEqual([
+      { label: 'five_hour', usedPercent: 30, windowMinutes: 300, resetsAt: now - 3_600_000 + 7_200_000 },
+      { label: 'weekly', usedPercent: 8, windowMinutes: 10080, resetsAt: null },
+    ]);
+    // Today's Codex: a plan with only the weekly window in "primary", the limit reached, then an empty second pool.
+    writeFileSync(
+      file,
+      jsonl([
+        { timestamp: iso(1), type: 'event_msg', payload: { type: 'token_count', rate_limits: { limit_id: 'codex', primary: { used_percent: 100, window_minutes: 10080, resets_at: (now + 86_400_000) / 1000 }, secondary: null, plan_type: 'team', rate_limit_reached_type: 'primary' } } },
+        { timestamp: iso(0.5), type: 'event_msg', payload: { type: 'token_count', rate_limits: { limit_id: 'premium', primary: null, secondary: null, plan_type: 'team' } } },
+      ]),
+    );
+    u = await codexUsage({ ...homes, codexRoot }, now);
+    expect(u).toMatchObject({ plan: 'team', reached: true, windows: [{ label: 'weekly', usedPercent: 100 }] });
+    rmSync(codexRoot, { recursive: true, force: true });
+  });
+
+  it('reads Kimi Code’s usage in the shapes its CLI accepts', () => {
+    const at = Date.parse('2026-10-07T20:00:00Z');
+    expect(
+      parseKimiUsage(
+        {
+          usage: { limit: 1000, used: 250, resetTime: '2026-10-10T00:00:00.443553353Z' },
+          limits: [
+            { window: { duration: 300, timeUnit: 'TIME_UNIT_MINUTE' }, detail: { limit: 100, remaining: 40, reset_in: 3600 } },
+            { name: 'Daily boost', duration: 1, timeUnit: 'DAY', limit: '50', used: '5', reset_at: 1791500000 },
+            { detail: {} },
+          ],
+        },
+        at,
+      ),
+    ).toEqual([
+      { label: 'Weekly limit', minutes: null, used: 250, limit: 1000, percent: 25, resetsAt: Date.parse('2026-10-10T00:00:00.443Z') },
+      { label: '5h limit', minutes: 300, used: 60, limit: 100, percent: 60, resetsAt: at + 3_600_000 },
+      { label: 'Daily boost', minutes: 1440, used: 5, limit: 50, percent: 10, resetsAt: 1791500000_000 },
+    ]);
+    expect(parseKimiUsage({})).toEqual([]);
+  });
+
+  it('asks Kimi only with a current sign-in from its CLI, and says when its numbers are waiting for it', async () => {
+    const kimiRoot = mkdtempSync(join(tmpdir(), 'kimi-'));
+    mkdirSync(join(kimiRoot, 'credentials'));
+    const signIn = (expiresInS: number) => writeFileSync(join(kimiRoot, 'credentials', 'kimi-code.json'), JSON.stringify({ access_token: 'tok', refresh_token: 'r', expires_at: Date.now() / 1000 + expiresInS }));
+    const calls: string[] = [];
+    vi.stubGlobal('fetch', async (url: string, init: { headers: Record<string, string> }) => {
+      calls.push(`${url} ${init.headers.Authorization}`);
+      return new Response(JSON.stringify({ usage: { limit: 100, used: 30 } }), { status: 200 });
+    });
+    const none = { claudeJson: '/nonexistent/a.json', claudeProjects: '/nonexistent/p', codexRoot: '/nonexistent/c' };
+    try {
+      signIn(-60); // expired: the CLI hasn't run lately
+      let svc = new UsageService({ ...none, kimiRoot });
+      let u = await svc.get();
+      expect(calls).toEqual([]);
+      expect(u.kimi).toEqual({ windows: [], asOf: null, waiting: true });
+      svc.dispose();
+      signIn(600);
+      svc = new UsageService({ ...none, kimiRoot });
+      u = await svc.get();
+      expect(calls).toEqual(['https://api.kimi.com/coding/v1/usages Bearer tok']);
+      expect(u.kimi).toMatchObject({ waiting: false, windows: [{ percent: 30 }] });
+      svc.dispose();
+      // Not signed in to Kimi Code at all: no Kimi gauge.
+      rmSync(join(kimiRoot, 'credentials', 'kimi-code.json'));
+      expect((await new UsageService({ ...none, kimiRoot }).get()).kimi).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+      rmSync(kimiRoot, { recursive: true, force: true });
+    }
   });
 });
