@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { LimitWindow } from '@shared/api';
+import type { CliVersion, KimiWindow, LimitWindow } from '@shared/api';
 import { compactNumber, money, relativeTime } from '../format';
 import { create } from 'zustand';
 import { useStore, useT } from '../store';
-import { gauges, level, livePercent, nextReset, type Gauge } from '../usage-gauges';
+import { toast } from '../ui';
+import { gauges, level, livePercent, nextReset, type Gauge, type GaugeId } from '../usage-gauges';
 
-/** The popover is opened from the rail's gauges. */
-export const useUsagePopover = create<{ open: boolean }>(() => ({ open: false }));
+type T = ReturnType<typeof useT>;
+
+/** Which plan's details are open, from its gauge in the rail. */
+export const useUsagePopover = create<{ open: GaugeId | null }>(() => ({ open: null }));
 
 type Duration = { days?: number; hours?: number; minutes?: number };
 /** "2 h 13 min" in the language's own units (Intl.DurationFormat), or plain units where it's missing. */
@@ -37,23 +40,70 @@ function Bar({ pct }: { pct: number }) {
 function LimitRow({ label, w }: { label: string; w: LimitWindow }) {
   const t = useT();
   const locale = useStore((s) => s.locale);
-  const reset = !w.resetsAt || w.resetsAt <= Date.now();
+  const reset = w.resetsAt != null && w.resetsAt <= Date.now();
   return (
     <div className="usage-grid">
       <span className="usage-label">{label}</span>
       <Bar pct={reset ? 0 : w.percent} />
       <span className="usage-pct">{reset ? '—' : `${Math.round(w.percent)}%`}</span>
-      <span className="usage-reset">{reset ? t('usage.resetSince') : t('usage.resets', { when: resetsIn(w.resetsAt, locale, t) })}</span>
+      <span className="usage-reset">{reset ? t('usage.resetSince') : w.resetsAt ? t('usage.resets', { when: resetsIn(w.resetsAt, locale, t) }) : ''}</span>
     </div>
   );
 }
 
-function Popover({ onClose }: { onClose: () => void }) {
+/** Kimi names its limits in English ("5h limit"): the usual ones in the app's language. */
+const kimiLabel = (w: KimiWindow, t: T) => (w.minutes == null ? t('usage.windowWeek') : w.minutes === 300 ? t('usage.window5h') : w.label);
+
+let watching: ReturnType<typeof setInterval> | null = null;
+
+/** Updates a CLI in the app's terminal (you see it and answer its questions); the version shown follows. */
+function runUpdate(cli: CliVersion, t: T) {
+  const s = useStore.getState();
+  const projectId = s.settings.activeProjectId ?? s.projects[0]?.id;
+  if (!cli.update) return;
+  if (projectId == null) return toast(t('settings.needsProject'));
+  useUsagePopover.setState({ open: null });
+  void s.openTerminalWith(projectId, cli.update, `${cli.label} ${cli.latest ?? ''}`.trim());
+  toast(t('usage.updateHint'));
+  // Looks again every 10 seconds for 10 minutes, until the new version is there.
+  if (watching) clearInterval(watching);
+  const until = Date.now() + 10 * 60_000;
+  watching = setInterval(() => {
+    void window.alchemist.refreshCliVersions().then(() => {
+      const now = useStore.getState().planUsage?.versions?.find((v) => v.id === cli.id);
+      if ((now && now.version !== cli.version) || Date.now() > until) {
+        if (watching) clearInterval(watching);
+        watching = null;
+      }
+    });
+  }, 10_000);
+}
+
+/** The CLI's version, and an Update button when a newer one is out. */
+function VersionRow({ cli }: { cli: CliVersion | null }) {
+  const t = useT();
+  if (!cli) return null;
+  return (
+    <div className="usage-version">
+      <span>
+        {cli.label} {cli.version ?? ''}
+        {cli.outdated && cli.latest ? <b> · {t('usage.newVersion', { version: cli.latest })}</b> : cli.latest ? <small> · {t('usage.upToDate')}</small> : null}
+      </span>
+      {cli.outdated && cli.update && (
+        <button className="btn-send small" title={cli.update} onClick={() => runUpdate(cli, t)}>
+          {t('usage.update', { version: cli.latest ?? '' })}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function Popover({ id, onClose }: { id: GaugeId; onClose: () => void }) {
   const t = useT();
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    // The rail's gauges and the edition chip toggle the popover themselves.
-    const away = (e: MouseEvent) => !box.current?.contains(e.target as Node) && !(e.target as Element).closest?.('.rail-usage .gauge, .chip.edition') && onClose();
+    // The rail's gauges toggle the popover themselves.
+    const away = (e: MouseEvent) => !box.current?.contains(e.target as Node) && !(e.target as Element).closest?.('.rail-usage .gauge') && onClose();
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     document.addEventListener('mousedown', away);
     document.addEventListener('keydown', esc);
@@ -63,27 +113,30 @@ function Popover({ onClose }: { onClose: () => void }) {
     };
   }, [onClose]);
   return (
-    <div className="usage-pop from-rail" ref={box} role="dialog" aria-label={t('usage.title')}>
+    <div className={`usage-pop from-rail pop-${id}`} ref={box} role="dialog" aria-label={t('usage.title')}>
       <div className="usage-head">
         <b>{t('usage.title')}</b>
         <button className="link" onClick={() => (onClose(), useStore.setState({ settingsOpen: true, settingsSection: 'usage' }))}>
           {t('usage.more')} →
         </button>
       </div>
-      <UsageDetails />
+      <UsageDetails only={id} />
     </div>
   );
 }
 
-/** Plans, usage windows and limits for each signed-in CLI (also shown in Settings). */
-export function UsageDetails() {
+/** Plans, usage windows and limits for each signed-in CLI (all in Settings; one from its gauge). */
+export function UsageDetails({ only }: { only?: GaugeId }) {
   const t = useT();
   const usage = useStore((s) => s.planUsage);
   const loading = useStore((s) => s.planUsageLoading);
   const onRefresh = () => void useStore.getState().loadPlanUsage(true);
   const locale = useStore((s) => s.locale);
-  const c = usage?.claude;
-  const x = usage?.codex;
+  const show = (id: GaugeId) => !only || only === id;
+  const cli = (id: CliVersion['id']) => usage?.versions?.find((v) => v.id === id) ?? null;
+  const c = show('claude') ? usage?.claude : null;
+  const x = show('codex') ? usage?.codex : null;
+  const k = show('kimi') ? usage?.kimi : null;
   return (
     <>
       {!usage && (
@@ -91,8 +144,8 @@ export function UsageDetails() {
           <div className="usage-acct">
             <i className="sk sk-title" />
           </div>
-          {[0, 1, 2].map((k) => (
-            <div key={k} className="usage-grid">
+          {[0, 1, 2].map((n) => (
+            <div key={n} className="usage-grid">
               <i className="sk" />
               <i className="sk sk-bar" />
               <i className="sk" />
@@ -150,23 +203,45 @@ export function UsageDetails() {
               </a>
             </p>
           )}
+          {c.limits && !c.limits.error && <p className="usage-note">{t('usage.updated', { when: relativeTime(c.limits.at, locale) })}</p>}
+          <VersionRow cli={cli('claude')} />
         </section>
       )}
       {x && (
         <section className="usage-sec">
           <div className="usage-acct">
-            <b>◎ Codex</b>
+            <b>◎ ChatGPT</b>
             {x.plan && <span className="usage-plan">{x.plan[0]!.toUpperCase() + x.plan.slice(1)}</span>}
+            <span className="usage-tag">{t('usage.viaCodex')}</span>
           </div>
           {x.windows.map((w) => (
             <LimitRow key={w.label} label={w.label === 'five_hour' ? t('usage.window5h') : t('usage.windowWeek')} w={{ percent: w.usedPercent, resetsAt: w.resetsAt }} />
           ))}
           <p className="usage-note">{t('usage.asOf', { when: relativeTime(x.asOf, locale) })}</p>
+          <VersionRow cli={cli('codex')} />
         </section>
       )}
-      {usage && !c && !x && <p className="usage-note">{t('usage.none')}</p>}
+      {k && (
+        <section className="usage-sec">
+          <div className="usage-acct">
+            <b>K Kimi</b>
+            <span className="usage-plan">Kimi Code</span>
+          </div>
+          {[...k.windows].sort((a, b) => (a.minutes ?? Infinity) - (b.minutes ?? Infinity)).map((w) => (
+            <LimitRow key={`${w.label}:${w.minutes}`} label={kimiLabel(w, t)} w={w} />
+          ))}
+          {k.waiting ? (
+            <p className="usage-note">{t(k.asOf ? 'usage.kimiOld' : 'usage.kimiWaiting', { when: relativeTime(k.asOf, locale) })}</p>
+          ) : (
+            k.asOf && <p className="usage-note">{t('usage.updated', { when: relativeTime(k.asOf, locale) })}</p>
+          )}
+          <VersionRow cli={cli('kimi')} />
+        </section>
+      )}
+      {usage && !c && !x && !k && <p className="usage-note">{t('usage.none')}</p>}
+      {/* Each plan says when its numbers are from; this asks for them all again. */}
       <div className="usage-foot">
-        <span>{usage ? t('usage.updated', { when: relativeTime(usage.at, locale) }) : ''}</span>
+        <span />
         <button className="btn-ghost small" disabled={loading} onClick={onRefresh}>
           {loading ? <span className="spin" /> : '↻'} {t('usage.refresh')}
         </button>
@@ -207,18 +282,22 @@ function RailGauge({ g, now, open, onToggle }: { g: Gauge; now: number; open: bo
   }, [g.percent]);
   const row = (label: string, w: LimitWindow | null) => {
     if (!w) return null;
-    const pct = livePercent(w, now);
-    const reset = !w.resetsAt || w.resetsAt <= now;
-    return `${label}: ${reset ? '—' : `${Math.round(pct)}%`} · ${reset ? t('usage.resetSince') : t('usage.resets', { when: resetsIn(w.resetsAt, locale, t) })}`;
+    const reset = w.resetsAt != null && w.resetsAt <= now;
+    const when = reset ? t('usage.resetSince') : w.resetsAt ? t('usage.resets', { when: resetsIn(w.resetsAt, locale, t) }) : '';
+    return `${label}: ${reset ? '—' : `${Math.round(livePercent(w, now))}%`}${when ? ` · ${when}` : ''}`;
   };
   const time = (ts: number) => new Date(ts).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+  const label = (w: Gauge['session'], fallback: string) => (w && 'label' in w ? kimiLabel(w as KimiWindow, t) : fallback);
+  const cli = g.cli;
   const lines = [
     `${g.glyph} ${g.name}${g.plan ? ` · ${g.plan}` : ''}`,
     g.hit && t('usage.limitHit', { when: time(g.hit.resetsAt) }),
-    row(g.id === 'claude' ? t('usage.session') : t('usage.window5h'), g.session),
-    row(t('usage.windowWeek'), g.week),
+    row(label(g.session, g.id === 'claude' ? t('usage.session') : t('usage.window5h')), g.session),
+    row(label(g.week, t('usage.windowWeek')), g.week),
     g.percent == null && g.recent && `${t('usage.last5h')}: ${t('usage.requests', { n: compactNumber(g.recent.messages, locale) })}`,
+    g.waiting && t('usage.kimiWaiting'),
     g.stale && g.asOf ? t('usage.stale', { when: relativeTime(g.asOf, locale, now) }) : g.asOf ? (g.id === 'codex' ? t('usage.asOf', { when: relativeTime(g.asOf, locale, now) }) : t('usage.updated', { when: relativeTime(g.asOf, locale, now) })) : null,
+    cli && `${cli.label} ${cli.version ?? ''}${cli.outdated && cli.latest ? ` · ${t('usage.newVersion', { version: cli.latest })}` : ''}`,
   ].filter(Boolean) as string[];
   const pct = g.percent;
   return (
@@ -233,6 +312,7 @@ function RailGauge({ g, now, open, onToggle }: { g: Gauge; now: number; open: bo
       <span className="gauge-ring">
         <Rings session={livePercent(g.session, now)} week={livePercent(g.week, now)} />
         <span className="gauge-glyph">{g.glyph}</span>
+        {cli?.outdated && <i className="gauge-update" />}
       </span>
       <span className={`gauge-pct ${g.hit ? 'high' : pct != null ? level(pct) : ''}`}>{g.hit ? '⛔' : pct != null ? `${Math.round(pct)}%` : '—'}</span>
     </button>
@@ -240,8 +320,8 @@ function RailGauge({ g, now, open, onToggle }: { g: Gauge; now: number; open: bo
 }
 
 /**
- * Each signed-in plan's usage, over the settings gear in the rail. The numbers are pushed whenever
- * they change (see UsageService): Codex's from its own files, Claude's checked while it works.
+ * Each signed-in plan's usage, over the settings gear in the rail: Claude, ChatGPT (through Codex) and
+ * Kimi, each with its own details. The numbers are pushed whenever they change (see UsageService).
  */
 export function RailUsage() {
   const open = useUsagePopover((s) => s.open);
@@ -250,7 +330,7 @@ export function RailUsage() {
   const captureUsage = useStore((s) => s.info?.capture?.usage ?? false);
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
-    if (captureUsage) useUsagePopover.setState({ open: true });
+    if (captureUsage) useUsagePopover.setState({ open: 'claude' });
   }, [captureUsage]);
   useEffect(() => {
     if (captureUsage && usage) useStore.getState().markCaptureReady();
@@ -267,14 +347,14 @@ export function RailUsage() {
     return () => clearTimeout(timer);
   }, [next]);
   if (!list.length) return null;
-  const toggle = () => useUsagePopover.setState({ open: !open });
+  const close = () => useUsagePopover.setState({ open: null });
   return (
     <div className="rail-usage" onMouseEnter={() => setNow(Date.now())}>
       {list.map((g) => (
-        <RailGauge key={g.id} g={g} now={now} open={open} onToggle={toggle} />
+        <RailGauge key={g.id} g={g} now={now} open={open === g.id} onToggle={() => useUsagePopover.setState({ open: open === g.id ? null : g.id })} />
       ))}
       {/* Over everything: the rail's foot is a layer of its own, under the panels beside it. */}
-      {open && createPortal(<Popover onClose={() => useUsagePopover.setState({ open: false })} />, document.body)}
+      {open && list.some((g) => g.id === open) && createPortal(<Popover id={open} onClose={close} />, document.body)}
     </div>
   );
 }

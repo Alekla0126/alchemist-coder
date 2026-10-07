@@ -574,6 +574,40 @@ export interface ClaudeLimits {
   stale?: string | null;
 }
 
+/** One of Kimi Code's limits: how much of it is used and when it starts over. */
+export interface KimiWindow {
+  /** Its name as Kimi gives it ("Weekly limit", "5h limit"…). */
+  label: string;
+  /** Its length, when Kimi says (300 for 5 hours); null for the plan's weekly summary. */
+  minutes: number | null;
+  used: number;
+  limit: number;
+  percent: number;
+  resetsAt: number | null;
+}
+
+export interface KimiUsage {
+  windows: KimiWindow[];
+  /** When the numbers were fetched; null when they never were. */
+  asOf: number | null;
+  /** Kimi's numbers only come while its CLI is signed in and recently used (its sign-in lasts minutes). */
+  waiting: boolean;
+}
+
+/** An agent CLI as installed on this computer. */
+export interface CliVersion {
+  id: 'claude' | 'codex' | 'kimi';
+  label: string;
+  /** Installed version; null when it isn't installed. */
+  version: string | null;
+  /** The newest version out, when known. */
+  latest: string | null;
+  /** A newer version is out. */
+  outdated: boolean;
+  /** The command that updates it, when a newer version is out and it's known how it was installed. */
+  update: string | null;
+}
+
 /** Subscription plans and usage, read from what the CLIs keep on this machine (no network). */
 export interface PlanUsage {
   claude: {
@@ -591,7 +625,13 @@ export interface PlanUsage {
     windows: Array<{ label: 'five_hour' | 'weekly'; usedPercent: number; windowMinutes: number; resetsAt: number | null }>;
     /** When Codex last reported these numbers. */
     asOf: number;
+    /** A usage limit Codex reported as reached in that report. */
+    reached?: boolean;
   } | null;
+  /** Kimi Code (the `kimi` CLI's subscription), when this computer is signed in to it. */
+  kimi?: KimiUsage | null;
+  /** Claude Code, Codex and Kimi CLI as installed here, and whether a newer version is out. */
+  versions?: CliVersion[];
   at: number;
 }
 
@@ -921,6 +961,8 @@ export interface AlchemistApi {
   copyText(text: string): Promise<void>;
   /** Subscription plans and recent usage (Claude, Codex) from local data; `refresh` skips the one-minute cache. */
   planUsage(refresh?: boolean): Promise<PlanUsage>;
+  /** Looks at the CLIs' versions again (after updating one); the result is pushed with the usage. */
+  refreshCliVersions(): Promise<void>;
   /** The plans' usage each time it changes (pushed from the CLIs' own files; no polling). */
   onUsageChanged(listener: (usage: PlanUsage) => void): () => void;
   /** Agent runs in this project with changes still to review. */
@@ -1097,6 +1139,7 @@ export const Channels = {
   backupChanged: 'backup:changed',
   planUsage: 'usage:plans',
   usageChanged: 'usage:changed',
+  cliVersions: 'usage:versions',
   showMenu: 'menu:show',
   appCommand: 'app:command',
   revealPath: 'shell:reveal',

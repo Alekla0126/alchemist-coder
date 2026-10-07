@@ -81,6 +81,7 @@ const api: AlchemistApi = {
   onBackupStatus: (listener) => subscribe<BackupStatus>(Channels.backupChanged, listener),
   planUsage: (refresh) => ipcRenderer.invoke(Channels.planUsage, refresh === true),
   onUsageChanged: (listener) => subscribe<PlanUsage>(Channels.usageChanged, listener),
+  refreshCliVersions: () => ipcRenderer.invoke(Channels.cliVersions),
   showMenu: (items) => ipcRenderer.invoke(Channels.showMenu, items),
   onAppCommand: (listener) => subscribe<string>(Channels.appCommand, listener),
   revealPath: (path) => ipcRenderer.invoke(Channels.revealPath, path),

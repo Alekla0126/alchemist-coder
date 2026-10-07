@@ -1,5 +1,5 @@
 import { app, BrowserWindow, session, shell } from 'electron';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, watch, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { Worker } from 'node:worker_threads';
 import { IndexReader } from '@alchemist-coder/indexer';
@@ -17,7 +17,8 @@ import { writeBridge } from './bots-bridge';
 import { ExtensionsHub } from './hub';
 import { BackupService } from './backup';
 import { ReviewManager } from './reviews';
-import { UsageService, defaultHomes } from './usage';
+import { UsageService, defaultHomes, kimiHome } from './usage';
+import { CliVersions } from './cli-versions';
 import { exportSession } from './export';
 import { blockPreviewNetwork, lockPreviewFrames, PreviewServer, registerPreviewScheme } from './preview';
 import { appMenu, editMenu } from './menus';
@@ -132,6 +133,19 @@ function send(channel: string, payload: unknown) {
 let indexerWorker: Worker | null = null;
 /** Runs once the index is open: automations need to know your projects before they start. */
 let onIndexOpen: (() => void) | null = null;
+
+/** Kimi CLI's folder: a session written or its sign-in renewed means it's working. */
+function watchKimi(onWrote: (source: string) => void) {
+  const root = kimiHome();
+  if (!existsSync(root)) return;
+  try {
+    watch(root, { recursive: true }, (_event, file) => {
+      if (file && /^(credentials|sessions)[\\/]/.test(file.toString())) onWrote('kimi');
+    }).on('error', () => {});
+  } catch {
+    // no file watching here: Kimi's numbers come on the regular recount
+  }
+}
 
 /** `onWrote`: a CLI wrote to its conversation files (usage counts change with them). */
 function startIndexer(dbPath: string, backupRoot: string | null, onWrote: (source: string) => void) {
@@ -261,12 +275,18 @@ void app.whenReady().then(async () => {
     claudeLimits ? async () => claudeLimits((await detectBinary('claude')).version ?? '2.1.0') : undefined,
     join(userData, 'claude-usage.json'),
     () => !!window && !window.isDestroyed() && window.isVisible() && !window.isMinimized(),
+    new CliVersions(join(userData, 'cli-latest.json')),
+    join(userData, 'kimi-usage.json'),
   );
+  // Kimi CLI isn't in the index: its sessions and sign-in renewals say when it's working.
+  watchKimi((source) => usage.touch(source));
   // Pushed to the window whenever the numbers change; the first read of a week of transcripts takes a
   // few seconds, so it starts before anyone asks.
   usage.subscribe((value) => send(Channels.usageChanged, value));
   app.on('browser-window-focus', () => usage.wake());
   setTimeout(() => void usage.get().catch(() => {}), 20_000);
+  // The CLIs' versions on their own (the newest out is asked for at most once a day).
+  setTimeout(() => void usage.refreshVersions(), 8_000);
   const tasks = new TaskManager(join(userData, 'tasks.json'), runner, (cwd) => workspace.resolveInside(cwd), (task) => send(Channels.taskChanged, task));
   // Bot teams: bots reach the app's tools through a small MCP bridge run by Electron itself (as Node).
   const bots = new BotManager(

@@ -737,6 +737,12 @@ input { font: inherit; color: inherit; }
 .gauge-pct.mid { color: var(--amber); }
 .gauge-pct.high { color: var(--red); }
 .gauge.stale { opacity: 0.6; }
+.gauge.kimi .gauge-glyph { font-weight: 800; font-size: 11.5px; }
+/* A newer version of its CLI is out. */
+.gauge-update { position: absolute; top: -1px; right: -2px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); border: 1.5px solid var(--bg-rail); }
+.usage-version { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: 11px; color: var(--fg-3); }
+.usage-version b { color: var(--accent); font-weight: 600; }
+.usage-version small { font-size: 11px; }
 .gauge.bump .gauge-ring { animation: gauge-bump 1.2s ease; }
 @keyframes gauge-bump { 30% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 35%, transparent); } }
 @media (prefers-reduced-motion: reduce) { .gauge .val { transition: none; } .gauge.bump .gauge-ring { animation: none; } }
@@ -842,7 +848,7 @@ button.chip.edition { cursor: pointer; }
 .row-actions .star, .row-actions .row-more { opacity: 1; }
 .pin-mark { font-size: 9px; margin-right: 4px; filter: grayscale(0.3); }
 .jump-latest { position: sticky; bottom: 12px; left: auto; transform: none; margin: 0 auto; display: block; width: max-content; }
-.usage-grid { display: grid; grid-template-columns: 104px 1fr 40px 150px; align-items: center; gap: 8px; margin-top: 7px; }
+.usage-grid { display: grid; grid-template-columns: 128px 1fr 40px 140px; align-items: center; gap: 8px; margin-top: 7px; }
 .usage-grid .usage-label { width: auto; }
 .usage-grid .usage-reset { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .usage-head .link { font-size: 11.5px; }

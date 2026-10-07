@@ -34,4 +34,32 @@ describe('the rail’s usage gauges', () => {
     expect(gauges(usage({ claude: { ...base, limits: null } }), now)[0]!.percent).toBeNull();
     expect(gauges({ claude: null, codex: null, at: now }, now)).toEqual([]);
   });
+
+  it('names Codex’s gauge after the ChatGPT plan, and shows when its limit was reached', () => {
+    const base = usage().codex!;
+    const [, chatgpt] = gauges(usage({ codex: { ...base, reached: true, windows: [{ label: 'weekly', usedPercent: 100, windowMinutes: 10080, resetsAt: now + 5 * H }] } }), now);
+    expect(chatgpt).toMatchObject({ name: 'ChatGPT', percent: 100, hit: { resetsAt: now + 5 * H } });
+  });
+
+  it('adds Kimi: its 5-hour limit outside, its week inside, or waiting for its CLI', () => {
+    const kimi = (over: Partial<NonNullable<PlanUsage['kimi']>>) => gauges(usage({ claude: null, codex: null, kimi: { windows: [], asOf: null, waiting: true, ...over } }), now)[0]!;
+    expect(kimi({})).toMatchObject({ id: 'kimi', name: 'Kimi', percent: null, waiting: true });
+    const g = kimi({
+      waiting: false,
+      asOf: now,
+      windows: [
+        { label: 'Weekly limit', minutes: null, used: 300, limit: 1000, percent: 30, resetsAt: now + 50 * H },
+        { label: '5h limit', minutes: 300, used: 60, limit: 100, percent: 60, resetsAt: now + H },
+      ],
+    });
+    expect(g.session?.percent).toBe(60);
+    expect(g.week?.percent).toBe(30);
+    expect(g.percent).toBe(60);
+  });
+
+  it('gives each gauge its CLI’s version', () => {
+    const versions = [{ id: 'kimi' as const, label: 'Kimi CLI', version: '1.33.0', latest: '1.35.0', outdated: true, update: 'uv tool upgrade kimi-cli' }];
+    const g = gauges(usage({ claude: null, codex: null, kimi: { windows: [], asOf: null, waiting: true }, versions }), now)[0]!;
+    expect(g.cli).toEqual(versions[0]);
+  });
 });
