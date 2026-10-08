@@ -139,7 +139,9 @@ export async function mirror(src: BackupSources, dest: string, onProgress?: (don
     const s = statSync(f.from, { throwIfNoEntry: false });
     if (!s) continue;
     const d = statSync(target, { throwIfNoEntry: false });
-    if (!d || d.size !== s.size || Math.trunc(d.mtimeMs) < Math.trunc(s.mtimeMs)) {
+    // utimes() goes through floating-point seconds, so the copy's time can land a hair before the
+    // original's: only a difference over a millisecond means the file changed.
+    if (!d || d.size !== s.size || s.mtimeMs - d.mtimeMs > 1) {
       mkdirSync(dirname(target), { recursive: true });
       await copyFile(f.from, target);
       await utimes(target, s.atime, s.mtime);
