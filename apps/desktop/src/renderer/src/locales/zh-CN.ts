@@ -166,6 +166,8 @@ export const zhCN: Messages = {
   'notify.failed': '有智能体因出错而停止',
   'settings.notify': '通知',
   'settings.notifyHint': '当 Alchemist 在后台运行时，智能体需要你的权限、向你提问或完成时通知你。',
+  'settings.vim': '编辑器 Vim 模式',
+  'settings.vimHint': '在代码编辑器中使用普通、插入和可视模式以及 Vim 的移动操作；:w 保存。当前模式显示在编辑器下方。',
   'palette.title': '命令面板',
   'palette.placeholder': '命令、对话、文件、主题…',
   'palette.newConversation': '新建对话',

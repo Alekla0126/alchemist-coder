@@ -166,6 +166,8 @@ export const hi: Messages = {
   'notify.failed': 'एक एजेंट त्रुटि के साथ रुक गया',
   'settings.notify': 'सूचनाएँ',
   'settings.notifyHint': 'जब Alchemist बैकग्राउंड में हो और कोई एजेंट आपकी अनुमति माँगे, आपसे कुछ पूछे या काम पूरा करे।',
+  'settings.vim': 'एडिटर में Vim मोड',
+  'settings.vimHint': 'कोड एडिटर में नॉर्मल, इंसर्ट और विज़ुअल मोड और Vim की मूवमेंट; :w से सेव होता है। मोड एडिटर के नीचे दिखता है।',
   'palette.title': 'कमांड पैलेट',
   'palette.placeholder': 'कमांड, बातचीत, फ़ाइलें, थीम…',
   'palette.newConversation': 'नई बातचीत',

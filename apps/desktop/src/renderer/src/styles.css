@@ -338,6 +338,10 @@ input { font: inherit; color: inherit; }
 .bc { padding: 4px 14px; font-size: 11px; color: var(--fg-3); border-bottom: 1px solid var(--line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .editor-body { position: relative; flex: 1; min-height: 0; }
 .monaco-host { position: absolute; inset: 0; }
+/* Vim's line under the editor: the mode, and the command being typed (:w). */
+.monaco-host.with-vim { bottom: 22px; }
+.vim-status { position: absolute; left: 0; right: 0; bottom: 0; height: 22px; padding: 0 12px; display: flex; align-items: center; gap: 8px; font: 11.5px var(--mono); color: var(--fg-2); background: var(--bg-side); border-top: 1px solid var(--line); white-space: nowrap; overflow: hidden; }
+.vim-status input { flex: 1; min-width: 0; background: transparent; border: 0; outline: none; color: var(--fg); font: inherit; }
 .editor-msg { position: absolute; inset: 0; }
 
 /* ---------- terminal ---------- */

@@ -165,6 +165,8 @@ export const en = {
   'notify.failed': 'An agent stopped with an error',
   'settings.notify': 'Notifications',
   'settings.notifyHint': 'When an agent needs your permission, asks you something or finishes while Alchemist is in the background.',
+  'settings.vim': 'Vim mode in the editor',
+  'settings.vimHint': 'Normal, insert and visual modes and Vim motions in the code editor; :w saves. The mode shows under the editor.',
   'palette.title': 'Command palette',
   'palette.placeholder': 'Commands, conversations, files, themes…',
   'palette.newConversation': 'New conversation',
