@@ -12,7 +12,7 @@ Open several projects at once, follow every agent and every subagent it spawns, 
 
 </div>
 
-> **Version 1.1**, in English, Español, Português, Français, Deutsch, Italiano, Русский, 日本語, 한국어, 简体中文 and हिन्दी. [Download](https://coder.alekla.com/#download) for macOS (Apple Silicon or Intel), Windows or Linux (AppImage or .deb), or from [Releases](https://github.com/Alekla0126/alchemist-coder/releases). The builds aren't signed with an Apple or Microsoft certificate yet. The first time on a Mac, macOS says it can't verify the app: click Done, then open System Settings → Privacy & Security and click Open Anyway. On Windows, if SmartScreen warns you, choose More info → Run anyway. Feedback and issues are welcome.
+> **Version 1.2**, in English, Español, Português, Français, Deutsch, Italiano, Русский, 日本語, 한국어, 简体中文 and हिन्दी. [Download](https://coder.alekla.com/#download) for macOS (Apple Silicon or Intel), Windows or Linux (AppImage or .deb), or from [Releases](https://github.com/Alekla0126/alchemist-coder/releases). The builds aren't signed with an Apple or Microsoft certificate yet. The first time on a Mac, macOS says it can't verify the app: click Done, then open System Settings → Privacy & Security and click Open Anyway. On Windows, if SmartScreen warns you, choose More info → Run anyway. Feedback and issues are welcome.
 
 ## What it does
 
@@ -30,7 +30,8 @@ Open several projects at once, follow every agent and every subagent it spawns, 
 - **Fits half a screen.** Fold the sidebar with one button (⌘B) or by dragging it away; below 900 px the sidebar floats over the page and the modes fit in one menu, so the app works side by side with another window.
 - **Agent tree.** Every conversation shows the main agent, the subagents it launched and the ones those launched in turn, with live status, tokens, time, estimated cost, worktree and branch. Add an agent right there (its main agent launches it, with the type and task you choose), or take one out of the list or stop it.
 - **A chat by agent.** Tabs over the conversation switch between the main agent and each subagent; every turn says who speaks, and each subagent shows up where it was launched as a card with how it's doing, its cost, what it was asked and what it answered.
-- **Who's working, at a glance.** The status bar says who needs you and who is working right now (in the app or in a terminal), what each one is doing and for how long; one click takes you there.
+- **Who's working, at a glance.** The status bar says who needs you and who is working right now (in the app or in a terminal), what each one is doing and for how long; one click takes you there. The Dock or taskbar icon counts what needs you while you're in another app.
+- **How much of your plans you've used.** A gauge per plan over the settings gear (Claude, ChatGPT through Codex, Kimi Code): the 5-hour window and the week, when each resets, and each CLI's version with a button when a newer one is out. It follows the CLIs' own files as they work instead of polling.
 - **Git in plain words.** A Git tab shows your branch, what's waiting to push or pull, what isn't committed yet, the history (agents' commits marked), branches and the agents' own copies; check the remote, pull and push from there.
 - **Several projects at once**, with modes for agents, code, split view, terminal and history.
 - **Four coding agents, one workspace.** Claude Code, Codex, Gemini CLI and Grok Build run through the [Agent Client Protocol](https://agentclientprotocol.com): you see their plan, every tool call, file diffs and cost live, approve or deny each permission inline, and switch mode (ask, accept edits, plan, allow everything) or model mid-session.
