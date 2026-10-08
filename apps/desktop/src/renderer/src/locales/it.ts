@@ -166,6 +166,8 @@ export const it: Messages = {
   'notify.failed': 'Un agente si è fermato con un errore',
   'settings.notify': 'Notifiche',
   'settings.notifyHint': 'Quando un agente ha bisogno del tuo permesso, ti chiede qualcosa o finisce mentre Alchemist è in background.',
+  'settings.vim': 'Modalità Vim nell’editor',
+  'settings.vimHint': 'Modalità normale, inserimento e visuale e i movimenti di Vim nell’editor di codice; :w salva. La modalità compare sotto l’editor.',
   'palette.title': 'Riquadro comandi',
   'palette.placeholder': 'Comandi, conversazioni, file, temi…',
   'palette.newConversation': 'Nuova conversazione',

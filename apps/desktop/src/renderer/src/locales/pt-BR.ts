@@ -166,6 +166,8 @@ export const ptBR: Messages = {
   'notify.failed': 'Um agente parou com um erro',
   'settings.notify': 'Notificações',
   'settings.notifyHint': 'Quando um agente precisa da sua permissão, te pergunta algo ou termina enquanto o Alchemist está em segundo plano.',
+  'settings.vim': 'Modo Vim no editor',
+  'settings.vimHint': 'Modos normal, inserção e visual e os movimentos do Vim no editor de código; :w salva. O modo aparece embaixo do editor.',
   'palette.title': 'Paleta de comandos',
   'palette.placeholder': 'Comandos, conversas, arquivos, temas…',
   'palette.newConversation': 'Nova conversa',

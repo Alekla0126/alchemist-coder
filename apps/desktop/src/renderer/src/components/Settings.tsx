@@ -4,6 +4,7 @@ import { LOCALE_NAMES, LOCALES, isLocale, type PermissionMode } from '@shared/ap
 import { useStore, useT } from '../store';
 import { toast } from '../ui';
 import { InstallButton } from './MissingAgent';
+import { useEditorKeys } from '../editor/vim';
 import { SEND_KEY } from './Composer';
 import { NOTIFY_KEY } from '../store';
 import { BackupCard } from './HistoryView';
@@ -39,6 +40,8 @@ function General() {
   })();
   const [mode, setMode] = useState<PermissionMode>(prefs.permissionMode ?? 'acceptEdits');
   const [notify, setNotify] = useState(localStorage.getItem(NOTIFY_KEY) !== 'off');
+  const vim = useEditorKeys((k) => k.vim);
+  const setVim = useEditorKeys((k) => k.setVim);
   return (
     <>
       <div className="set-row">
@@ -111,6 +114,13 @@ function General() {
             localStorage.setItem(NOTIFY_KEY, e.target.checked ? 'on' : 'off');
           }}
         />
+      </div>
+      <div className="set-row">
+        <div>
+          <b>{t('settings.vim')}</b>
+          <p>{t('settings.vimHint')}</p>
+        </div>
+        <input type="checkbox" className="set-switch" checked={vim} onChange={(e) => setVim(e.target.checked)} />
       </div>
     </>
   );

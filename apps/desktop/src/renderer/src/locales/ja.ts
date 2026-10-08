@@ -166,6 +166,8 @@ export const ja: Messages = {
   'notify.failed': 'エージェントがエラーで停止しました',
   'settings.notify': '通知',
   'settings.notifyHint': 'Alchemist がバックグラウンドにあるときに、エージェントが許可を求めたり、質問したり、作業を終えたりすると通知します。',
+  'settings.vim': 'エディターの Vim モード',
+  'settings.vimHint': 'コードエディターでノーマル・挿入・ビジュアルモードと Vim の移動操作が使えます。:w で保存。モードはエディターの下に表示されます。',
   'palette.title': 'コマンドパレット',
   'palette.placeholder': 'コマンド、会話、ファイル、テーマ…',
   'palette.newConversation': '新しい会話',

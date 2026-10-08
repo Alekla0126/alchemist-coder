@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from './Icon';
 import { ensureLanguage, languageFor, monaco, useTheme as applyEditorTheme } from '../editor/monaco';
+import { attachVim, useEditorKeys } from '../editor/vim';
 import { models, type OpenModel } from '../editor/models';
 import { REVIEW_TAB, useStore, useT } from '../store';
 import { sourceOf } from '../sources';
@@ -91,6 +92,20 @@ export function EditorArea({ projectId }: { projectId: number }) {
   useEffect(() => {
     if (theme) void applyEditorTheme(theme);
   }, [theme]);
+
+  // Vim keys, when turned on in Settings: the mode shows in the line under the editor.
+  const vim = useEditorKeys((k) => k.vim);
+  const vimStatus = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!vim || !editor.current || !vimStatus.current) return;
+    let off: (() => void) | null = null;
+    let gone = false;
+    void attachVim(editor.current, vimStatus.current, () => void saveRef.current()).then((dispose) => (gone ? dispose() : (off = dispose)));
+    return () => {
+      gone = true;
+      off?.();
+    };
+  }, [vim]);
 
   useEffect(() => {
     if (project) void loadReviews(project.cwd);
@@ -304,7 +319,8 @@ export function EditorArea({ projectId }: { projectId: number }) {
       )}
       <div className="editor-split">
         <div className="editor-body">
-          <div ref={host} className="monaco-host" style={{ visibility: state.kind === 'ready' && !showDiff ? 'visible' : 'hidden' }} />
+          <div ref={host} className={`monaco-host ${vim ? 'with-vim' : ''}`} style={{ visibility: state.kind === 'ready' && !showDiff ? 'visible' : 'hidden' }} />
+          {vim && <div ref={vimStatus} className="vim-status" style={{ visibility: state.kind === 'ready' && !showDiff ? 'visible' : 'hidden' }} />}
           <div ref={diffHost} className="monaco-host" style={{ visibility: showDiff ? 'visible' : 'hidden' }} />
           {imageOnly && active && (
             <div className="editor-msg">

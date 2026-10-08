@@ -166,6 +166,8 @@ export const ko: Messages = {
   'notify.failed': '에이전트가 오류로 멈췄어요',
   'settings.notify': '알림',
   'settings.notifyHint': 'Alchemist가 백그라운드에 있을 때 에이전트가 권한을 요청하거나, 질문하거나, 작업을 마치면 알려 드려요.',
+  'settings.vim': '편집기 Vim 모드',
+  'settings.vimHint': '코드 편집기에서 노멀·삽입·비주얼 모드와 Vim 이동 키를 써요. :w로 저장해요. 모드는 편집기 아래에 표시돼요.',
   'palette.title': '명령 팔레트',
   'palette.placeholder': '명령, 대화, 파일, 테마…',
   'palette.newConversation': '새 대화',

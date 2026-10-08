@@ -193,6 +193,8 @@ export const ru: Messages = {
   'notify.failed': 'Агент остановился с ошибкой',
   'settings.notify': 'Уведомления',
   'settings.notifyHint': 'Когда агенту нужно ваше разрешение, он задаёт вопрос или заканчивает работу, пока Alchemist в фоне.',
+  'settings.vim': 'Режим Vim в редакторе',
+  'settings.vimHint': 'Обычный режим, режим вставки и визуальный режим и перемещения Vim в редакторе кода; :w сохраняет. Режим показан под редактором.',
   'palette.title': 'Палитра команд',
   'palette.placeholder': 'Команды, чаты, файлы, темы…',
   'palette.newConversation': 'Новый чат',
