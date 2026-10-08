@@ -238,6 +238,8 @@ function soloPrompt(config: BotConfig, task: string, orgName: string, orgInstruc
 export function avatarOf(v: unknown): string | null {
   if (typeof v !== 'string') return null;
   if (/^emoji:\S{1,16}$/u.test(v)) return v;
+  // One of the app's monsters: the seed it's drawn from (a name or a few random letters).
+  if (/^monster:[^\u0000-\u001f"<>]{1,64}$/u.test(v)) return v;
   if (v.length <= 400_000 && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(v)) return v;
   return null;
 }
