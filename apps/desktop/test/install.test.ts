@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { installStep } from '../src/main/install';
+import { delimiter, join } from 'node:path';
 import { commonBinDirs, mergePath } from '../src/main/shell-path';
 
 describe('installing a missing agent', () => {
@@ -22,12 +23,13 @@ describe('finding CLIs from the Dock', () => {
   it('looks in the usual install folders, the newest nvm Node only', () => {
     const dirs = commonBinDirs('darwin', '/Users/me', {}, () => ['v20.11.0', 'v24.14.1', 'v9.0.0']);
     expect(dirs.slice(0, 3)).toEqual(['/opt/homebrew/bin', '/opt/homebrew/sbin', '/usr/local/bin']);
-    expect(dirs).toContain('/Users/me/.nvm/versions/node/v24.14.1/bin');
+    expect(dirs).toContain(join('/Users/me', '.nvm', 'versions', 'node', 'v24.14.1', 'bin'));
     expect(dirs.filter((d) => d.includes('.nvm'))).toHaveLength(1);
     expect(commonBinDirs('linux', '/home/me', {}, () => { throw new Error('no nvm'); })).toContain('/snap/bin');
   });
 
   it('keeps the login shell’s order, each folder once', () => {
-    expect(mergePath('/a:/b', '/usr/bin:/a', '/b:/c')).toBe('/a:/b:/usr/bin:/c');
+    const list = (...dirs: string[]) => dirs.join(delimiter);
+    expect(mergePath(list('/a', '/b'), list('/usr/bin', '/a'), list('/b', '/c'))).toBe(list('/a', '/b', '/usr/bin', '/c'));
   });
 });
