@@ -4,7 +4,7 @@ export const ko: MainWords = {
   menu: {
     settings: '설정…', file: '파일', newConversation: '새 대화', newProject: '새 프로젝트…', openFolder: '폴더 열기…', newTerminal: '새 터미널', openProject: '프로젝트 열기…', closeTab: '탭 닫기',
     view: '보기', agents: '에이전트', arena: '아레나', code: '코드', split: '분할', terminal: '터미널', history: '기록', bots: '조직', marketing: '마케팅', board: '보드', sidebar: '사이드바 표시/숨기기', agentPanel: '에이전트 패널 표시/숨기기',
-    palette: '명령 팔레트…', search: '대화 검색', website: 'Alchemist Coder 웹사이트', issue: '문제 신고',
+    palette: '명령 팔레트…', search: '대화 검색', welcome: '시작하기…', website: 'Alchemist Coder 웹사이트', issue: '문제 신고',
   },
   automation: {
     start: '시작',

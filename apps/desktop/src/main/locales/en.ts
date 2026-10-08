@@ -6,7 +6,7 @@ export const en = {
   menu: {
     settings: 'Settings…', file: 'File', newConversation: 'New Conversation', newProject: 'New Project…', openFolder: 'Open Folder…', newTerminal: 'New Terminal', openProject: 'Open Project…', closeTab: 'Close Tab',
     view: 'View', agents: 'Agents', arena: 'Arena', code: 'Code', split: 'Split', terminal: 'Terminal', history: 'History', bots: 'Organization', marketing: 'Marketing', board: 'Board', sidebar: 'Toggle Sidebar', agentPanel: 'Toggle Agent Panel',
-    palette: 'Command Palette…', search: 'Search Conversations', website: 'Alchemist Coder Website', issue: 'Report an Issue',
+    palette: 'Command Palette…', search: 'Search Conversations', welcome: 'Welcome…', website: 'Alchemist Coder Website', issue: 'Report an Issue',
   },
   automation: {
     start: 'Start',

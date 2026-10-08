@@ -44,6 +44,8 @@ let progress: IndexProgress = { phase: 'scanning', done: 0, total: 0 };
 let edition: 'community' | 'pro' = 'community';
 /** Whether this copy bundles its owner's personal module (see extensions.ts). */
 let personalBuild = false;
+/** This launch is the app's first on this computer. */
+let firstRun = false;
 
 function appInfo(): AppInfo {
   const select = arg('select');
@@ -60,6 +62,7 @@ function appInfo(): AppInfo {
     version: app.getVersion(),
     edition,
     personal: personalBuild,
+    firstRun,
     platform: process.platform,
     systemLocale: app.getLocale(),
     home: app.getPath('home'),
@@ -111,6 +114,7 @@ function appInfo(): AppInfo {
           locale: isLocale(arg('locale')) ? (arg('locale') as Locale) : null,
           newProject: process.argv.includes('--new-project'),
           drawer: process.argv.includes('--drawer'),
+          welcome: process.argv.includes('--welcome'),
           boardNew: process.argv.includes('--board-new'),
           boardOpen: arg('board-open') ?? null,
           addAgent: process.argv.includes('--add-agent'),
@@ -239,6 +243,8 @@ app.on('second-instance', () => {
 void app.whenReady().then(async () => {
   const userData = app.getPath('userData');
   mkdirSync(userData, { recursive: true });
+  // No settings yet: this app's first launch on this computer (the welcome shows).
+  firstRun = !existsSync(join(userData, 'settings.json'));
   const settings = new SettingsStore(join(userData, 'settings.json'));
   void adoptLoginShellPath();
   const secrets = new KeychainSecretStore(join(userData, 'secrets.json'));

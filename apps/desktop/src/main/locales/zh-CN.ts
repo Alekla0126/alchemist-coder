@@ -4,7 +4,7 @@ export const zhCN: MainWords = {
   menu: {
     settings: '设置…', file: '文件', newConversation: '新建对话', newProject: '新建项目…', openFolder: '打开文件夹…', newTerminal: '新建终端', openProject: '打开项目…', closeTab: '关闭标签页',
     view: '视图', agents: '智能体', arena: '竞技场', code: '代码', split: '分屏', terminal: '终端', history: '历史记录', bots: '组织', marketing: '营销', board: '看板', sidebar: '显示/隐藏侧边栏', agentPanel: '显示/隐藏智能体面板',
-    palette: '命令面板…', search: '搜索对话', website: 'Alchemist Coder 网站', issue: '报告问题',
+    palette: '命令面板…', search: '搜索对话', welcome: '欢迎…', website: 'Alchemist Coder 网站', issue: '报告问题',
   },
   automation: {
     start: '开始',

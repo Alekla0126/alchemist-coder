@@ -4,6 +4,7 @@ import { LOCALE_NAMES, LOCALES, isLocale, type PermissionMode } from '@shared/ap
 import { useStore, useT } from '../store';
 import { toast } from '../ui';
 import { InstallButton } from './MissingAgent';
+import { LOGIN, runSetupCommand } from '../agent-setup';
 import { useEditorKeys } from '../editor/vim';
 import { SEND_KEY } from './Composer';
 import { NOTIFY_KEY } from '../store';
@@ -126,12 +127,6 @@ function General() {
   );
 }
 
-/** Signing in happens in the CLI itself, in a terminal. Claude's only in the personal build. */
-const LOGIN: Record<string, { command: string; personal?: boolean }> = {
-  'claude-code': { command: 'claude auth login', personal: true },
-  codex: { command: 'codex login' },
-};
-
 function Agents() {
   const t = useT();
   const catalog = useStore((s) => s.catalog);
@@ -146,12 +141,7 @@ function Agents() {
     return () => window.removeEventListener('focus', again);
   }, [loadCatalog]);
   const logIn = (command: string) => {
-    const s = useStore.getState();
-    const projectId = s.settings.activeProjectId ?? s.projects[0]?.id;
-    if (projectId == null) return toast(t('settings.needsProject'));
-    useStore.setState({ settingsOpen: false });
-    void s.openTerminalWith(projectId, command, t('settings.logIn').replace('…', ''));
-    toast(t('settings.logInHint'));
+    if (runSetupCommand(command, t('settings.logIn').replace('…', ''), t)) toast(t('settings.logInHint'));
   };
   if (!catalog) return <span className="spin" />;
   const save = async (providerId: string, value: string | null) => {

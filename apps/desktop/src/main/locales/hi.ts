@@ -4,7 +4,7 @@ export const hi: MainWords = {
   menu: {
     settings: 'सेटिंग्स…', file: 'फ़ाइल', newConversation: 'नई बातचीत', newProject: 'नया प्रोजेक्ट…', openFolder: 'फ़ोल्डर खोलें…', newTerminal: 'नया टर्मिनल', openProject: 'प्रोजेक्ट खोलें…', closeTab: 'टैब बंद करें',
     view: 'व्यू', agents: 'एजेंट', arena: 'एरीना', code: 'कोड', split: 'स्प्लिट', terminal: 'टर्मिनल', history: 'इतिहास', bots: 'संगठन', marketing: 'मार्केटिंग', board: 'बोर्ड', sidebar: 'साइडबार दिखाएँ/छिपाएँ', agentPanel: 'एजेंट पैनल दिखाएँ/छिपाएँ',
-    palette: 'कमांड पैलेट…', search: 'बातचीत खोजें', website: 'Alchemist Coder वेबसाइट', issue: 'समस्या रिपोर्ट करें',
+    palette: 'कमांड पैलेट…', search: 'बातचीत खोजें', welcome: 'स्वागत…', website: 'Alchemist Coder वेबसाइट', issue: 'समस्या रिपोर्ट करें',
   },
   automation: {
     start: 'शुरुआत',

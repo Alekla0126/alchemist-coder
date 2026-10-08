@@ -4,7 +4,7 @@ export const ja: MainWords = {
   menu: {
     settings: '設定…', file: 'ファイル', newConversation: '新しい会話', newProject: '新しいプロジェクト…', openFolder: 'フォルダーを開く…', newTerminal: '新しいターミナル', openProject: 'プロジェクトを開く…', closeTab: 'タブを閉じる',
     view: '表示', agents: 'エージェント', arena: 'アリーナ', code: 'コード', split: '分割', terminal: 'ターミナル', history: '履歴', bots: '組織', marketing: 'マーケティング', board: 'ボード', sidebar: 'サイドバーの表示 / 非表示', agentPanel: 'エージェントパネルの表示 / 非表示',
-    palette: 'コマンドパレット…', search: '会話を検索', website: 'Alchemist Coder の Web サイト', issue: '問題を報告',
+    palette: 'コマンドパレット…', search: '会話を検索', welcome: 'ようこそ…', website: 'Alchemist Coder の Web サイト', issue: '問題を報告',
   },
   automation: {
     start: '開始',

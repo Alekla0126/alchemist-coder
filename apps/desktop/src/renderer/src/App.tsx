@@ -1,5 +1,5 @@
 import { whileVisible } from './ui';
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense, useEffect, useRef } from 'react';
 import { AgentPanel } from './components/AgentPanel';
 import { ArenaList, ArenaView } from './components/Arena';
 import { OrgSidebar, OrgView } from './components/Org';
@@ -9,6 +9,8 @@ import { ProjectPicker } from './components/ProjectPicker';
 import { NewProjectDialog } from './components/NewProject';
 import { ProjectRail } from './components/ProjectRail';
 import { AvatarPicker } from './components/AvatarPicker';
+import { Welcome } from './components/Welcome';
+import { shouldWelcome, useWelcome } from './welcome-state';
 import { Sidebar } from './components/Sidebar';
 // Monaco and xterm are large: load them only when a mode needs them.
 const EditorArea = lazy(() => import('./components/EditorArea').then((m) => ({ default: m.EditorArea })));
@@ -57,6 +59,15 @@ export function App() {
   useEffect(() => {
     document.documentElement.lang = locale;
   }, [locale]);
+
+  // A new computer (or --welcome in screenshots): the welcome, once.
+  const welcomeChecked = useRef(false);
+  useEffect(() => {
+    if (!ready || welcomeChecked.current) return;
+    welcomeChecked.current = true;
+    const show = info?.capture ? info.capture.welcome : shouldWelcome(!!info?.firstRun);
+    if (show) useWelcome.setState({ open: true });
+  }, [ready, info]);
 
   // --drawer (screenshots): the floating sidebar, open.
   useEffect(() => {
@@ -189,6 +200,7 @@ export function App() {
       {settingsOpen && <Settings />}
       {paletteOpen && <CommandPalette />}
       <AvatarPicker />
+      <Welcome />
       <Overlays />
     </div>
   );

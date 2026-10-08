@@ -4,7 +4,7 @@ export const ru: MainWords = {
   menu: {
     settings: 'Настройки…', file: 'Файл', newConversation: 'Новый чат', newProject: 'Новый проект…', openFolder: 'Открыть папку…', newTerminal: 'Новый терминал', openProject: 'Открыть проект…', closeTab: 'Закрыть вкладку',
     view: 'Вид', agents: 'Агенты', arena: 'Арена', code: 'Код', split: 'Разделённый', terminal: 'Терминал', history: 'История', bots: 'Организация', marketing: 'Маркетинг', board: 'Доска', sidebar: 'Показать или скрыть боковую панель', agentPanel: 'Показать или скрыть панель агента',
-    palette: 'Палитра команд…', search: 'Поиск по чатам', website: 'Сайт Alchemist Coder', issue: 'Сообщить о проблеме',
+    palette: 'Палитра команд…', search: 'Поиск по чатам', welcome: 'Добро пожаловать…', website: 'Сайт Alchemist Coder', issue: 'Сообщить о проблеме',
   },
   automation: {
     start: 'Старт',

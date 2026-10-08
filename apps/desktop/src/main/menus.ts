@@ -111,6 +111,8 @@ export function appMenu(send: (command: string) => void, options: { debug: boole
     {
       role: 'help',
       submenu: [
+        { label: L.welcome, click: () => send('welcome') },
+        { type: 'separator' },
         { label: L.website, click: () => options.openExternal(options.siteUrl) },
         { label: L.issue, click: () => options.openExternal(options.issuesUrl) },
       ],
