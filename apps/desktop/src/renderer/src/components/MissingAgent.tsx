@@ -1,6 +1,7 @@
 import type { InstallStep, RunnerCatalog } from '@shared/api';
 import { useStore, useT } from '../store';
 import { toast } from '../ui';
+import { runSetupCommand } from '../agent-setup';
 
 type T = ReturnType<typeof useT>;
 type Harness = RunnerCatalog['harnesses'][number];
@@ -32,11 +33,8 @@ function watchInstall(harnessId: string, t: T) {
 
 /** Runs the step's command in the app's terminal (you see it and answer its questions), or opens its download page. */
 export function runInstall(harness: Harness, step: InstallStep, t: T) {
-  const s = useStore.getState();
-  const projectId = s.settings.activeProjectId ?? s.projects[0]?.id;
-  if (!step.command || projectId == null) return void window.open(step.url, '_blank');
-  useStore.setState({ settingsOpen: false });
-  void s.openTerminalWith(projectId, step.command, t('run.installName', { name: installName(step, harness.label) }));
+  if (!step.command) return void window.open(step.url, '_blank');
+  if (!runSetupCommand(step.command, t('run.installName', { name: installName(step, harness.label) }), t)) return;
   toast(t('run.installHint'));
   watchInstall(harness.id, t);
 }

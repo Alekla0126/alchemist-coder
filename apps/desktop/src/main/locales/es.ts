@@ -4,7 +4,7 @@ export const es: MainWords = {
   menu: {
     settings: 'Ajustes…', file: 'Archivo', newConversation: 'Nueva conversación', newProject: 'Nuevo proyecto…', openFolder: 'Abrir carpeta…', newTerminal: 'Nueva terminal', openProject: 'Abrir proyecto…', closeTab: 'Cerrar pestaña',
     view: 'Ver', agents: 'Agentes', arena: 'Arena', code: 'Código', split: 'Dividido', terminal: 'Terminal', history: 'Historial', bots: 'Organización', marketing: 'Marketing', board: 'Tablero', sidebar: 'Mostrar u ocultar barra lateral', agentPanel: 'Mostrar u ocultar panel del agente',
-    palette: 'Paleta de comandos…', search: 'Buscar conversaciones', website: 'Sitio de Alchemist Coder', issue: 'Reportar un problema',
+    palette: 'Paleta de comandos…', search: 'Buscar conversaciones', welcome: 'Bienvenida…', website: 'Sitio de Alchemist Coder', issue: 'Reportar un problema',
   },
   automation: {
     start: 'Empezar',

@@ -143,6 +143,8 @@ export interface AppInfo {
   edition: 'community' | 'pro';
   /** The owner's own build (never distributed): Claude sign-in and Claude's usage percentages. */
   personal: boolean;
+  /** The app's first launch on this computer (no settings yet). */
+  firstRun?: boolean;
   platform: string;
   systemLocale: string;
   /** The user's home folder (where a first project goes by default). */
@@ -157,6 +159,8 @@ export interface AppInfo {
     newProject?: boolean;
     /** Open the floating sidebar (narrow windows). */
     drawer?: boolean;
+    /** The welcome a new computer gets. */
+    welcome?: boolean;
     /** Open the board's new-task dialog. */
     boardNew?: boolean;
     /** Open this conversation next to the board. */

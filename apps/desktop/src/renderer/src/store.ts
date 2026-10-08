@@ -8,6 +8,7 @@ import { applyToTurns, markQuestion, startTurn, type LiveQuestion, type LiveTurn
 import { applyWorkbench, loadTheme, type VsTheme } from './theme';
 import { toggleSidebar, toggleSplitSide } from './layout';
 import { useCurrentTheme } from './theme-state';
+import { useWelcome } from './welcome-state';
 import { markViewed } from './attention';
 
 const api = window.alchemist;
@@ -1016,6 +1017,9 @@ function runAppCommand(command: string) {
       return;
     case 'palette':
       useStore.setState({ paletteOpen: !s.paletteOpen });
+      return;
+    case 'welcome':
+      useWelcome.setState({ open: true });
       return;
   }
 }
