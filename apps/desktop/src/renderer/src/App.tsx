@@ -8,6 +8,7 @@ import { HistoryView } from './components/HistoryView';
 import { ProjectPicker } from './components/ProjectPicker';
 import { NewProjectDialog } from './components/NewProject';
 import { ProjectRail } from './components/ProjectRail';
+import { AvatarPicker } from './components/AvatarPicker';
 import { Sidebar } from './components/Sidebar';
 // Monaco and xterm are large: load them only when a mode needs them.
 const EditorArea = lazy(() => import('./components/EditorArea').then((m) => ({ default: m.EditorArea })));
@@ -187,6 +188,7 @@ export function App() {
       {newProjectOpen && <NewProjectDialog />}
       {settingsOpen && <Settings />}
       {paletteOpen && <CommandPalette />}
+      <AvatarPicker />
       <Overlays />
     </div>
   );

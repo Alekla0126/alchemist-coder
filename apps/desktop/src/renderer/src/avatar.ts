@@ -1,3 +1,5 @@
+import { monsterUri } from './monster';
+
 /** The app's own pictures for agents, one per kind of work, plus a few characters. */
 export const AVATAR_EMOJI = ['⚗️', '🧑‍💻', '🧪', '🔍', '🧭', '🎨', '📐', '✍️', '📣', '📊', '🛡️', '🛠️', '🤖', '🦊', '🐙', '🦉', '🐝', '🦁'];
 
@@ -18,12 +20,15 @@ const GUESSES: Array<[RegExp, string]> = [
   [/^general(-purpose)?$/i, '🤖'],
 ];
 
-/** What an agent shows: its picture, a picture guessed from its name, or nothing (its initials). */
+/**
+ * What an agent shows: the picture you chose (an image, an emoji or a monster), else its own monster,
+ * drawn from its name. Nameless, its initials.
+ */
 export function avatarSource(name: string, avatar: string | null | undefined): { kind: 'image'; src: string } | { kind: 'emoji'; emoji: string } | { kind: 'initials' } {
   if (avatar?.startsWith('data:image/')) return { kind: 'image', src: avatar };
   if (avatar?.startsWith('emoji:')) return { kind: 'emoji', emoji: avatar.slice(6) };
-  const guess = GUESSES.find(([re]) => re.test(name))?.[1];
-  return guess ? { kind: 'emoji', emoji: guess } : { kind: 'initials' };
+  if (avatar?.startsWith('monster:') && avatar.length > 8) return { kind: 'image', src: monsterUri(avatar.slice(8)) };
+  return name.trim() ? { kind: 'image', src: monsterUri(name.trim()) } : { kind: 'initials' };
 }
 
 /** The picture of the first name that suggests one (a subagent's kind, then what it was asked to do). */
