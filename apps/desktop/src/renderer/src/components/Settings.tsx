@@ -4,7 +4,7 @@ import { LOCALE_NAMES, LOCALES, isLocale, type PermissionMode } from '@shared/ap
 import { useStore, useT } from '../store';
 import { toast } from '../ui';
 import { InstallButton } from './MissingAgent';
-import { LOGIN, runSetupCommand } from '../agent-setup';
+import { LOGIN, providerStatus, runSetupCommand } from '../agent-setup';
 import { useEditorKeys } from '../editor/vim';
 import { SEND_KEY } from './Composer';
 import { NOTIFY_KEY } from '../store';
@@ -198,7 +198,7 @@ function Agents() {
             <b>
               {p.label} {p.edition === 'pro' && <span className="set-pro">Pro</span>}
             </b>
-            <p>{p.available ? t('settings.available', { n: p.models.length }) : (p.detail ?? t('settings.unavailable'))}</p>
+            <p title={p.detail ?? undefined}>{providerStatus(p, t)}</p>
           </div>
           {p.credential ? (
             <div className="set-key">

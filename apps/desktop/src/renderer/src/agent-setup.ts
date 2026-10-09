@@ -1,3 +1,4 @@
+import type { RunnerCatalog } from '@shared/api';
 import { useStore, type useT } from './store';
 import { toast } from './ui';
 
@@ -25,4 +26,14 @@ export function runSetupCommand(command: string, title: string, t: T): boolean {
   useStore.setState({ settingsOpen: false });
   void s.openTerminalWith(projectId, command, title);
   return true;
+}
+
+/**
+ * A model provider's state in the app's language: how many models it has, or, for the local servers
+ * (Ollama, LM Studio), that it isn't running. Other providers' own explanation comes as it is.
+ */
+export function providerStatus(p: RunnerCatalog['providers'][number], t: T): string {
+  if (p.available) return t('settings.available', { n: p.models.length });
+  if (p.id === 'ollama' || p.id === 'lmstudio') return t('settings.notRunning', { name: p.label });
+  return p.detail ?? t('settings.unavailable');
 }

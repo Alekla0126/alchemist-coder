@@ -199,6 +199,7 @@ export const fr: Messages = {
   'settings.providers': 'Fournisseurs de modèles',
   'settings.available': 'Prêt · {n} modèles',
   'settings.unavailable': 'Indisponible',
+  'settings.notRunning': '{name} n’est pas lancé',
   'settings.keySet': 'Clé enregistrée',
   'settings.removeKey': 'Supprimer la clé',
   'settings.keySaved': 'Clé enregistrée dans votre trousseau',

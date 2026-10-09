@@ -199,6 +199,7 @@ export const it: Messages = {
   'settings.providers': 'Provider di modelli',
   'settings.available': 'Pronto · {n} modelli',
   'settings.unavailable': 'Non disponibile',
+  'settings.notRunning': '{name} non è in esecuzione',
   'settings.keySet': 'Chiave salvata',
   'settings.removeKey': 'Rimuovi chiave',
   'settings.keySaved': 'Chiave salvata nel portachiavi',

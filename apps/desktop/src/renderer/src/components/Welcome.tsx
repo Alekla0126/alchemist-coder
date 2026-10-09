@@ -3,7 +3,7 @@ import type { RunnerCatalog } from '@shared/api';
 import { keys } from '../keys';
 import { sourceOf } from '../sources';
 import { useStore, useT } from '../store';
-import { LOGIN, runSetupCommand } from '../agent-setup';
+import { LOGIN, providerStatus, runSetupCommand } from '../agent-setup';
 import { LogoMark } from './Logo';
 import { InstallButton } from './MissingAgent';
 import { openFolderAsProject, openNewProject } from './NewProject';
@@ -135,7 +135,7 @@ export function Welcome() {
                   <div className="wl-what">
                     <b>{p.label}</b>
                     {/* The full status on hover: it's cut to fit its column. */}
-                    <span title={p.detail ?? undefined}>{p.available ? t('settings.available', { n: p.models.length }) : (p.detail ?? t('settings.unavailable'))}</span>
+                    <span title={p.detail ?? undefined}>{providerStatus(p, t)}</span>
                   </div>
                   {p.available ? <span className="wl-ok">✓</span> : null}
                 </div>

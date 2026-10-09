@@ -199,6 +199,7 @@ export const ptBR: Messages = {
   'settings.providers': 'Provedores de modelos',
   'settings.available': 'Pronto · {n} modelos',
   'settings.unavailable': 'Indisponível',
+  'settings.notRunning': '{name} não está aberto',
   'settings.keySet': 'Chave salva',
   'settings.removeKey': 'Remover chave',
   'settings.keySaved': 'Chave salva no seu chaveiro',

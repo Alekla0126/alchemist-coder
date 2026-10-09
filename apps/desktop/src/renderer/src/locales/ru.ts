@@ -229,6 +229,7 @@ export const ru: Messages = {
   'settings.available.few': 'Готово · {n} модели',
   'settings.available.many': 'Готово · {n} моделей',
   'settings.unavailable': 'Недоступно',
+  'settings.notRunning': '{name} не запущен',
   'settings.keySet': 'Ключ сохранён',
   'settings.removeKey': 'Удалить ключ',
   'settings.keySaved': 'Ключ сохранён в связке ключей',

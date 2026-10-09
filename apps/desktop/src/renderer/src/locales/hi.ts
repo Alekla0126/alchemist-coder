@@ -199,6 +199,7 @@ export const hi: Messages = {
   'settings.providers': 'मॉडल प्रोवाइडर',
   'settings.available': 'तैयार · {n} मॉडल',
   'settings.unavailable': 'उपलब्ध नहीं',
+  'settings.notRunning': '{name} चल नहीं रहा है',
   'settings.keySet': 'कुंजी सहेजी गई',
   'settings.removeKey': 'कुंजी हटाएँ',
   'settings.keySaved': 'कुंजी आपके कीचेन में सहेजी गई',

@@ -199,6 +199,7 @@ export const zhCN: Messages = {
   'settings.providers': '模型提供商',
   'settings.available': '可用 · {n} 个模型',
   'settings.unavailable': '不可用',
+  'settings.notRunning': '{name} 未运行',
   'settings.keySet': '密钥已保存',
   'settings.removeKey': '移除密钥',
   'settings.keySaved': '密钥已保存到你的钥匙串',

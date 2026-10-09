@@ -199,6 +199,7 @@ export const ko: Messages = {
   'settings.providers': '모델 제공자',
   'settings.available': '사용 가능 · 모델 {n}개',
   'settings.unavailable': '사용 불가',
+  'settings.notRunning': '{name}이(가) 실행 중이 아니에요',
   'settings.keySet': '키 저장됨',
   'settings.removeKey': '키 삭제',
   'settings.keySaved': '키를 키체인에 저장했어요',

@@ -198,6 +198,7 @@ export const en = {
   'settings.providers': 'Model providers',
   'settings.available': 'Ready · {n} models',
   'settings.unavailable': 'Not available',
+  'settings.notRunning': '{name} isn\'t running',
   'settings.keySet': 'Key saved',
   'settings.removeKey': 'Remove key',
   'settings.keySaved': 'Key saved in your keychain',

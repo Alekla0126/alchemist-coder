@@ -199,6 +199,7 @@ export const de: Messages = {
   'settings.providers': 'Modellanbieter',
   'settings.available': 'Bereit · {n} Modelle',
   'settings.unavailable': 'Nicht verfügbar',
+  'settings.notRunning': '{name} läuft nicht',
   'settings.keySet': 'Schlüssel gespeichert',
   'settings.removeKey': 'Schlüssel entfernen',
   'settings.keySaved': 'Schlüssel in deinem Schlüsselbund gespeichert',

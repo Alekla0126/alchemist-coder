@@ -199,6 +199,7 @@ export const ja: Messages = {
   'settings.providers': 'モデルプロバイダー',
   'settings.available': '利用可能 · {n} モデル',
   'settings.unavailable': '利用不可',
+  'settings.notRunning': '{name} は起動していません',
   'settings.keySet': 'キー保存済み',
   'settings.removeKey': 'キーを削除',
   'settings.keySaved': 'キーをキーチェーンに保存しました',
