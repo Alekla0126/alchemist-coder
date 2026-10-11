@@ -13,6 +13,15 @@ describe('sidebar groups', () => {
     expect(groups.at(-1)!.items.map((x) => x.id)).toEqual(['old', 'none']);
   });
 
+  it('in Recent, a pinned conversation goes by its date like the rest', () => {
+    const groups = groupSessions([s('pin-old', at(20), true), s('today', at(0, 14)), s('pin-yday', at(1), true)], now, { pin: false });
+    expect(groups.map((g) => [g.group, g.items.map((x) => x.id)])).toEqual([
+      ['today', ['today']],
+      ['yesterday', ['pin-yday']],
+      ['month', ['pin-old']],
+    ]);
+  });
+
   it('matches every word of the filter in any order', () => {
     expect(matchesQuery({ title: 'Fix login bug', id: 'abc' }, 'bug login')).toBe(true);
     expect(matchesQuery({ title: 'Fix login bug', id: 'abc' }, 'logout')).toBe(false);

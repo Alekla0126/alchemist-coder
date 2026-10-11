@@ -76,3 +76,22 @@ describe('singular forms', () => {
     expect(translate('en', 'agent.editedN', { n: 1 })).toBe('1 file edited');
   });
 });
+
+describe('freshness (the mark beside each conversation in Recent)', () => {
+  it('goes from just now to older, by how long ago the last activity was', async () => {
+    const { freshness } = await import('../src/renderer/src/format');
+    const now = Date.UTC(2026, 9, 11, 12, 0);
+    const ago = (ms: number) => freshness(now - ms, now);
+    const MIN = 60_000;
+    expect([ago(0), ago(14 * MIN), ago(16 * MIN), ago(59 * MIN), ago(61 * MIN), ago(23 * 60 * MIN)]).toEqual(['now', 'now', 'hour', 'hour', 'today', 'today']);
+    expect([ago(25 * 60 * MIN), ago(6 * 24 * 60 * MIN), ago(8 * 24 * 60 * MIN)]).toEqual(['week', 'week', 'older']);
+    expect(freshness(null, now)).toBe('older');
+  });
+
+  it('relative times follow the clock they are given', async () => {
+    const { relativeTime } = await import('../src/renderer/src/format');
+    const ts = Date.UTC(2026, 9, 11, 12, 0);
+    expect(relativeTime(ts, 'es', ts + 5 * 60_000)).toBe('hace 5 min');
+    expect(relativeTime(ts, 'en', ts + 2 * 3_600_000)).toBe('2 hr. ago');
+  });
+});

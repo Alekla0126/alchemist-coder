@@ -1457,9 +1457,19 @@ code.md-path:hover { color: var(--accent-2); }
 
 /* ---------- all projects at once ---------- */
 .scope { display: flex; margin: 10px 10px 0; padding: 2px; border: 1px solid var(--line-2); border-radius: 8px; background: var(--bg); }
-.scope button { flex: 1; font-size: 11.5px; padding: 3px 6px; border-radius: 6px; color: var(--fg-2); white-space: nowrap; }
+.scope button { flex: 1; min-width: 0; font-size: 11.5px; padding: 3px 6px; border-radius: 6px; color: var(--fg-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .scope button.on { color: var(--fg); background: var(--bg-hl); }
 .avatar.sm { width: 20px; height: 20px; border-radius: 6px; font-size: 8.5px; }
+.avatar.xs { width: 15px; height: 15px; border-radius: 4px; font-size: 6.5px; margin-right: 5px; }
+
+/* Recent: a mark on each row's left edge says how fresh the conversation is. */
+.session-row.fresh::before { content: ''; position: absolute; left: 3px; top: 6px; bottom: 6px; width: 3px; border-radius: 2px; background: transparent; }
+.session-row.fresh-now::before { background: var(--green); box-shadow: 0 0 6px color-mix(in srgb, var(--green) 60%, transparent); }
+.session-row.fresh-hour::before { background: var(--teal); }
+.session-row.fresh-today::before { background: var(--amber); opacity: 0.75; }
+.session-row.fresh-week::before { background: var(--fg-3); opacity: 0.45; }
+.session-row.fresh-now .ago { color: var(--green); font-weight: 650; }
+.session-row.fresh-hour .ago { color: var(--teal); }
 .avatar.xs { width: 16px; height: 16px; border-radius: 5px; font-size: 7.5px; }
 .all-group { margin-bottom: 6px; }
 .all-head { display: flex; align-items: center; gap: 4px; padding: 6px 8px 2px 6px; position: sticky; top: 0; z-index: 1; background: var(--bg-side); }

@@ -106,7 +106,7 @@ export function TitleBar() {
     const pid = s.settings.activeProjectId;
     return (pid != null ? s.sessions[pid]?.find((x) => x.id === id)?.title : undefined) ?? s.trees[id]?.description;
   });
-  const allScope = useStore((s) => s.agentsScope === 'all');
+  const allScope = useStore((s) => s.agentsScope !== 'project');
   const narrow = useViewport((v) => v.narrow);
   const drawer = useViewport((v) => v.drawer);
   const sideHidden = useLayout((l) => l.sideHidden);

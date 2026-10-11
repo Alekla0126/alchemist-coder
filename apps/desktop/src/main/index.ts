@@ -118,7 +118,7 @@ function appInfo(): AppInfo {
           boardNew: process.argv.includes('--board-new'),
           boardOpen: arg('board-open') ?? null,
           addAgent: process.argv.includes('--add-agent'),
-          scope: arg('scope') === 'all' || arg('scope') === 'project' ? (arg('scope') as 'all' | 'project') : null,
+          scope: (['project', 'all', 'recent'] as const).find((x) => x === arg('scope')) ?? null,
           mkTab: arg('mk-tab') ?? null,
           mkGenerate: (() => {
             const [h, p, m] = (arg('mk-generate') ?? '').split(',');

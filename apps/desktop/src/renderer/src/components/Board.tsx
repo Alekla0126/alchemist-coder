@@ -141,7 +141,7 @@ export function BoardView() {
     return out;
   }, [known, runs]);
 
-  const inScope = scope === 'all' ? new Set(openIds) : new Set(activeId != null ? [activeId] : []);
+  const inScope = scope !== 'project' ? new Set(openIds) : new Set(activeId != null ? [activeId] : []);
   const cards = useMemo(() => {
     if (!data) return [];
     const sessions = [...known.values()].filter((s) => s.title !== undefined);
@@ -282,7 +282,7 @@ export function BoardView() {
           void more(group);
         }}
       >
-        {(scope === 'all' || !started || who) && (
+        {(scope !== 'project' || !started || who) && (
           <div className="bcard-top">
             {who && (
               <span className="bcard-who" title={t('board.assignedTo', { name: who.name })}>
@@ -291,7 +291,7 @@ export function BoardView() {
               </span>
             )}
             {auto && <span className="bcard-kind" title={auto.automation.prompt}>⚡ {auto.automation.name}</span>}
-            {scope === 'all' && p && (
+            {scope !== 'project' && p && (
               <span className="bcard-proj" title={p.cwd}>
                 <span className="avatar xs" style={{ background: projectGradient(p.name) }}>{initials(p.name)}</span>
                 {p.name}
@@ -446,7 +446,7 @@ export function BoardView() {
               <button role="tab" aria-selected={scope === 'project'} className={scope === 'project' ? 'on' : ''} onClick={() => setScope('project')}>
                 {t('scope.project')}
               </button>
-              <button role="tab" aria-selected={scope === 'all'} className={scope === 'all' ? 'on' : ''} onClick={() => setScope('all')}>
+              <button role="tab" aria-selected={scope !== 'project'} className={scope !== 'project' ? 'on' : ''} onClick={() => setScope('all')}>
                 {t('scope.all')}
               </button>
             </div>

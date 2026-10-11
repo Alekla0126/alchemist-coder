@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { SessionSummary } from '@alchemist-coder/core';
 import { showSessionMenu } from '../actions/session';
-import { initials, projectGradient, relativeTime } from '../format';
+import { useClock } from '../clock';
+import { clockTime, freshness, initials, projectGradient, relativeTime } from '../format';
 import { Caret, Icon } from './Icon';
 import { closeDrawer, useViewport } from '../layout';
 import { useStore, useT, type SessionFilter } from '../store';
@@ -56,9 +57,15 @@ function RepeatedRow({ title, items }: { title: string; items: SessionSummary[] 
   );
 }
 
-export function SessionRow({ session }: { session: SessionSummary }) {
+/**
+ * One conversation. In Recent (`showProject`), each row also says which project it is in and wears
+ * a mark of how fresh it is; the time beside it keeps up by itself (clock.ts).
+ */
+export function SessionRow({ session, showProject = false }: { session: SessionSummary; showProject?: boolean }) {
   const t = useT();
   const locale = useStore((s) => s.locale);
+  const now = useClock();
+  const projectName = useStore((s) => (showProject ? (s.projects.find((p) => p.id === session.projectId)?.name ?? null) : null));
   const key = `s:${session.id}`;
   const open = useStore((s) => s.expanded[key] ?? false);
   const tree = useStore((s) => s.trees[session.id]);
@@ -76,8 +83,8 @@ export function SessionRow({ session }: { session: SessionSummary }) {
   return (
     <div className="session">
       <div
-        className={`row session-row ${selected && !open ? 'sel' : ''}`}
-        title={session.title}
+        className={`row session-row ${selected && !open ? 'sel' : ''} ${showProject ? `fresh fresh-${freshness(session.lastTs, now)}` : ''}`}
+        title={session.lastTs ? `${session.title}\n${t('recent.lastActivity')}: ${new Date(session.lastTs).toLocaleDateString(locale)} ${clockTime(session.lastTs, locale)}` : session.title}
         onClick={() => {
           if (!open) toggle(key);
           void select(session.id, 'main');
@@ -99,6 +106,11 @@ export function SessionRow({ session }: { session: SessionSummary }) {
         <span className="src" title={sourceOf(session.source).label}>
           {sourceOf(session.source).glyph}
         </span>
+        {projectName && (
+          <span className="avatar xs" style={{ background: projectGradient(projectName) }} title={projectName} aria-label={projectName}>
+            {initials(projectName)}
+          </span>
+        )}
         <span className={`tt ${unread ? 'unread' : ''}`}>{session.title}</span>
         <span className="r">
           {/* One indicator at a time: a working conversation shows its count; unread is the bold title. */}
@@ -114,7 +126,9 @@ export function SessionRow({ session }: { session: SessionSummary }) {
               <WorkingOrb size={11} /> {session.runningAgents}
             </span>
           ) : (
-            relativeTime(session.lastTs, locale)
+            <time className="ago" dateTime={session.lastTs ? new Date(session.lastTs).toISOString() : undefined}>
+              {relativeTime(session.lastTs, locale, now)}
+            </time>
           )}
         </span>
         <span className="row-actions">
@@ -224,6 +238,31 @@ function AllProjects({ filter, query }: { filter: SessionFilter; query: string }
   );
 }
 
+/**
+ * Recent: the latest conversations of every project, newest first, under Today, Yesterday,
+ * Previous 7 days… At a glance, how long ago each one was.
+ */
+function RecentConversations({ filter, query }: { filter: SessionFilter; query: string }) {
+  const t = useT();
+  const latest = useStore((s) => s.latest);
+  const now = useClock();
+  if (latest === null) return <p className="empty sm">…</p>;
+  const list = latest.filter((s) => passes(s, filter, query));
+  if (!list.length) return <p className="empty">{query || filter !== 'all' ? t('side.noMatches') : t('recent.empty')}</p>;
+  return (
+    <div className="tree recent-list">
+      {groupSessions(list, now, { pin: false }).map(({ group, items }) => (
+        <div key={group} className="side-group" role="group" aria-label={t(`group.${group}`)}>
+          <div className="side-group-title">{t(`group.${group}`)}</div>
+          {items.map((s) => (
+            <SessionRow key={s.id} session={s} showProject />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /** Conversations hidden in this project, to bring back. */
 function HiddenSessions({ projectId }: { projectId: number }) {
   const t = useT();
@@ -270,7 +309,9 @@ export function Sidebar() {
   useEffect(() => setQuery(''), [activeId]);
   const shown = (sessions ?? []).filter((s) => passes(s, filter, query));
   const groups = groupSessions(shown);
-  const running = scope === 'all' ? Object.values(recent).flat().filter(isLive).length : (sessions ?? []).filter(isLive).length;
+  const latest = useStore((s) => s.latest);
+  const running =
+    scope === 'all' ? Object.values(recent).flat().filter(isLive).length : scope === 'recent' ? (latest ?? []).filter(isLive).length : (sessions ?? []).filter(isLive).length;
   const narrow = useViewport((v) => v.narrow);
   return (
     <aside className="side">
@@ -306,9 +347,10 @@ export function Sidebar() {
       ) : (
         <>
       <div className="scope" role="tablist" aria-label={t('scope.label')}>
-        {(['project', 'all'] as const).map((sc) => (
-          <button key={sc} role="tab" aria-selected={scope === sc} className={scope === sc ? 'on' : ''} onClick={() => setScope(sc)}>
-            {t(`scope.${sc}`)}
+        {/* Three tabs in a narrow sidebar: "All" here, "All projects" in its tooltip. */}
+        {(['project', 'all', 'recent'] as const).map((sc) => (
+          <button key={sc} role="tab" aria-selected={scope === sc} className={scope === sc ? 'on' : ''} onClick={() => setScope(sc)} title={t(`scope.${sc}`)}>
+            {t(sc === 'all' ? 'scope.allShort' : `scope.${sc}`)}
           </button>
         ))}
       </div>
@@ -320,7 +362,7 @@ export function Sidebar() {
           </button>
         ))}
       </div>
-      {scope === 'all' ? (
+      {scope !== 'project' ? (
         <>
           <div className="side-filter">
             <input
@@ -332,7 +374,7 @@ export function Sidebar() {
               onKeyDown={(e) => e.key === 'Escape' && setQuery('')}
             />
           </div>
-          <AllProjects filter={filter} query={query} />
+          {scope === 'all' ? <AllProjects filter={filter} query={query} /> : <RecentConversations filter={filter} query={query} />}
         </>
       ) : (
         <>

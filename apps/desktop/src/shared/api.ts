@@ -168,7 +168,7 @@ export interface AppInfo {
     /** Open the add-agent dialog on the selected conversation's main agent. */
     addAgent?: boolean;
     /** The Agents view scope to show. */
-    scope?: 'project' | 'all' | null;
+    scope?: 'project' | 'all' | 'recent' | null;
     /** Marketing mode's tab to show. */
     mkTab?: string | null;
     /** Writes the first piece with this agent, then captures. */
@@ -895,6 +895,8 @@ export interface AlchemistApi {
   sessions(projectId: number | null, favoritesOnly?: boolean): Promise<SessionSummary[]>;
   /** The latest `perProject` conversations of each project, for the all-projects view. */
   recentSessions(projectIds: number[], perProject: number): Promise<Record<number, SessionSummary[]>>;
+  /** The latest conversations of every project, newest first, for the Recent view. */
+  latestSessions(limit: number): Promise<SessionSummary[]>;
   session(id: string): Promise<SessionSummary | null>;
   agentTree(sessionId: string): Promise<AgentNode | null>;
   transcript(sessionId: string, agentId: string, offset?: number, limit?: number): Promise<TranscriptPage>;
@@ -1104,6 +1106,7 @@ export const Channels = {
   subagents: 'agents:subagents',
   sessions: 'index:sessions',
   recentSessions: 'index:recent-sessions',
+  latestSessions: 'index:latest-sessions',
   session: 'index:session',
   agentTree: 'index:agent-tree',
   transcript: 'index:transcript',

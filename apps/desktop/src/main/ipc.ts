@@ -152,6 +152,8 @@ export function registerIpc(deps: IpcDeps): void {
       return Object.fromEntries(ids.map((id) => [id, r.listSessions({ projectId: id, limit })]));
     }),
   );
+  // Across every project, newest first: the index keeps them ordered by date.
+  ipcMain.handle(Channels.latestSessions, (_e, limit: unknown) => withReader([], (r) => r.listSessions({ limit: count(limit, 60, 200) })));
   ipcMain.handle(Channels.session, (_e, id: unknown) => withReader(null, (r) => r.getSession(text(id, 'session id'))));
   ipcMain.handle(Channels.agentTree, (_e, id: unknown) => withReader(null, (r) => r.getAgentTree(text(id, 'session id'))));
   ipcMain.handle(Channels.transcript, (_e, sessionId: unknown, agentId: unknown, offset: unknown, limit: unknown) =>

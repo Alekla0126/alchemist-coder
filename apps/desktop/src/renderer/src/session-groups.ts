@@ -6,14 +6,19 @@ const DAY = 86_400_000;
 
 /**
  * Conversations under "Pinned", "Today", "Yesterday", "Previous 7 days", "Previous 30 days" and
- * "Older" by last activity, newest first in each; empty groups are left out.
+ * "Older" by last activity, newest first in each; empty groups are left out. Without `pin`
+ * (the Recent view, which is about when), a pinned conversation goes by its date like the rest.
  */
-export function groupSessions<T extends { favorite: boolean; lastTs: number | null }>(list: T[], now = Date.now()): Array<{ group: SessionGroup; items: T[] }> {
+export function groupSessions<T extends { favorite: boolean; lastTs: number | null }>(
+  list: T[],
+  now = Date.now(),
+  { pin = true }: { pin?: boolean } = {},
+): Array<{ group: SessionGroup; items: T[] }> {
   const midnight = new Date(now);
   midnight.setHours(0, 0, 0, 0);
   const today = midnight.getTime();
   const groupOf = (s: T): SessionGroup => {
-    if (s.favorite) return 'pinned';
+    if (pin && s.favorite) return 'pinned';
     const ts = s.lastTs ?? 0;
     if (ts >= today) return 'today';
     if (ts >= today - DAY) return 'yesterday';

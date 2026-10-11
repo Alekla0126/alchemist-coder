@@ -40,6 +40,22 @@ export function relativeTime(ts: number | null, locale: Locale, now = Date.now()
   return new Intl.DateTimeFormat(locale, { day: 'numeric', month, year: abs > 86400 * 300 ? 'numeric' : undefined }).format(ts);
 }
 
+export type Freshness = 'now' | 'hour' | 'today' | 'week' | 'older';
+
+/**
+ * How recent a conversation is, for the mark beside it in Recent: the last 15 minutes, the last
+ * hour, the last day, the last week, or older.
+ */
+export function freshness(ts: number | null, now = Date.now()): Freshness {
+  if (ts == null) return 'older';
+  const age = now - ts;
+  if (age < 15 * 60_000) return 'now';
+  if (age < 3_600_000) return 'hour';
+  if (age < 86_400_000) return 'today';
+  if (age < 7 * 86_400_000) return 'week';
+  return 'older';
+}
+
 export function clockTime(ts: number | null, locale: Locale): string {
   if (ts == null) return '';
   return new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' }).format(ts);

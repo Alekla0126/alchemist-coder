@@ -212,7 +212,7 @@ export function AgentPanel() {
   }
 
   if (!selection || !node) {
-    if (!selection) return scope === 'all' ? <AgentsHome /> : <StartScreen />;
+    if (!selection) return scope !== 'project' ? <AgentsHome /> : <StartScreen />;
     return <div className="panel-empty">{tree === undefined ? <span className="spin" /> : t('agent.select')}</div>;
   }
 

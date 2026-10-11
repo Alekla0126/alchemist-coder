@@ -36,6 +36,13 @@ export interface Selection {
 }
 
 export type SessionFilter = 'all' | 'running' | 'favorites';
+/** The Agents sidebar: this project, every open project, or the latest conversations of all of them. */
+export type AgentsScope = 'project' | 'all' | 'recent';
+const SCOPES: AgentsScope[] = ['project', 'all', 'recent'];
+function savedScope(): AgentsScope {
+  const saved = localStorage.getItem('alchemist.agentsScope') as AgentsScope | null;
+  return saved && SCOPES.includes(saved) ? saved : 'project';
+}
 
 export type RunStatus = 'starting' | 'running' | 'waiting' | 'idle' | 'done' | 'error' | 'interrupted';
 
@@ -106,10 +113,12 @@ interface State {
   expanded: Record<string, boolean>;
   selection: Selection | null;
   filter: SessionFilter;
-  /** The Agents sidebar and home: the open project, or every open project at once. */
-  agentsScope: 'project' | 'all';
+  /** The Agents sidebar and home: the open project, every open project at once, or the latest conversations of all. */
+  agentsScope: AgentsScope;
   /** The latest conversations of each open project (all-projects view). */
   recent: Record<number, SessionSummary[]>;
+  /** The latest conversations of every project, newest first (Recent view); null until loaded. */
+  latest: SessionSummary[] | null;
   pickerOpen: boolean;
   /** The "New project" dialog is showing. */
   newProjectOpen: boolean;
@@ -241,7 +250,7 @@ interface State {
   setActiveProject(projectId: number): Promise<void>;
   toggle(key: string): void;
   setFilter(filter: SessionFilter): void;
-  setAgentsScope(scope: 'project' | 'all'): void;
+  setAgentsScope(scope: AgentsScope): void;
   loadRecent(): Promise<void>;
   setPickerOpen(open: boolean): void;
   search(query: string): Promise<void>;
@@ -277,8 +286,9 @@ export const useStore = create<State>((set, get) => ({
   expanded: {},
   selection: null,
   filter: 'all',
-  agentsScope: localStorage.getItem('alchemist.agentsScope') === 'all' ? 'all' : 'project',
+  agentsScope: savedScope(),
   recent: {},
+  latest: null,
   pickerOpen: false,
   newProjectOpen: false,
   query: '',
@@ -649,10 +659,14 @@ export const useStore = create<State>((set, get) => ({
   setAgentsScope(scope) {
     localStorage.setItem('alchemist.agentsScope', scope);
     set({ agentsScope: scope });
-    if (scope === 'all') void get().loadRecent();
+    if (scope !== 'project') void get().loadRecent();
   },
 
   async loadRecent() {
+    const s = get();
+    if (s.agentsScope === 'recent') set({ latest: await api.latestSessions(LATEST) });
+    // The per-project lists are for the all-projects view and the board.
+    if (s.agentsScope !== 'all' && s.settings.mode !== 'board') return;
     const ids = get().settings.openProjectIds ?? [];
     if (!ids.length) return set({ recent: {} });
     set({ recent: await api.recentSessions(ids, RECENT_PER_PROJECT) });
@@ -950,10 +964,13 @@ export const useStore = create<State>((set, get) => ({
 const MODES: Mode[] = ['agents', 'arena', 'bots', 'code', 'split', 'terminal', 'history', 'marketing', 'board'];
 
 /** Menu bar commands. */
-/** The all-projects list and the board both show every open project's latest conversations. */
-const wantsRecent = (s: Pick<State, 'agentsScope' | 'settings'>) => s.agentsScope === 'all' || s.settings.mode === 'board';
+/** The all-projects list, the Recent list and the board show the latest conversations. */
+const wantsRecent = (s: Pick<State, 'agentsScope' | 'settings'>) => s.agentsScope !== 'project' || s.settings.mode === 'board';
 /** How many of each project's latest conversations the all-projects view lists. */
 const RECENT_PER_PROJECT = 8;
+/** How many conversations, across every project, the Recent view lists. */
+const LATEST = 60;
+
 let recentTimer: ReturnType<typeof setTimeout> | null = null;
 /** Transcripts change in bursts while agents work: refresh the all-projects lists at most every second or so. */
 function reloadRecentSoon() {

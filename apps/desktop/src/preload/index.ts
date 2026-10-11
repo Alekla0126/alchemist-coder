@@ -44,6 +44,7 @@ const api: AlchemistApi = {
   subagents: (cwd) => ipcRenderer.invoke(Channels.subagents, cwd),
   sessions: (projectId, favoritesOnly) => ipcRenderer.invoke(Channels.sessions, projectId, favoritesOnly),
   recentSessions: (projectIds, perProject) => ipcRenderer.invoke(Channels.recentSessions, projectIds, perProject),
+  latestSessions: (limit) => ipcRenderer.invoke(Channels.latestSessions, limit),
   session: (id) => ipcRenderer.invoke(Channels.session, id),
   agentTree: (id) => ipcRenderer.invoke(Channels.agentTree, id),
   transcript: (sessionId, agentId, offset, limit) => ipcRenderer.invoke(Channels.transcript, sessionId, agentId, offset, limit),
