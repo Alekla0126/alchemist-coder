@@ -36,6 +36,12 @@ describe('where each thing that needs you is answered', () => {
     expect(arena).toMatchObject({ taskId: 'task-1' });
   });
 
+  it("a Marketing piece's agent, once it has a conversation, is answered there", () => {
+    const s = base();
+    s.runs = { m: { ...run('m', 'mk:piece-9'), sessionId: 'sess-mk' } };
+    expect(waitingPlaces(s)).toEqual([{ kind: 'session', key: 'run:m', sessionId: 'sess-mk' }]);
+  });
+
   it("a run started elsewhere in a project folder goes to that project's composer", () => {
     const s = base();
     s.runs = { z: run('z', 'bg:z', 'waiting', '/p/shop') };
@@ -58,6 +64,18 @@ describe('the button goes to the next one you are not on', () => {
     expect(nextPlace(s)).toMatchObject({ sessionId: 'sess-2' });
     s.selection = { sessionId: 'sess-2', agentId: 'main' };
     expect(nextPlace(s)).toMatchObject({ sessionId: 'sess-1' });
+  });
+
+  it('with three or more, each press reaches the next one, round and round', () => {
+    const s = base();
+    s.runs = { a: run('a', 's:sess-1'), b: run('b', 's:sess-2'), c: run('c', 's:sess-3') };
+    const seen: string[] = [];
+    for (let i = 0; i < 4; i++) {
+      const place = nextPlace(s) as { sessionId: string };
+      seen.push(place.sessionId);
+      s.selection = { sessionId: place.sessionId, agentId: 'main' };
+    }
+    expect(seen).toEqual(['sess-1', 'sess-2', 'sess-3', 'sess-1']);
   });
 
   it('to the Arena from another mode, and nowhere when nothing waits', () => {

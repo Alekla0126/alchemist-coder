@@ -1226,6 +1226,8 @@ export const ptBR: Messages = {
   'attention.unread': 'Novidades desde a última vez que você olhou',
   'attention.needYou': '{n} precisam de você',
   'attention.goTo': 'Ir para o agente que está esperando você',
+  'attention.goToNamed': 'Ir para “{name}” ({i} de {n})',
+  'attention.aConversation': 'Conversa',
   'context.of': '{used} de {size} tokens no contexto ({pct}%)',
   'context.tokens': '{used} tokens no contexto',
   'context.full': 'O contexto está {pct}% cheio: as partes mais antigas serão resumidas em breve.',

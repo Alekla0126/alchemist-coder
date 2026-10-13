@@ -2,10 +2,8 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import { keys } from '../keys';
 import { fitModes, modesRoom, type ModeFit } from '../mode-fit';
 import type { Mode } from '@shared/api';
-import { useShallow } from 'zustand/react/shallow';
-import { nextPlace } from '../needs-you';
-import { useStore, useT, waitingRuns } from '../store';
-import { needsYou } from './Bots';
+import { nextPlace, waitingPlaces, type Place } from '../needs-you';
+import { useStore, useT } from '../store';
 import { LogoMark } from './Logo';
 import { Icon, type IconName } from './Icon';
 import { toggleBrowser, toggleSidebar, toggleSplitSide, useLayout, useViewport } from '../layout';
@@ -54,6 +52,28 @@ function useModeFit(header: React.RefObject<HTMLElement | null>, measure: React.
   return fit;
 }
 
+
+/** What a waiting place is called: the conversation's title, the project, the bot, the task… */
+function placeName(place: Place, s: ReturnType<typeof useStore.getState>, t: ReturnType<typeof useT>): string {
+  switch (place.kind) {
+    case 'session':
+      return Object.values(s.sessions).flat().find((x) => x.id === place.sessionId)?.title || s.latest?.find((x) => x.id === place.sessionId)?.title || s.trees[place.sessionId]?.description || t('attention.aConversation');
+    case 'compose':
+      return s.projects.find((p) => p.id === place.projectId)?.name ?? t('attention.aConversation');
+    case 'bot':
+      return s.botTeams.find((x) => x.id === place.teamId)?.bots.find((b) => b.id === place.botId)?.name ?? t('mode.bots');
+    case 'plan': {
+      const team = s.botTeams.find((x) => x.id === place.teamId);
+      return team?.title || team?.goal.split('\n')[0] || t('mode.bots');
+    }
+    case 'arena':
+      return s.tasks[place.taskId]?.title ?? t('mode.arena');
+    case 'marketing':
+      return t('mode.marketing');
+    case 'automation':
+      return s.automations.find((a) => a.automation.id === place.automationId)?.automation.name ?? t('mode.bots');
+  }
+}
 export function TitleBar() {
   const t = useT();
   const mode = useStore((s) => s.settings.mode);
@@ -64,12 +84,15 @@ export function TitleBar() {
   const fit = useModeFit(header, measure);
   const project = useStore((s) => s.projects.find((p) => p.id === s.settings.activeProjectId));
   const selection = useStore((s) => s.selection);
-  const waitingList = useStore(useShallow((s) => waitingRuns(s).map((w) => `${w.sessionId ?? ''}|${w.projectId ?? ''}`)));
-  // Plans to review count even when the coordinator stopped: answering resumes it (the same rule as the list).
-  const plans = useStore(useShallow((s) => s.botTeams.filter((x) => x.plan?.status === 'pending' && needsYou(x)).map((x) => x.id)));
-  // An automation's questions count too.
-  const asks = useStore(useShallow((s) => s.automations.flatMap((x) => (x.runs[0]?.asks ?? []).map((a) => `${x.automation.id}:${a.id}`))));
-  const waiting = [...waitingList, ...plans, ...asks];
+  // What the button counts is what it can take you to: waiting runs, plans to review, automations' questions.
+  const waiting = useStore((s) => waitingPlaces(s).length);
+  // Its tooltip names where the next press goes: «Go to "Fix the login" (2 of 3)».
+  const goToLabel = useStore((s) => {
+    const places = waitingPlaces(s);
+    const next = nextPlace(s);
+    if (!next) return '';
+    return t('attention.goToNamed', { name: placeName(next, s, t), i: places.findIndex((p) => p.key === next.key) + 1, n: places.length });
+  });
   /**
    * Right to what waits for you, in the tab where you answer it (needs-you.ts): its conversation on
    * the main agent's tab, the Arena task, the bot, Marketing… With several, the next one you aren't on.
@@ -194,9 +217,9 @@ export function TitleBar() {
             <Icon name={splitSideHidden ? 'panelRightOpen' : 'panelRightClose'} size={17} />
           </button>
         )}
-        {waiting.length > 0 && (
-          <button className="needs-you-btn" onClick={() => void goToWaiting()} title={t('attention.goTo')}>
-            ● {t('attention.needYou', { n: waiting.length })}
+        {waiting > 0 && (
+          <button className="needs-you-btn" onClick={() => void goToWaiting()} title={goToLabel || t('attention.goTo')}>
+            ● {t('attention.needYou', { n: waiting })}
           </button>
         )}
         <button className="title-search" onClick={() => useStore.setState({ paletteOpen: true })} title={t('palette.placeholder')}>

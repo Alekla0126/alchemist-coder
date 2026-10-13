@@ -1226,6 +1226,8 @@ export const ja: Messages = {
   'attention.unread': '前回見たあとの新着',
   'attention.needYou': '{n} 件が要対応',
   'attention.goTo': '対応を待っているエージェントへ移動',
+  'attention.goToNamed': '「{name}」へ移動（{i} / {n}）',
+  'attention.aConversation': '会話',
   'context.of': 'コンテキスト：{used} / {size} トークン（{pct}%）',
   'context.tokens': 'コンテキスト：{used} トークン',
   'context.full': 'コンテキストが {pct}% 埋まっています。まもなく古い部分が要約されます。',

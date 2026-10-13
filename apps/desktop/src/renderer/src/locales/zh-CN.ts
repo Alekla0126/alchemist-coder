@@ -1226,6 +1226,8 @@ export const zhCN: Messages = {
   'attention.unread': '自你上次查看后有新内容',
   'attention.needYou': '{n} 项需要你',
   'attention.goTo': '转到等你处理的智能体',
+  'attention.goToNamed': '前往“{name}”（第 {i} 个，共 {n} 个）',
+  'attention.aConversation': '对话',
   'context.of': '上下文已用 {used} / {size} token（{pct}%）',
   'context.tokens': '上下文已用 {used} token',
   'context.full': '上下文已用 {pct}%：较早的部分很快会被总结。',

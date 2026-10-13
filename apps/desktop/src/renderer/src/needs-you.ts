@@ -17,7 +17,7 @@ export type Place =
 
 /** The parts of the app's state this reads (a subset of the store's). */
 export interface NeedsYouState {
-  runs: Record<string, { runId: string; target: string; status: string; cwd?: string }>;
+  runs: Record<string, { runId: string; target: string; status: string; cwd?: string; sessionId?: string | null }>;
   projects: Array<{ id: number; cwd: string }>;
   botTeams: Array<{ id: string; plan?: { status: string } | null; bots: Array<{ id: string; runId: string | null }> }>;
   tasks: Record<string, { id: string; planner: { runId: string | null } | null; contestants: Array<{ runId: string | null }> }>;
@@ -47,7 +47,8 @@ export function waitingPlaces(s: NeedsYouState): Place[] {
       continue;
     }
     if (run.target.startsWith('s:')) places.push({ kind: 'session', key: `run:${run.runId}`, sessionId: run.target.slice(2) });
-    else if (run.target.startsWith('mk:')) places.push({ kind: 'marketing', key: `run:${run.runId}` });
+    // A Marketing piece's agent asks in its conversation (Marketing's own «Open its conversation» goes there too).
+    else if (run.target.startsWith('mk:')) places.push(run.sessionId ? { kind: 'session', key: `run:${run.runId}`, sessionId: run.sessionId } : { kind: 'marketing', key: `run:${run.runId}` });
     else if (run.target.startsWith('p:')) places.push({ kind: 'compose', key: `run:${run.runId}`, projectId: Number(run.target.slice(2)) });
     else {
       // Started elsewhere, in a project folder: its composer.
@@ -85,8 +86,12 @@ export function isShown(place: Place, s: NeedsYouState): boolean {
   }
 }
 
-/** Where the button goes: the first waiting place you aren't on (or the first, if you're on all of them). */
+/** Where the button goes: the one after the place you're on, round and round, so each press reaches the next. */
 export function nextPlace(s: NeedsYouState): Place | null {
   const places = waitingPlaces(s);
-  return places.find((p) => !isShown(p, s)) ?? places[0] ?? null;
+  if (!places.length) return null;
+  const here = places.findIndex((p) => isShown(p, s));
+  // Two waiting in the same place (two questions in one conversation) count as being there.
+  const after = places.slice(here + 1).concat(places.slice(0, here + 1));
+  return after.find((p) => !isShown(p, s)) ?? places[0] ?? null;
 }

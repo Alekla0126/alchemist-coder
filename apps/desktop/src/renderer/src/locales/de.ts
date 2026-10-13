@@ -1226,6 +1226,8 @@ export const de: Messages = {
   'attention.unread': 'Neu seit deinem letzten Besuch',
   'attention.needYou': '{n} brauchen dich',
   'attention.goTo': 'Zum Agenten, der auf dich wartet',
+  'attention.goToNamed': 'Zu „{name}“ ({i} von {n})',
+  'attention.aConversation': 'Unterhaltung',
   'context.of': '{used} von {size} Tokens im Kontext ({pct} %)',
   'context.tokens': '{used} Tokens im Kontext',
   'context.full': 'Der Kontext ist zu {pct} % voll: Ältere Teile werden bald zusammengefasst.',

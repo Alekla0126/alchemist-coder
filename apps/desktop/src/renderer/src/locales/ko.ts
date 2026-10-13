@@ -1226,6 +1226,8 @@ export const ko: Messages = {
   'attention.unread': '마지막으로 본 이후 새 내용',
   'attention.needYou': '{n}개 확인 필요',
   'attention.goTo': '기다리는 에이전트로 이동',
+  'attention.goToNamed': '“{name}”(으)로 이동 ({i}/{n})',
+  'attention.aConversation': '대화',
   'context.of': '컨텍스트 토큰 {used}/{size} ({pct}%)',
   'context.tokens': '컨텍스트 토큰 {used}',
   'context.full': '컨텍스트가 {pct}% 찼어요. 곧 오래된 부분이 요약돼요.',

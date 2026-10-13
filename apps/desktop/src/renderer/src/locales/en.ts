@@ -1225,6 +1225,8 @@ export const en = {
   'attention.unread': 'New since you last looked',
   'attention.needYou': '{n} need you',
   'attention.goTo': 'Go to the agent waiting for you',
+  'attention.goToNamed': 'Go to “{name}” ({i} of {n})',
+  'attention.aConversation': 'Conversation',
   'context.of': '{used} of {size} tokens in context ({pct}%)',
   'context.tokens': '{used} tokens in context',
   'context.full': 'The context is {pct}% full: older parts will be summarized soon.',

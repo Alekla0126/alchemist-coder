@@ -1226,6 +1226,8 @@ export const hi: Messages = {
   'attention.unread': 'आपके पिछली बार देखने के बाद से नया',
   'attention.needYou': '{n} को आपकी ज़रूरत है',
   'attention.goTo': 'आपका इंतज़ार कर रहे एजेंट पर जाएँ',
+  'attention.goToNamed': '“{name}” पर जाएँ ({n} में से {i})',
+  'attention.aConversation': 'बातचीत',
   'context.of': 'संदर्भ में {size} में से {used} टोकन ({pct}%)',
   'context.tokens': 'संदर्भ में {used} टोकन',
   'context.full': 'संदर्भ {pct}% भर चुका है: पुराने हिस्सों का जल्द सारांश बनेगा।',

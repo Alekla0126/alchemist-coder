@@ -1391,6 +1391,8 @@ export const ru: Messages = {
   'attention.unread': 'Новое с вашего последнего просмотра',
   'attention.needYou': '{n} ждут вас',
   'attention.goTo': 'Перейти к агенту, который ждёт вас',
+  'attention.goToNamed': 'Перейти к «{name}» ({i} из {n})',
+  'attention.aConversation': 'Разговор',
   'context.of': '{used} из {size} токенов в контексте ({pct}%)',
   'context.tokens': 'Токенов в контексте: {used}',
   'context.full': 'Контекст заполнен на {pct}%: скоро старые части будут сжаты.',
