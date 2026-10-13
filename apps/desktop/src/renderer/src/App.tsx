@@ -23,7 +23,9 @@ import { TitleBar } from './components/TitleBar';
 import { useStore } from './store';
 import { PanelBoundary } from './components/PanelBoundary';
 import { Resizer } from './components/Resizer';
-import { closeDrawer, toggleSidebar, useLayout, useViewport } from './layout';
+import { closeDrawer, openBrowser, toggleBrowser, toggleSidebar, useLayout, useViewport } from './layout';
+import { BrowserPane } from './components/BrowserPane';
+import { useAvatarPicker } from './components/AvatarPicker';
 import { WITH_SIDEBAR } from './components/TitleBar';
 import { useT } from './store';
 import { BoardView } from './components/Board';
@@ -46,6 +48,9 @@ export function App() {
   const t = useT();
   const sideHiddenPref = useLayout((l) => l.sideHidden);
   const splitSideHidden = useLayout((l) => l.splitSideHidden);
+  const browserOpen = useLayout((l) => l.browserOpen);
+  const welcomeOpen = useWelcome((w) => w.open);
+  const avatarOpen = useAvatarPicker((a) => !!a.member);
   const narrow = useViewport((v) => v.narrow);
   const drawer = useViewport((v) => v.drawer);
   // A narrow window has no sidebar column: the sidebar floats over the page while it's open.
@@ -55,6 +60,20 @@ export function App() {
   useEffect(() => {
     void init();
   }, [init]);
+
+  // An agent using the browser with its pane closed opens the pane (where it always goes).
+  useEffect(() => window.alchemist.onBrowserState((s) => s.wantsPane && openBrowser()), []);
+
+  // --browser[=<address>] (captures): the pane open, on that page; a run with it says when to shoot.
+  useEffect(() => {
+    const target = info?.capture?.browser;
+    if (!target) return;
+    openBrowser();
+    if (target === '1') return;
+    void window.alchemist.browserOpen(target).then(() => {
+      if (!info.capture?.compose) setTimeout(() => useStore.setState({ captureReady: true }), 800);
+    });
+  }, [info]);
 
   useEffect(() => {
     document.documentElement.lang = locale;
@@ -106,7 +125,7 @@ export function App() {
 
   useEffect(() => {
     if (!info?.capture || !ready || !indexReady) return;
-    if ((info.capture.select || info.capture.compose || info.capture.project || info.capture.openFile || info.capture.settings || info.capture.arena || info.capture.themeSearch || info.capture.usage || info.capture.team || info.capture.orgGoal || info.capture.automationRun || info.capture.automationPrompt || info.capture.mode === 'marketing' || info.capture.mode === 'board') && !captureReady) return;
+    if ((info.capture.select || info.capture.compose || info.capture.project || info.capture.openFile || info.capture.settings || info.capture.arena || info.capture.themeSearch || info.capture.usage || info.capture.team || info.capture.orgGoal || info.capture.automationRun || info.capture.automationPrompt || info.capture.mode === 'marketing' || info.capture.mode === 'board' || (info.capture.browser && info.capture.browser !== '1')) && !captureReady) return;
     window.alchemist.rendered();
   }, [info, ready, indexReady, captureReady]);
 
@@ -157,7 +176,23 @@ export function App() {
             {!sideHidden && <Resizer panel="side" edge="left" />}
             <main className={`center center-${mode}`}>
               <Suspense fallback={<div className="panel-empty"><span className="spin" /></div>}>
-              {mode === 'agents' && <AgentPanel />}
+              {mode === 'agents' &&
+                (browserOpen ? (
+                  <div className="with-browser">
+                    <div className="with-browser-main">
+                      <AgentPanel />
+                    </div>
+                    <Resizer panel="browser" edge="right" />
+                    <div className="browser-col">
+                      <PanelBoundary label="Browser">
+                        {/* The page is a native view on top of the window: it steps aside for anything that has to show over it. */}
+                        <BrowserPane covered={pickerOpen || newProjectOpen || settingsOpen || paletteOpen || welcomeOpen || avatarOpen || (narrow && drawer)} onClose={toggleBrowser} />
+                      </PanelBoundary>
+                    </div>
+                  </div>
+                ) : (
+                  <AgentPanel />
+                ))}
               {mode === 'code' && activeId != null && (
                 <PanelBoundary label="Editor">
                   <EditorArea projectId={activeId} />

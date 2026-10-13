@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { IndexProgress } from '@alchemist-coder/core';
-import { Channels, type AlchemistApi, type ArenaTask, type AutomationState, type BackupStatus, type BoardData, type BotTeam, type PlanUsage, type RunnerEventMessage } from '../shared/api';
+import { Channels, type AlchemistApi, type ArenaTask, type AutomationState, type BackupStatus, type BoardData, type BotTeam, type BrowserState, type PlanUsage, type RunnerEventMessage } from '../shared/api';
 
 const subscribe = <T>(channel: string, listener: (payload: T) => void) => {
   const handler = (_event: unknown, payload: T) => listener(payload);
@@ -91,6 +91,14 @@ const api: AlchemistApi = {
   onBackupStatus: (listener) => subscribe<BackupStatus>(Channels.backupChanged, listener),
   planUsage: (refresh) => ipcRenderer.invoke(Channels.planUsage, refresh === true),
   onUsageChanged: (listener) => subscribe<PlanUsage>(Channels.usageChanged, listener),
+  browserState: () => ipcRenderer.invoke(Channels.browserState),
+  onBrowserState: (listener) => subscribe<BrowserState>(Channels.browserChanged, listener),
+  browserBounds: (bounds) => ipcRenderer.send(Channels.browserBounds, bounds),
+  browserOpen: (url) => ipcRenderer.invoke(Channels.browserOpen, url),
+  browserBack: () => ipcRenderer.invoke(Channels.browserBack),
+  browserForward: () => ipcRenderer.invoke(Channels.browserForward),
+  browserReload: () => ipcRenderer.invoke(Channels.browserReload),
+  browserUserControl: (on) => ipcRenderer.invoke(Channels.browserUserControl, on),
   refreshCliVersions: () => ipcRenderer.invoke(Channels.cliVersions),
   showMenu: (items) => ipcRenderer.invoke(Channels.showMenu, items),
   onAppCommand: (listener) => subscribe<string>(Channels.appCommand, listener),

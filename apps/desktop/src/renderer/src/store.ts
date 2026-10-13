@@ -388,8 +388,8 @@ export const useStore = create<State>((set, get) => ({
       if (p) await get().openProject(p.id);
       const pid = get().settings.activeProjectId;
       if (pid != null && info.capture.openFile) get().openFile(pid, info.capture.openFile);
-      // A piece being written (--mk-generate) says when it's ready itself.
-      if (!info.capture.mkGenerate && !info.capture.orgGoal) setTimeout(() => set({ captureReady: true }), 2500);
+      // A piece being written (--mk-generate) or a run (--compose --run) says when it's ready itself.
+      if (!info.capture.mkGenerate && !info.capture.orgGoal && !(info.capture.compose && info.capture.run)) setTimeout(() => set({ captureReady: true }), 2500);
     } else if (info.capture?.settings) {
       // The panel reads what the index found (agents, usage): wait for it.
       await indexed;

@@ -14,6 +14,8 @@ import { RunnerManager } from './runner';
 import { TaskManager } from './tasks';
 import { BotManager } from './bots';
 import { writeBridge } from './bots-bridge';
+import { BrowserHost } from './browser';
+import { writeBrowserBridge } from './browser-bridge';
 import { ExtensionsHub } from './hub';
 import { BackupService } from './backup';
 import { ReviewManager } from './reviews';
@@ -82,6 +84,7 @@ function appInfo(): AppInfo {
           terminalSplit: process.argv.includes('--terminal-split'),
           review: process.argv.includes('--review'),
           usage: process.argv.includes('--usage'),
+          browser: arg('browser') ?? (process.argv.includes('--browser') ? '1' : null),
           activity: process.argv.includes('--activity'),
           scrollTo: arg('scroll-to') ?? null,
           runUntil: arg('run-until') === 'subagent' ? 'subagent' : null,
@@ -135,6 +138,8 @@ function send(channel: string, payload: unknown) {
 }
 
 let indexerWorker: Worker | null = null;
+/** The built-in browser, for captures (its page is a view of its own, not in the window's picture). */
+let browserHost: BrowserHost | null = null;
 /** Runs once the index is open: automations need to know your projects before they start. */
 let onIndexOpen: (() => void) | null = null;
 
@@ -180,9 +185,22 @@ async function capture() {
   if (!window || !capturePath) return;
   await new Promise((r) => setTimeout(r, 900));
   if (window.isDestroyed()) return;
+  // The browser's page only paints in a window on screen: show it, invisible and without focus.
+  if (await browserHost?.snapshot().then((p) => !!p, () => true)) {
+    window.setOpacity(0);
+    window.setIgnoreMouseEvents(true);
+    window.showInactive();
+    await new Promise((r) => setTimeout(r, 1200));
+  }
   const image = await window.webContents.capturePage();
   mkdirSync(dirname(resolve(capturePath)), { recursive: true });
   writeFileSync(resolve(capturePath), image.toPNG());
+  // The browser pane's page beside it, with where it goes: <name>-browser.png and .json.
+  const page = await browserHost?.snapshot().catch((e) => (console.error('[capture] browser page:', e instanceof Error ? e.message : e), null));
+  if (page) {
+    writeFileSync(resolve(capturePath).replace(/\.png$/i, '') + '-browser.png', page.image.toPNG());
+    writeFileSync(resolve(capturePath).replace(/\.png$/i, '') + '-browser.json', JSON.stringify(page.bounds));
+  }
   console.log(`captured ${resolve(capturePath)}`);
   app.quit();
 }
@@ -303,6 +321,10 @@ void app.whenReady().then(async () => {
     (team) => send(Channels.botTeamChanged, team),
   );
   await bots.start();
+  // The built-in browser: one page view over its pane, and tools any agent run can drive it with.
+  const browser = new BrowserHost(() => window, { command: process.execPath, script: writeBrowserBridge(userData) }, (state) => send(Channels.browserChanged, state));
+  await browser.start();
+  browserHost = browser;
   const board = new BoardService(userData, (data) => send(Channels.boardChanged, data));
   // Automations run with the window closed too: a notification brings it back on the automation.
   const automations = new AutomationHost(userData, {
@@ -330,8 +352,9 @@ void app.whenReady().then(async () => {
     automations.stop();
     runner.stopAll();
     terminals.killAll();
+    browser.stop();
   });
-  registerIpc({ info: appInfo, bots, settings, onSettingsChanged: (patch) => 'locale' in patch && buildMenu(), reader: () => reader, progress: () => progress, onRendered: () => void capture(), runner, tasks, preview, hub, backup, reviews, usage, exportSession: (id, format) => (reader ? exportSession(window, reader, id, format) : Promise.reject(new Error('The index is still loading'))), workspace, terminals, dataDir: userData, board, automations });
+  registerIpc({ info: appInfo, bots, settings, onSettingsChanged: (patch) => 'locale' in patch && buildMenu(), reader: () => reader, progress: () => progress, onRendered: () => void capture(), runner, tasks, preview, hub, backup, reviews, usage, exportSession: (id, format) => (reader ? exportSession(window, reader, id, format) : Promise.reject(new Error('The index is still loading'))), workspace, terminals, dataDir: userData, board, automations, browser });
   startIndexer(join(userData, 'index.db'), backup.root(), (source) => usage.touch(source));
   backup.start();
   const menuLocale = () => settings.get().locale ?? matchLocale(app.getLocale());

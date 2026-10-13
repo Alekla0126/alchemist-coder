@@ -191,6 +191,8 @@ export interface AppInfo {
     review: boolean;
     /** Open the plans & usage popover. */
     usage: boolean;
+    /** Open the built-in browser's pane, on this address unless it's "1". */
+    browser?: string | null;
     /** Open the status bar's activity list. */
     activity?: boolean;
     /** Scroll the open conversation to the first element matching this selector. */
@@ -297,6 +299,29 @@ export interface PickedFile {
   path: string;
   size: number;
   image: PromptImage | null;
+}
+
+/** The built-in browser (main/browser.ts), as its pane shows it. */
+export interface BrowserState {
+  url: string;
+  title: string;
+  loading: boolean;
+  canGoBack: boolean;
+  canGoForward: boolean;
+  /** The agent that used it in the last few seconds ("Claude Code"), or null. */
+  driver: string | null;
+  /** You have it: agents' browser tools wait until you hand it back. */
+  userControl: boolean;
+  /** An agent is using it while its pane is closed: open the pane. */
+  wantsPane: boolean;
+}
+
+/** Where the browser pane's page area is, in window pixels. */
+export interface BrowserBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 export interface RunnerEventMessage {
@@ -997,6 +1022,16 @@ export interface AlchemistApi {
   refreshCliVersions(): Promise<void>;
   /** The plans' usage each time it changes (pushed from the CLIs' own files; no polling). */
   onUsageChanged(listener: (usage: PlanUsage) => void): () => void;
+  /** The built-in browser: its state, changes to it, and what its pane does. */
+  browserState(): Promise<BrowserState>;
+  onBrowserState(listener: (state: BrowserState) => void): () => void;
+  /** Where the page goes (null: the pane is closed or covered). */
+  browserBounds(bounds: BrowserBounds | null): void;
+  browserOpen(url: string): Promise<void>;
+  browserBack(): Promise<void>;
+  browserForward(): Promise<void>;
+  browserReload(): Promise<void>;
+  browserUserControl(on: boolean): Promise<void>;
   /** Agent runs in this project with changes still to review. */
   reviews(projectCwd: string): Promise<AgentReview[]>;
   reviewFile(reviewId: string, path: string): Promise<ReviewFileContent>;
@@ -1173,6 +1208,14 @@ export const Channels = {
   backupChanged: 'backup:changed',
   planUsage: 'usage:plans',
   usageChanged: 'usage:changed',
+  browserState: 'browser:state',
+  browserChanged: 'browser:changed',
+  browserBounds: 'browser:bounds',
+  browserOpen: 'browser:open',
+  browserBack: 'browser:back',
+  browserForward: 'browser:forward',
+  browserReload: 'browser:reload',
+  browserUserControl: 'browser:user-control',
   cliVersions: 'usage:versions',
   showMenu: 'menu:show',
   appCommand: 'app:command',

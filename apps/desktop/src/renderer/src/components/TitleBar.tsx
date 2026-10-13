@@ -7,7 +7,7 @@ import { useStore, useT, waitingRuns } from '../store';
 import { needsYou } from './Bots';
 import { LogoMark } from './Logo';
 import { Icon, type IconName } from './Icon';
-import { toggleSidebar, toggleSplitSide, useLayout, useViewport } from '../layout';
+import { toggleBrowser, toggleSidebar, toggleSplitSide, useLayout, useViewport } from '../layout';
 import { openMenu } from '../ui';
 
 const MODES: Mode[] = ['agents', 'arena', 'code', 'split', 'terminal', 'history', 'bots', 'marketing', 'board'];
@@ -112,6 +112,8 @@ export function TitleBar() {
   const sideHidden = useLayout((l) => l.sideHidden);
   const splitSideHidden = useLayout((l) => l.splitSideHidden);
   const agentLabel = t(splitSideHidden ? 'layout.showAgent' : 'layout.hideAgent');
+  const browserOpen = useLayout((l) => l.browserOpen);
+  const browserLabel = t(browserOpen ? 'browser.hide' : 'browser.show');
   // What the button would do: open when the sidebar is out of sight, close when it shows.
   const sideShown = narrow ? drawer : !sideHidden;
   const sideLabel = t(sideShown ? 'layout.hideSidebar' : 'layout.showSidebar');
@@ -172,6 +174,11 @@ export function TitleBar() {
         <Icon name="chevronDown" size={13} />
       </button>
       <div className="title-right">
+        {mode === 'agents' && (
+          <button className={`icon-btn browser-toggle ${browserOpen ? 'on' : ''}`} onClick={toggleBrowser} title={browserLabel} aria-label={browserLabel} aria-expanded={browserOpen}>
+            <Icon name="globe" size={16} />
+          </button>
+        )}
         {mode === 'split' && (
           <button className="icon-btn side-toggle" onClick={toggleSplitSide} title={`${agentLabel} (${keys('⌘⌥B')})`} aria-label={agentLabel} aria-expanded={!splitSideHidden}>
             <Icon name={splitSideHidden ? 'panelRightOpen' : 'panelRightClose'} size={17} />

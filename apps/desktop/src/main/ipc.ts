@@ -11,6 +11,7 @@ import { mimeOf } from '@alchemist-coder/harness';
 import { Channels, type AppInfo, type ExportFormat } from '../shared/api';
 import type { SettingsStore } from './settings';
 import type { RunnerManager } from './runner';
+import type { BrowserHost } from './browser';
 import type { TaskManager } from './tasks';
 import type { PreviewServer } from './preview';
 import type { ExtensionsHub } from './hub';
@@ -37,6 +38,18 @@ const optionalId = (value: unknown): number | null => (Number.isInteger(value) ?
 const count = (value: unknown, fallback: number, max: number): number =>
   Number.isInteger(value) && (value as number) >= 0 ? Math.min(value as number, max) : fallback;
 
+/** How the browser pane names the agent driving it. */
+const AGENT_LABEL: Record<string, string> = { 'claude-code': 'Claude Code', codex: 'Codex', gemini: 'Gemini CLI', grok: 'Grok', kimi: 'Kimi' };
+
+/** A rectangle from the renderer, in window pixels; null when it isn't one. */
+function bounds(value: unknown): { x: number; y: number; width: number; height: number } | null {
+  if (!value || typeof value !== 'object') return null;
+  const v = value as Record<string, unknown>;
+  const n = (k: string) => (typeof v[k] === 'number' && Number.isFinite(v[k]) ? Math.round(v[k] as number) : NaN);
+  const r = { x: n('x'), y: n('y'), width: n('width'), height: n('height') };
+  return Object.values(r).every((x) => Number.isFinite(x) && x >= 0 && x < 100_000) ? r : null;
+}
+
 export interface IpcDeps {
   info: () => AppInfo;
   settings: SettingsStore;
@@ -60,6 +73,7 @@ export interface IpcDeps {
   dataDir: string;
   board: BoardService;
   automations: AutomationHost;
+  browser: BrowserHost;
 }
 
 /** Every handler validates its arguments: the renderer is treated as untrusted. */
@@ -199,7 +213,9 @@ export function registerIpc(deps: IpcDeps): void {
     // Snapshot the project first, so its review shows exactly what this run changes.
     const r = (request ?? {}) as Record<string, unknown>;
     const prepared = await deps.reviews.prepare(r.cwd).catch(() => null);
-    const started = deps.runner.start(request as never, {});
+    // Every run can drive the built-in browser (its pane shows which agent is at it).
+    const browserTools = deps.browser.mcpServer(AGENT_LABEL[String(r.harnessId)] ?? String(r.harnessId ?? 'An agent'));
+    const started = deps.runner.start(request as never, browserTools ? { mcpServers: [browserTools] } : {});
     if (prepared) deps.reviews.track(started.runId, prepared, r);
     return started;
   });
@@ -218,6 +234,14 @@ export function registerIpc(deps: IpcDeps): void {
       return [{ name: basename(path), path, size: s.size, image }];
     });
   });
+  // The built-in browser's pane.
+  ipcMain.handle(Channels.browserState, () => deps.browser.state());
+  ipcMain.on(Channels.browserBounds, (_e, value: unknown) => deps.browser.setBounds(bounds(value)));
+  ipcMain.handle(Channels.browserOpen, (_e, url: unknown) => deps.browser.open(text(url, 'address', 4096)));
+  ipcMain.handle(Channels.browserBack, () => deps.browser.back());
+  ipcMain.handle(Channels.browserForward, () => deps.browser.forward());
+  ipcMain.handle(Channels.browserReload, () => deps.browser.reload());
+  ipcMain.handle(Channels.browserUserControl, (_e, on: unknown) => deps.browser.setUserControl(on === true));
   ipcMain.handle(Channels.stopRun, (_e, runId: unknown) => deps.runner.stop(text(runId, 'run id', 100)));
   ipcMain.handle(Channels.interruptRun, (_e, runId: unknown) => deps.runner.interrupt(text(runId, 'run id', 100)));
   ipcMain.handle(Channels.respondToRun, (_e, runId: unknown, requestId: unknown, choiceId: unknown) =>

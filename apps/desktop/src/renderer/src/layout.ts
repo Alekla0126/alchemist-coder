@@ -14,9 +14,12 @@ interface Layout {
   sideHidden: boolean;
   /** The agent column of the split view, folded away. */
   splitSideHidden: boolean;
+  /** The built-in browser's column, next to the conversation. */
+  browser: number;
+  browserOpen: boolean;
 }
 
-export const LIMITS = { side: [200, 560, 300], splitSide: [300, 760, 380], splitTerm: [120, 900, 280], peek: [360, 1200, 620] } as const;
+export const LIMITS = { side: [200, 560, 300], splitSide: [300, 760, 380], splitTerm: [120, 900, 280], peek: [360, 1200, 620], browser: [320, 1600, 620] } as const;
 export type Panel = keyof typeof LIMITS;
 
 const clamp = (v: number, [min, max]: readonly [number, number, number]) => Math.round(Math.min(max, Math.max(min, v)));
@@ -31,9 +34,11 @@ function load(): Layout {
       peek: clamp(Number(raw.peek) || LIMITS.peek[2], LIMITS.peek),
       sideHidden: raw.sideHidden === true,
       splitSideHidden: raw.splitSideHidden === true,
+      browser: clamp(Number(raw.browser) || LIMITS.browser[2], LIMITS.browser),
+      browserOpen: raw.browserOpen === true,
     };
   } catch {
-    return { side: LIMITS.side[2], splitSide: LIMITS.splitSide[2], splitTerm: LIMITS.splitTerm[2], peek: LIMITS.peek[2], sideHidden: false, splitSideHidden: false };
+    return { side: LIMITS.side[2], splitSide: LIMITS.splitSide[2], splitTerm: LIMITS.splitTerm[2], peek: LIMITS.peek[2], sideHidden: false, splitSideHidden: false, browser: LIMITS.browser[2], browserOpen: false };
   }
 }
 
@@ -55,6 +60,8 @@ function apply(l: Layout) {
   root.setProperty('--split-term-h', `${Math.min(l.splitTerm, window.innerHeight - 260)}px`);
   // The board keeps at least a column of room next to the conversation.
   root.setProperty('--peek-w', `${Math.max(LIMITS.peek[0], Math.min(l.peek, width - RAIL - 380))}px`);
+  // The conversation keeps its room next to the browser.
+  root.setProperty('--browser-w', `${Math.max(LIMITS.browser[0], Math.min(l.browser, width - RAIL - (l.sideHidden ? 0 : side) - MIN_CENTER))}px`);
 }
 apply(useLayout.getState());
 if (typeof window !== 'undefined') window.addEventListener('resize', () => apply(useLayout.getState()));
@@ -90,3 +97,7 @@ export const toggleSidebar = () => {
 /** ⌘⌥B and the title bar button in split view: fold or unfold the agent column. */
 export const toggleSplitSide = () => useLayout.setState((l) => ({ splitSideHidden: !l.splitSideHidden }));
 export const closeDrawer = () => useViewport.getState().drawer && useViewport.setState({ drawer: false });
+
+/** The title bar button: show or hide the built-in browser next to the conversation. */
+export const toggleBrowser = () => useLayout.setState((l) => ({ browserOpen: !l.browserOpen }));
+export const openBrowser = () => !useLayout.getState().browserOpen && useLayout.setState({ browserOpen: true });
