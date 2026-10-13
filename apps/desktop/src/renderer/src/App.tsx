@@ -130,7 +130,7 @@ export function App() {
   }, [info, ready, indexReady, captureReady]);
 
   return (
-    <div className={`app platform-${info?.platform ?? 'darwin'}`}>
+    <div className={`app platform-${info?.platform ?? 'darwin'} ${mode === 'agents' && browserOpen ? 'with-page' : ''}`}>
       <TitleBar />
       <div className={`body mode-${mode} ${narrow ? 'narrow' : sideHidden ? 'side-hidden' : ''} ${narrow && drawer ? 'drawer-open' : ''}`}>
         <ProjectRail />

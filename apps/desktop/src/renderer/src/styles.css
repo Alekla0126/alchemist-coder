@@ -2307,3 +2307,5 @@ select.mk-chip { appearance: none; padding-right: 12px; }
 .browser-body { flex: 1; min-height: 0; position: relative; }
 .browser-empty { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; color: var(--fg-3); font-size: 13px; }
 .title-right .browser-toggle.on { color: var(--accent); }
+/* A notice shows beside the page, never under it. */
+.app.with-page .toast { left: calc((100vw - var(--browser-w, 620px)) / 2); max-width: calc(100vw - var(--browser-w, 620px) - 32px); }

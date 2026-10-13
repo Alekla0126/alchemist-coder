@@ -5,18 +5,47 @@ import { Icon } from './Icon';
 
 const api = () => window.alchemist;
 
+/** Anything modal on screen: a dialog, a sheet, the palette. */
+const MODAL = '[aria-modal="true"], .dialog-backdrop, .settings-backdrop, .palette-backdrop';
+
+/**
+ * Whether a modal is open anywhere in the window. The page draws above the whole app, so any
+ * dialog (to rename, confirm, add an agent, review a commit…) would open under it otherwise.
+ */
+function useModalOpen(): boolean {
+  const [open, setOpen] = useState(() => !!document.querySelector(MODAL));
+  useEffect(() => {
+    let frame = 0;
+    // Checked at most once a frame, however much the conversation changes meanwhile.
+    const observer = new MutationObserver(() => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        setOpen(!!document.querySelector(MODAL));
+      });
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  }, []);
+  return open;
+}
+
 /**
  * The browser pane. The page itself is a native view the main process lays exactly over this
  * pane's body: it doesn't move or open windows when an agent drives it, and it goes away when the
  * pane closes (or something has to show over it: `covered`). You see everything an agent does,
  * and can take the browser over (its tools then wait) and hand it back.
  */
-export function BrowserPane({ covered = false, onClose }: { covered?: boolean; onClose: () => void }) {
+export function BrowserPane({ covered: coveredBy = false, onClose }: { covered?: boolean; onClose: () => void }) {
   const t = useT();
   const [state, setState] = useState<BrowserState | null>(null);
   const [address, setAddress] = useState('');
   const [editing, setEditing] = useState(false);
   const body = useRef<HTMLDivElement>(null);
+  const covered = useModalOpen() || coveredBy;
 
   useEffect(() => {
     void api().browserState().then(setState);
