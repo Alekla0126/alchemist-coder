@@ -39,15 +39,17 @@ export interface LiveTurn {
   prompt: string;
   /** Images sent with the prompt. */
   images?: PromptImage[];
+  /** The names of the other files sent with it. */
+  files?: string[];
   startedAt: number;
   endedAt: number | null;
   blocks: LiveBlock[];
 }
 
 /** Your message starts a turn (shown right away, before the agent answers). */
-export function startTurn(turns: LiveTurn[], prompt: string, now = Date.now(), images: PromptImage[] = []): LiveTurn[] {
+export function startTurn(turns: LiveTurn[], prompt: string, now = Date.now(), images: PromptImage[] = [], files: string[] = []): LiveTurn[] {
   const last = turns.at(-1);
-  const extra = images.length ? { images } : {};
+  const extra = { ...(images.length ? { images } : {}), ...(files.length ? { files } : {}) };
   // Events can beat the reply to "start": a turn opened by them just gets its prompt.
   if (last && !last.prompt && last.endedAt === null) return [...turns.slice(0, -1), { ...last, prompt, ...extra }];
   return [...turns, { prompt, startedAt: now, endedAt: null, blocks: [], ...extra }];

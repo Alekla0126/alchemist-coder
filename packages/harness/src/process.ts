@@ -2,7 +2,7 @@ import { execFile, spawn as nodeSpawn, type ChildProcess, type SpawnOptions } fr
 import { existsSync } from 'node:fs';
 import { delimiter, extname, join } from 'node:path';
 import { createInterface } from 'node:readline';
-import type { RunnerEvent, RunHandle, PromptImage } from '@alchemist-coder/core';
+import type { RunnerEvent, RunHandle, PromptFile, PromptImage } from '@alchemist-coder/core';
 
 export type SpawnFn = (command: string, args: string[], options: SpawnOptions) => ChildProcess;
 
@@ -81,7 +81,7 @@ export class RunBase implements RunHandle {
     });
   }
 
-  send(_text: string, _images?: PromptImage[]): void {}
+  send(_text: string, _images?: PromptImage[], _files?: PromptFile[]): void {}
 
   stop(): void {
     this.stopped = true;

@@ -15,7 +15,9 @@ import {
   type SessionUpdate,
   type ToolCallContent,
 } from '@agentclientprotocol/sdk';
-import type { AgentOption, FileDiff, HarnessAdapter, PermissionMode, PlanEntry, QuestionAnswer, QuestionField, RunnerEvent, RunOptions, ToolState, PromptImage } from '@alchemist-coder/core';
+import { pathToFileURL } from 'node:url';
+import type { AgentOption, FileDiff, HarnessAdapter, PermissionMode, PlanEntry, QuestionAnswer, QuestionField, RunnerEvent, RunOptions, ToolState, PromptFile, PromptImage } from '@alchemist-coder/core';
+import { stageImage } from './attachments.ts';
 import { killTree, RunBase, spawn, type SpawnFn } from './process.ts';
 
 /** How to start an agent's ACP server; null when it is not installed. */
@@ -117,7 +119,7 @@ class AcpRun extends RunBase {
   private sessionId: string | null = null;
   private modes: SessionModeState | null = null;
   private options: SessionConfigOption[] = [];
-  private readonly queue: Array<{ text: string; images: PromptImage[] }> = [];
+  private readonly queue: Array<{ text: string; images: PromptImage[]; files: PromptFile[] }> = [];
   /** The agent said it takes images in prompts. */
   private imageInput = false;
   private busy = false;
@@ -201,7 +203,7 @@ class AcpRun extends RunBase {
     this.ready = true;
     this.emit({ type: 'started', sessionId: session.id, model: this.modelValue() });
     this.emitConfig();
-    this.send(o.prompt, o.images);
+    this.send(o.prompt, o.images, o.files);
   }
 
   /** The session's extra MCP servers, in ACP's shape. */
@@ -558,9 +560,30 @@ class AcpRun extends RunBase {
     this.emitConfig();
   }
 
-  override send(textIn: string, images: PromptImage[] = []): void {
-    this.queue.push({ text: textIn, images });
+  override send(textIn: string, images: PromptImage[] = [], files: PromptFile[] = []): void {
+    this.queue.push({ text: textIn, images, files });
     void this.pump();
+  }
+
+  /**
+   * What goes to the agent: the text, the images it can see, and every other file as a
+   * `resource_link` (which every ACP agent takes) that it opens with its own tools. An agent that
+   * can't see images gets them as files too, instead of losing them.
+   */
+  private promptBlocks(next: { text: string; images: PromptImage[]; files: PromptFile[] }) {
+    const files = [...next.files];
+    if (next.images.length && !this.imageInput) {
+      try {
+        next.images.forEach((img, i) => files.push(stageImage(this.options_.cwd, img, i)));
+      } catch {
+        this.emit({ type: 'notice', level: 'warning', text: `${this.spec.label} doesn't take images here, and they couldn't be saved as files; only your text was sent.` });
+      }
+    }
+    return [
+      ...(next.text ? [{ type: 'text' as const, text: next.text }] : []),
+      ...(this.imageInput ? next.images.map((i) => ({ type: 'image' as const, mimeType: i.mediaType, data: i.data })) : []),
+      ...files.map((f) => ({ type: 'resource_link' as const, uri: pathToFileURL(f.path).href, name: f.name, ...(f.mimeType ? { mimeType: f.mimeType } : {}), size: f.size })),
+    ];
   }
 
   private async pump() {
@@ -572,9 +595,7 @@ class AcpRun extends RunBase {
     this.paragraphBreak = false;
     this.emit({ type: 'status', status: 'running' });
     try {
-      if (next.images.length && !this.imageInput) this.emit({ type: 'notice', level: 'warning', text: `${this.spec.label} doesn't take images here; only your text was sent.` });
-      const images = this.imageInput ? next.images.map((i) => ({ type: 'image' as const, mimeType: i.mediaType, data: i.data })) : [];
-      const r = await this.conn.prompt({ sessionId: this.sessionId, prompt: [{ type: 'text', text: next.text }, ...images] });
+      const r = await this.conn.prompt({ sessionId: this.sessionId, prompt: this.promptBlocks(next) });
       if (this.stopped) return;
       if (r.stopReason === 'refusal') this.emit({ type: 'notice', level: 'warning', text: `${this.spec.label} declined this request.` });
       this.emit({ type: 'result', ok: r.stopReason !== 'refusal', sessionId: this.sessionId, costUsd: this.costUsd });

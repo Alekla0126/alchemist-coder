@@ -40,6 +40,20 @@ export function relativeTime(ts: number | null, locale: Locale, now = Date.now()
   return new Intl.DateTimeFormat(locale, { day: 'numeric', month, year: abs > 86400 * 300 ? 'numeric' : undefined }).format(ts);
 }
 
+/** 812 B, 4.2 KB, 13 MB, 1.4 GB: a file's size, short. */
+export function fileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  let v = bytes / 1024;
+  let u = 0;
+  while (v >= 1024 && u < units.length - 1) {
+    v /= 1024;
+    u++;
+  }
+  return `${v < 10 ? v.toFixed(1).replace(/\.0$/, '') : Math.round(v)} ${units[u]}`;
+}
+
 export type Freshness = 'now' | 'hour' | 'today' | 'week' | 'older';
 
 /**

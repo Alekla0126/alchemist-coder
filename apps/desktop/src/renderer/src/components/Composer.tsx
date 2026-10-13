@@ -1,13 +1,14 @@
 import { keys } from '../keys';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { SessionSummary, SlashCommand } from '@alchemist-coder/core';
-import type { MenuItem, PermissionMode } from '@shared/api';
+import type { AttachmentInput, MenuItem, PermissionMode } from '@shared/api';
 import type { PromptImage } from '@alchemist-coder/core';
+import { Icon } from './Icon';
 import { LiveRun } from './LiveRun';
 import { MissingAgent } from './MissingAgent';
 import { Suggest, type SuggestItem } from './Suggest';
 import { useContextFill } from './ContextMeter';
-import { matchModel } from '../format';
+import { fileSize, matchModel } from '../format';
 import { drafts, queues } from '../composer-state';
 import { sourceOf } from '../sources';
 import { useStore, useT } from '../store';
@@ -18,6 +19,10 @@ const PREFS_KEY = 'alchemist.composer';
 const MODES: PermissionMode[] = ['default', 'acceptEdits', 'plan', 'bypassPermissions'];
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+/** Pasted content has no file on disk: it travels whole, so it has a ceiling. Dropped files don't. */
+const MAX_PASTED_BYTES = 25 * 1024 * 1024;
+const MAX_FILES = 10;
+type Attached = AttachmentInput & { size: number };
 /** Codex's own ACP modes, named like the app's. */
 const AGENT_MODE_LABEL: Record<string, 'readOnly' | PermissionMode> = { 'read-only': 'readOnly', auto: 'acceptEdits', 'full-access': 'bypassPermissions' };
 const ALLOW_ALL = new Set(['bypassPermissions', 'full-access']);
@@ -123,10 +128,46 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
   const [secret, setSecret] = useState('');
   // Pasted or dropped images, sent with the next message.
   const [images, setImages] = useState<PromptImage[]>([]);
+  // Every other file (PDF, spreadsheet, archive, audio…): the agent opens it with its own tools.
+  const [files, setFiles] = useState<Attached[]>([]);
   useEffect(() => {
     setImages([]);
+    setFiles([]);
     setForkNext(false);
   }, [target]);
+  const pushFile = (f: Attached) => setFiles((list) => (list.length >= MAX_FILES || (!!f.path && list.some((x) => x.path === f.path)) ? list : [...list, f]));
+  /** Anything dropped or pasted: small images as images, the rest by path (or contents, when pasted). */
+  const addFiles = (list: File[]) => {
+    for (const file of list) {
+      if (IMAGE_TYPES.includes(file.type) && file.size <= MAX_IMAGE_BYTES) {
+        addImages([file]);
+        continue;
+      }
+      const path = window.alchemist.pathForFile(file);
+      if (path) {
+        pushFile({ name: file.name || path.split(/[\\/]/).pop() || 'file', path, size: file.size });
+        continue;
+      }
+      if (file.size > MAX_PASTED_BYTES) {
+        toast(t('run.fileTooBig', { name: file.name || 'file' }));
+        continue;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const data = String(reader.result).split(',')[1] ?? '';
+        if (data) pushFile({ name: file.name || 'pasted', data, size: file.size });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+  const pickFiles = async () => {
+    for (const f of await window.alchemist.pickFiles()) {
+      if (f.image) setImages((list) => (list.length >= 6 ? list : [...list, f.image!]));
+      else pushFile({ name: f.name, path: f.path, size: f.size });
+    }
+  };
+  /** What goes over IPC: no sizes, no empty fields. */
+  const outgoing = (): AttachmentInput[] => files.map(({ name, path, data }) => ({ name, ...(path ? { path } : {}), ...(data ? { data } : {}) }));
   const addImages = (files: File[]) => {
     for (const file of files) {
       if (!IMAGE_TYPES.includes(file.type as PromptImage['mediaType'])) continue;
@@ -198,11 +239,12 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
     if (!text || !session || !ready || !provider || !project) return;
     setError(null);
     try {
-      await startRun(`p:${projectId}`, { cwd: project.cwd, harnessId, providerId: provider.id, model, prompt: text, resumeSessionId: session.id, fork: true, permissionMode, effort: effortStart, images: given ? [] : images });
+      await startRun(`p:${projectId}`, { cwd: project.cwd, harnessId, providerId: provider.id, model, prompt: text, resumeSessionId: session.id, fork: true, permissionMode, effort: effortStart, images: given ? [] : images, files: given ? [] : outgoing() });
       if (given) return setCompose(projectId);
       setPrompt('');
       setForkNext(false);
       if (images.length) setImages([]);
+      if (files.length) setFiles([]);
       setCompose(projectId);
     } catch (e) {
       setError(e instanceof Error ? e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(e));
@@ -213,7 +255,7 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
     const text = (queued ?? prompt).trim();
     if (!text) return;
     if (busy && !queued) {
-      if (images.length) return toast(t('run.imagesWait'));
+      if (images.length || files.length) return toast(t('run.imagesWait'));
       // The agent is working: this goes out as soon as it finishes the current turn.
       setQueue([...queue, text]);
       setPrompt('');
@@ -223,7 +265,8 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
     lastPrompt = text;
     try {
       const sent = queued ? [] : images;
-      if (run && canContinue) await sendToRun(run.runId, text, sent);
+      const sentFiles = queued ? [] : outgoing();
+      if (run && canContinue) await sendToRun(run.runId, text, sent, sentFiles);
       else {
         if (!ready || !provider || !project) return;
         await startRun(target, {
@@ -236,10 +279,12 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
           permissionMode,
           effort: effortStart,
           images: sent,
+          files: sentFiles,
         });
       }
       setPrompt('');
       if (sent.length) setImages([]);
+      if (sentFiles.length) setFiles([]);
     } catch (e) {
       setError(e instanceof Error ? e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(e));
     }
@@ -565,10 +610,10 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
         className="composer-box"
         onDragOver={(e) => e.dataTransfer.types.includes('Files') && e.preventDefault()}
         onDrop={(e) => {
-          const files = [...e.dataTransfer.files].filter((f) => f.type.startsWith('image/'));
-          if (!files.length) return;
+          const dropped = [...e.dataTransfer.files];
+          if (!dropped.length) return;
           e.preventDefault();
-          addImages(files);
+          addFiles(dropped);
         }}
       >
         {forkNext && (
@@ -579,12 +624,22 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
             </button>
           </div>
         )}
-        {images.length > 0 && (
+        {images.length + files.length > 0 && (
           <div className="attachments">
             {images.map((img, i) => (
-              <span key={i} className="attachment">
+              <span key={`i${i}`} className="attachment">
                 <img src={`data:${img.mediaType};base64,${img.data}`} alt="" />
                 <button onClick={() => setImages(images.filter((_, j) => j !== i))} title={t('run.removeImage')} aria-label={t('run.removeImage')}>
+                  ×
+                </button>
+              </span>
+            ))}
+            {files.map((f, i) => (
+              <span key={`f${i}`} className="attachment file" title={f.path ?? f.name}>
+                <Icon name="clip" size={13} />
+                <span className="file-name">{f.name}</span>
+                <span className="file-size">{fileSize(f.size)}</span>
+                <button onClick={() => setFiles(files.filter((_, j) => j !== i))} title={t('run.removeFile')} aria-label={t('run.removeFile')}>
                   ×
                 </button>
               </span>
@@ -610,10 +665,10 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
           }}
           onBlur={() => suggest && closeSuggest()}
           onPaste={(e) => {
-            const files = [...e.clipboardData.items].filter((i) => i.kind === 'file' && i.type.startsWith('image/')).map((i) => i.getAsFile()).filter((f): f is File => !!f);
-            if (!files.length) return;
+            const pasted = [...e.clipboardData.items].filter((i) => i.kind === 'file').map((i) => i.getAsFile()).filter((f): f is File => !!f);
+            if (!pasted.length) return;
             e.preventDefault();
-            addImages(files);
+            addFiles(pasted);
           }}
           aria-autocomplete="list"
           onKeyDown={(e) => {
@@ -683,6 +738,7 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
           {!!effortChoices?.length && (
             <Chip icon="gauge" label={effortValue ? effortLabel(t, effortValue, effortChoices.find((c) => c.value === effortValue)?.label) : t('effort.default')} title={t('chip.effort')} onClick={() => void pickEffort()} />
           )}
+          <Chip icon="clip" label={t('run.attach')} title={t('run.attachTip')} className="attach-chip" action onClick={() => void pickFiles()} />
           {project && <Chip icon="bolt" label={t('chip.actions')} title={t('chip.actionsTip')} className="actions-chip" onClick={() => void pickAction(t, project.cwd, projectId, insertText)} />}
           <span className="composer-sp" />
           {ctx && <ContextChip used={ctx.used} size={ctx.size} onCompact={canCompact ? () => insertText('/compact') : undefined} />}

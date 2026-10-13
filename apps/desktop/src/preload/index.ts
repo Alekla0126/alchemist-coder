@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { IndexProgress } from '@alchemist-coder/core';
 import { Channels, type AlchemistApi, type ArenaTask, type AutomationState, type BackupStatus, type BoardData, type BotTeam, type PlanUsage, type RunnerEventMessage } from '../shared/api';
 
@@ -61,7 +61,16 @@ const api: AlchemistApi = {
   runnerCatalog: () => ipcRenderer.invoke(Channels.runnerCatalog),
   setProviderCredential: (providerId, value) => ipcRenderer.invoke(Channels.setProviderCredential, providerId, value),
   startRun: (request) => ipcRenderer.invoke(Channels.startRun, request),
-  sendToRun: (runId, text, images) => ipcRenderer.invoke(Channels.sendToRun, runId, text, images),
+  sendToRun: (runId, text, images, files) => ipcRenderer.invoke(Channels.sendToRun, runId, text, images, files),
+  pickFiles: () => ipcRenderer.invoke(Channels.pickFiles),
+  // Electron took File.path away; this is its replacement, only reachable from the preload.
+  pathForFile: (file) => {
+    try {
+      return webUtils.getPathForFile(file);
+    } catch {
+      return '';
+    }
+  },
   stopRun: (runId) => ipcRenderer.invoke(Channels.stopRun, runId),
   interruptRun: (runId) => ipcRenderer.invoke(Channels.interruptRun, runId),
   respondToRun: (runId, requestId, choiceId) => ipcRenderer.invoke(Channels.respondToRun, runId, requestId, choiceId),

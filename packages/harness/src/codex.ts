@@ -1,4 +1,4 @@
-import type { HarnessAdapter, RunOptions } from '@alchemist-coder/core';
+import { mentionFiles, type HarnessAdapter, type PromptFile, type PromptImage, type RunOptions } from '@alchemist-coder/core';
 import { detectBinary } from './detect.ts';
 import { RunBase, spawn, type SpawnFn } from './process.ts';
 import { parseCodexLine } from './stream.ts';
@@ -22,7 +22,7 @@ class CodexRun extends RunBase {
   ) {
     super();
     this.threadId = options.resumeSessionId ?? null;
-    void this.turn(options.prompt);
+    void this.turn(mentionFiles(options.prompt, options.files));
   }
 
   private async turn(prompt: string) {
@@ -69,7 +69,8 @@ class CodexRun extends RunBase {
     );
   }
 
-  override send(text: string): void {
+  override send(textIn: string, _images?: PromptImage[], files: PromptFile[] = []): void {
+    const text = mentionFiles(textIn, files);
     if (this.child) this.queue.push(text);
     else void this.turn(text);
   }

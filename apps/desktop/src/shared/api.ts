@@ -275,6 +275,28 @@ export interface StartRunRequest {
   effort?: string;
   /** Pasted images, for agents that take them. */
   images?: PromptImage[];
+  /** Any other file sent with the prompt (see AttachmentInput). */
+  files?: AttachmentInput[];
+}
+
+/**
+ * A file the user attached to a message: by its path when it has one (dropped from the Finder,
+ * picked in the dialog), or its contents when it doesn't (pasted from the clipboard). The main
+ * process puts it in the project's `.alchemist/attachments/` before the agent gets it.
+ */
+export interface AttachmentInput {
+  name: string;
+  path?: string;
+  /** Base64, without a data: prefix. */
+  data?: string;
+}
+
+/** A file picked in the attach dialog; `image` when the agent can be shown it as an image. */
+export interface PickedFile {
+  name: string;
+  path: string;
+  size: number;
+  image: PromptImage | null;
 }
 
 export interface RunnerEventMessage {
@@ -927,7 +949,11 @@ export interface AlchemistApi {
   /** Stores (or clears, with null) a provider's API key in the OS keychain. */
   setProviderCredential(providerId: string, value: string | null): Promise<void>;
   startRun(request: StartRunRequest): Promise<{ runId: string }>;
-  sendToRun(runId: string, text: string, images?: PromptImage[]): Promise<void>;
+  sendToRun(runId: string, text: string, images?: PromptImage[], files?: AttachmentInput[]): Promise<void>;
+  /** The attach dialog: any kind of file, several at once. */
+  pickFiles(): Promise<PickedFile[]>;
+  /** A dropped or pasted file's path on disk, or '' when it has none (synchronous, in the preload). */
+  pathForFile(file: File): string;
   stopRun(runId: string): Promise<void>;
   /** Stops the current turn but keeps the conversation open. */
   interruptRun(runId: string): Promise<void>;
@@ -1125,6 +1151,7 @@ export const Channels = {
   setProviderCredential: 'providers:set-credential',
   startRun: 'runner:start',
   sendToRun: 'runner:send',
+  pickFiles: 'run:pick-files',
   stopRun: 'runner:stop',
   interruptRun: 'runner:interrupt',
   respondToRun: 'runner:respond',

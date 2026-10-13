@@ -15,6 +15,7 @@ export function Chip({
   title,
   disabled,
   fixed,
+  action,
   tone,
   className,
   onClick,
@@ -26,6 +27,8 @@ export function Chip({
   disabled?: boolean;
   /** Shown but not changeable (no menu). */
   fixed?: boolean;
+  /** Does something right away (Attach): no menu, so no caret. */
+  action?: boolean;
   tone?: 'danger' | 'warn';
   className?: string;
   onClick?: () => void;
@@ -38,13 +41,13 @@ export function Chip({
       aria-disabled={fixed || undefined}
       title={title}
       aria-label={`${title}: ${label}`}
-      aria-haspopup={fixed ? undefined : 'menu'}
+      aria-haspopup={fixed || action ? undefined : 'menu'}
       onClick={fixed ? undefined : onClick}
     >
       {icon && <Icon name={icon} size={13} />}
       {glyph && <span className="cchip-glyph">{glyph}</span>}
       <span className="cchip-label">{label}</span>
-      {!fixed && <Icon name="chevronDown" size={12} className="cchip-caret" />}
+      {!fixed && !action && <Icon name="chevronDown" size={12} className="cchip-caret" />}
     </button>
   );
 }

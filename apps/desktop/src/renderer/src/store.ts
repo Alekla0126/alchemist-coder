@@ -1,7 +1,7 @@
 import { openFolderAsProject, openNewProject } from './components/NewProject';
 import { create } from 'zustand';
 import type { AgentNode, AgentOption, FileDiff, PromptImage, SlashCommand, IndexProgress, PermissionChoice, PlanEntry, ProjectSummary, QuestionAnswer, SearchHit, SessionSummary, ToolState } from '@alchemist-coder/core';
-import type { AgentReview, AppInfo, ArenaTask, AutomationState, BotConfig, BotTeam, Locale, Mode, OrgSettings, PlanUsage, RunnerCatalog, RunnerEventMessage, Settings, StartRunRequest } from '@shared/api';
+import type { AgentReview, AppInfo, ArenaTask, AttachmentInput, AutomationState, BotConfig, BotTeam, Locale, Mode, OrgSettings, PlanUsage, RunnerCatalog, RunnerEventMessage, Settings, StartRunRequest } from '@shared/api';
 import { resolveLocale, translate, type MessageKey } from './i18n';
 import { moveComposerState } from './composer-state';
 import { applyToTurns, markQuestion, startTurn, type LiveQuestion, type LiveTurn } from './live-turns';
@@ -221,7 +221,7 @@ interface State {
   loadCatalog(): Promise<void>;
   loadPlanUsage(refresh?: boolean): Promise<void>;
   startRun(target: string, request: StartRunRequest): Promise<void>;
-  sendToRun(runId: string, text: string, images?: PromptImage[]): Promise<void>;
+  sendToRun(runId: string, text: string, images?: PromptImage[], files?: AttachmentInput[]): Promise<void>;
   /** The index caught up with a finished run: its turns show from there. */
   clearTurns(runId: string): void;
   stopRun(runId: string): Promise<void>;
@@ -782,13 +782,13 @@ export const useStore = create<State>((set, get) => ({
     const { runId } = await api.startRun(request);
     // Events can beat the IPC reply: keep what already arrived.
     const prev = { ...emptyRun(runId, request.harnessId, target, request.resumeSessionId ?? null), ...useStore.getState().runs[runId] };
-    const run = { ...prev, target, harnessId: request.harnessId, cwd: request.cwd, turns: startTurn(prev.turns, request.prompt, Date.now(), request.images ?? []) };
+    const run = { ...prev, target, harnessId: request.harnessId, cwd: request.cwd, turns: startTurn(prev.turns, request.prompt, Date.now(), request.images ?? [], (request.files ?? []).map((f) => f.name)) };
     set((s) => ({ runs: { ...s.runs, [runId]: run }, runByTarget: { ...s.runByTarget, [target]: runId } }));
   },
 
-  async sendToRun(runId, text, images) {
-    await api.sendToRun(runId, text, images);
-    patchRun(runId, (r) => ({ ...r, status: 'running', text: r.text ? `${r.text}\n\n` : '', turns: startTurn(r.turns, text, Date.now(), images ?? []) }));
+  async sendToRun(runId, text, images, files) {
+    await api.sendToRun(runId, text, images, files);
+    patchRun(runId, (r) => ({ ...r, status: 'running', text: r.text ? `${r.text}\n\n` : '', turns: startTurn(r.turns, text, Date.now(), images ?? [], (files ?? []).map((f) => f.name)) }));
   },
 
   clearTurns(runId) {

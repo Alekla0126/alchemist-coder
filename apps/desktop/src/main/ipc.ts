@@ -1,11 +1,13 @@
 import { BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron';
 import { slashCommands } from './slash-commands';
 import type { BotManager } from './bots';
+import { readFileSync, statSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { installFromOpenVsx, parseJsonc, searchThemes, themesFromVsix } from '@alchemist-coder/themes';
 import type { IndexReader } from '@alchemist-coder/indexer';
-import type { IndexProgress, QuestionAnswer } from '@alchemist-coder/core';
+import { IMAGE_TYPES, type IndexProgress, type PromptImage, type QuestionAnswer } from '@alchemist-coder/core';
+import { mimeOf } from '@alchemist-coder/harness';
 import { Channels, type AppInfo, type ExportFormat } from '../shared/api';
 import type { SettingsStore } from './settings';
 import type { RunnerManager } from './runner';
@@ -201,7 +203,21 @@ export function registerIpc(deps: IpcDeps): void {
     if (prepared) deps.reviews.track(started.runId, prepared, r);
     return started;
   });
-  ipcMain.handle(Channels.sendToRun, (_e, runId: unknown, value: unknown, images: unknown) => deps.runner.send(text(runId, 'run id', 100), String(value ?? ''), images));
+  ipcMain.handle(Channels.sendToRun, (_e, runId: unknown, value: unknown, images: unknown, files: unknown) => deps.runner.send(text(runId, 'run id', 100), String(value ?? ''), images, files));
+  // Any kind of file for the next message; small images also come as images, for agents that see them.
+  ipcMain.handle(Channels.pickFiles, async (e) => {
+    const win = BrowserWindow.fromWebContents(e.sender);
+    const options = { properties: ['openFile', 'multiSelections'] as Array<'openFile' | 'multiSelections'> };
+    const choice = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
+    if (choice.canceled) return [];
+    return choice.filePaths.slice(0, 10).flatMap((path) => {
+      const s = statSync(path, { throwIfNoEntry: false });
+      if (!s?.isFile()) return [];
+      const type = mimeOf(path);
+      const image = type && (IMAGE_TYPES as readonly string[]).includes(type) && s.size <= 5 * 1024 * 1024 ? { mediaType: type as PromptImage['mediaType'], data: readFileSync(path).toString('base64') } : null;
+      return [{ name: basename(path), path, size: s.size, image }];
+    });
+  });
   ipcMain.handle(Channels.stopRun, (_e, runId: unknown) => deps.runner.stop(text(runId, 'run id', 100)));
   ipcMain.handle(Channels.interruptRun, (_e, runId: unknown) => deps.runner.interrupt(text(runId, 'run id', 100)));
   ipcMain.handle(Channels.respondToRun, (_e, runId: unknown, requestId: unknown, choiceId: unknown) =>

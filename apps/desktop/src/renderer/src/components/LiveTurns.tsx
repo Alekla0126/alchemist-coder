@@ -7,6 +7,7 @@ import { Markdown } from './Markdown';
 import { QuietRow, SubagentCard, ToolInput, Who, type Speakers } from './Transcript';
 import { WorkingRow } from './WorkingOrb';
 import { displaySummary } from '../transcript-model';
+import { Icon } from './Icon';
 
 const STATE_ICON: Record<string, string> = { pending: '…', running: '◐', done: '✓', failed: '✕' };
 
@@ -182,6 +183,15 @@ function Turn({ turn, run, isLast, who }: { turn: LiveTurn; run: RunState; isLas
                     tabIndex={0}
                     onClick={(e) => e.currentTarget.classList.toggle('big')}
                   />
+                ))}
+              </div>
+            )}
+            {!!turn.files?.length && (
+              <div className="turn-files">
+                {turn.files.map((name, i) => (
+                  <span key={i} className="file-chip" title={name}>
+                    <Icon name="clip" size={12} /> {name}
+                  </span>
                 ))}
               </div>
             )}

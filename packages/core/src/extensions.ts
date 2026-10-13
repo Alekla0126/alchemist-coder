@@ -157,6 +157,26 @@ export function validImages(value: unknown): PromptImage[] {
     .map((i) => ({ mediaType: i.mediaType, data: i.data }));
 }
 
+/**
+ * A file sent with a prompt, any kind (PDF, spreadsheet, archive, audio…). It goes by path: the
+ * main process has put it in the project's `.alchemist/attachments/` (or it was already in the
+ * project, or too big to copy), and the agent opens it with its own tools. ACP agents get a
+ * `resource_link`; the others, a line naming it at the end of the message (`mentionFiles`).
+ */
+export interface PromptFile {
+  path: string;
+  name: string;
+  mimeType: string | null;
+  size: number;
+}
+
+/** For agents without ACP: the prompt with its attached files named at the end. */
+export function mentionFiles(text: string, files: readonly PromptFile[] = []): string {
+  if (!files.length) return text;
+  const list = files.map((f) => `- ${f.path}${f.mimeType ? ` (${f.mimeType})` : ''}`).join('\n');
+  return `${text}\n\nAttached files:\n${list}`;
+}
+
 /** An MCP server an agent gets for one session: the command it starts (stdio). */
 export interface SessionMcpServer {
   name: string;
@@ -174,6 +194,8 @@ export interface RunOptions {
   mcpServers?: SessionMcpServer[];
   /** Sent with the prompt when the agent takes images. */
   images?: PromptImage[];
+  /** Any other file, by path (see PromptFile). */
+  files?: PromptFile[];
   provider: ProviderAdapter;
   model: string;
   resumeSessionId?: string;
@@ -185,7 +207,7 @@ export interface RunOptions {
 
 export interface RunHandle {
   id: string;
-  send(text: string, images?: PromptImage[]): void;
+  send(text: string, images?: PromptImage[], files?: PromptFile[]): void;
   stop(): void;
   onEvent(listener: (event: RunnerEvent) => void): () => void;
   /** Stops the current turn but keeps the session (agents that support it). */

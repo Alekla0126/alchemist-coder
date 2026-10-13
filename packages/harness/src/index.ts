@@ -5,3 +5,4 @@ export { claudeAgent, codexAgent, geminiAgent, grokAgent, npxOrHeadless, CLAUDE_
 export { detectBinary } from './detect.ts';
 export { parseClaudeLine, parseCodexLine } from './stream.ts';
 export type { SpawnFn } from './process.ts';
+export { ATTACHMENTS_DIR, COPY_LIMIT, attachmentsDir, insideProject, mimeOf, safeName, stageData, stageFile, stageImage } from './attachments.ts';

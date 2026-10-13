@@ -1,4 +1,4 @@
-import type { HarnessAdapter, RunOptions } from '@alchemist-coder/core';
+import { mentionFiles, type HarnessAdapter, type PromptFile, type PromptImage, type RunOptions } from '@alchemist-coder/core';
 import { detectBinary } from './detect.ts';
 import { RunBase, spawn, type SpawnFn } from './process.ts';
 import { parseClaudeLine } from './stream.ts';
@@ -43,12 +43,12 @@ class ClaudeRun extends RunBase {
     this.attach(child, (line) => parseClaudeLine(line, state), (code) => {
       this.emit({ type: 'status', status: this.stopped ? 'interrupted' : code === 0 ? 'done' : 'error' });
     });
-    this.send(o.prompt);
+    this.send(o.prompt, [], o.files);
   }
 
-  override send(text: string): void {
+  override send(text: string, _images?: PromptImage[], files: PromptFile[] = []): void {
     // stream-json input keeps one process alive across turns.
-    this.child?.stdin?.write(`${JSON.stringify({ type: 'user', message: { role: 'user', content: text } })}\n`);
+    this.child?.stdin?.write(`${JSON.stringify({ type: 'user', message: { role: 'user', content: mentionFiles(text, files) } })}\n`);
   }
 }
 

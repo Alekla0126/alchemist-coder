@@ -2,14 +2,44 @@ import { statSync } from 'node:fs';
 import { cliStatus } from './cli-status';
 import { installStep } from './install';
 import { cliSearchPath } from './shell-path';
-import { detectBinary } from '@alchemist-coder/harness';
-import { isLocalEndpoint, type ExtensionRegistry, type QuestionAnswer, type RunHandle, type SessionMcpServer, validImages } from '@alchemist-coder/core';
+import { detectBinary, stageData, stageFile } from '@alchemist-coder/harness';
+import { isLocalEndpoint, type ExtensionRegistry, type PromptFile, type QuestionAnswer, type RunHandle, type SessionMcpServer, validImages } from '@alchemist-coder/core';
 import type { PermissionMode, RunnerCatalog, RunnerEventMessage, StartRunRequest } from '../shared/api';
 
 const PERMISSION_MODES: PermissionMode[] = ['default', 'acceptEdits', 'plan', 'bypassPermissions'];
 
+/** At most this many files with one message, and this much pasted content per file (base64). */
+const MAX_FILES = 10;
+const MAX_PASTED_BASE64 = 35_000_000; // about 25 MB
+
+/**
+ * The renderer's attachments, ready for the agent: each one checked (a real file, or base64 of a
+ * sane size) and put in the project (harness/attachments.ts). A file that can't be read is left out.
+ */
+export function stageAttachments(cwd: string, value: unknown): PromptFile[] {
+  if (!Array.isArray(value)) return [];
+  const out: PromptFile[] = [];
+  for (const item of value.slice(0, MAX_FILES)) {
+    if (!item || typeof item !== 'object') continue;
+    const { name, path, data } = item as { name?: unknown; path?: unknown; data?: unknown };
+    try {
+      if (typeof path === 'string' && path) {
+        const staged = stageFile(cwd, path, typeof name === 'string' ? name : undefined);
+        if (staged) out.push(staged);
+      } else if (typeof data === 'string' && data.length > 0 && data.length <= MAX_PASTED_BASE64 && /^[A-Za-z0-9+/]+={0,2}$/.test(data)) {
+        out.push(stageData(cwd, typeof name === 'string' ? name : 'pasted', Buffer.from(data, 'base64')));
+      }
+    } catch {
+      // Unreadable, or no room to copy it: the rest still go.
+    }
+  }
+  return out;
+}
+
 export class RunnerManager {
   private readonly runs = new Map<string, RunHandle>();
+  /** Each run's project folder, where its attachments go. */
+  private readonly cwds = new Map<string, string>();
   private readonly observers = new Set<(message: RunnerEventMessage) => void>();
 
   constructor(
@@ -79,8 +109,9 @@ export class RunnerManager {
     const permissionMode = PERMISSION_MODES.includes(request.permissionMode as PermissionMode) ? request.permissionMode : 'acceptEdits';
 
     const effort = typeof request.effort === 'string' && /^[\w-]{1,24}$/.test(request.effort) ? request.effort : undefined;
-    const handle = harness.run({ cwd, prompt, images: validImages(request.images), provider, model, resumeSessionId: resume, fork: !!resume && request.fork === true, permissionMode, effort, mcpServers: internal.mcpServers });
+    const handle = harness.run({ cwd, prompt, images: validImages(request.images), files: stageAttachments(cwd, request.files), provider, model, resumeSessionId: resume, fork: !!resume && request.fork === true, permissionMode, effort, mcpServers: internal.mcpServers });
     this.runs.set(handle.id, handle);
+    this.cwds.set(handle.id, cwd);
     handle.onEvent((event) => {
       const message = { runId: handle.id, event };
       this.emit(message);
@@ -107,11 +138,12 @@ export class RunnerManager {
     await this.registry.secrets.set(provider.credential.key, v || null);
   }
 
-  send(runId: string, text: string, images?: unknown): void {
+  send(runId: string, text: string, images?: unknown, files?: unknown): void {
     const run = this.runs.get(runId);
     if (!run) throw new Error('This run has ended');
     const t = typeof text === 'string' ? text.trim() : '';
-    if (t) run.send(t, validImages(images));
+    const cwd = this.cwds.get(runId);
+    if (t) run.send(t, validImages(images), cwd ? stageAttachments(cwd, files) : []);
   }
 
   respond(runId: string, requestId: string, choiceId: string | null): void {
@@ -150,6 +182,7 @@ export class RunnerManager {
   stop(runId: string): void {
     this.runs.get(runId)?.stop();
     this.runs.delete(runId);
+    this.cwds.delete(runId);
   }
 
   stopAll(): void {
