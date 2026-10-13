@@ -3,6 +3,7 @@ import { keys } from '../keys';
 import { fitModes, modesRoom, type ModeFit } from '../mode-fit';
 import type { Mode } from '@shared/api';
 import { useShallow } from 'zustand/react/shallow';
+import { nextPlace } from '../needs-you';
 import { useStore, useT, waitingRuns } from '../store';
 import { needsYou } from './Bots';
 import { LogoMark } from './Logo';
@@ -69,35 +70,44 @@ export function TitleBar() {
   // An automation's questions count too.
   const asks = useStore(useShallow((s) => s.automations.flatMap((x) => (x.runs[0]?.asks ?? []).map((a) => `${x.automation.id}:${a.id}`))));
   const waiting = [...waitingList, ...plans, ...asks];
-  /** The next conversation (or new one) whose agent waits for you. */
+  /**
+   * Right to what waits for you, in the tab where you answer it (needs-you.ts): its conversation on
+   * the main agent's tab, the Arena task, the bot, Marketing… With several, the next one you aren't on.
+   */
   const goToWaiting = async () => {
     const s = useStore.getState();
-    const next = waitingRuns(s)[0];
-    const plan = s.botTeams.find((x) => x.plan?.status === 'pending');
-    const asking = s.automations.find((x) => x.runs[0]?.asks.length);
-    if (!next && !plan && asking) {
-      s.setMode('bots');
-      useStore.setState({ activeAutomationId: asking.automation.id, activeTeamId: null, activeMemberId: null, activeBotId: null });
-      return;
-    }
-    if (!next && plan) {
-      s.setMode('bots');
-      useStore.setState({ activeTeamId: plan.id, activeBotId: plan.bots[0]?.id ?? null, activeMemberId: null });
-      return;
-    }
-    if (!next) return;
-    // A bot waiting for you: open its team in the Bots view.
-    const team = s.botTeams.find((x) => x.bots.some((b) => b.runId === next.runId));
-    if (team) {
-      s.setMode('bots');
-      useStore.setState({ activeTeamId: team.id, activeBotId: team.bots.find((b) => b.runId === next.runId)!.id, activeMemberId: null });
-      return;
-    }
-    if (s.settings.mode !== 'agents' && s.settings.mode !== 'split') s.setMode('agents');
-    if (next.sessionId) await s.select(next.sessionId, 'main');
-    else if (next.projectId != null) {
-      if (s.settings.activeProjectId !== next.projectId) await s.setActiveProject(next.projectId);
-      s.setCompose(next.projectId);
+    const place = nextPlace(s);
+    if (!place) return;
+    const show = (mode: Mode) => s.settings.mode !== mode && s.setMode(mode);
+    switch (place.kind) {
+      case 'session':
+        if (s.settings.mode !== 'agents' && s.settings.mode !== 'split') s.setMode('agents');
+        await s.select(place.sessionId, 'main');
+        return;
+      case 'compose':
+        if (s.settings.mode !== 'agents' && s.settings.mode !== 'split') s.setMode('agents');
+        if (s.settings.activeProjectId !== place.projectId) await s.setActiveProject(place.projectId);
+        s.setCompose(place.projectId);
+        return;
+      case 'bot':
+        show('bots');
+        useStore.setState({ activeTeamId: place.teamId, activeBotId: place.botId, activeMemberId: null, activeAutomationId: null });
+        return;
+      case 'plan':
+        show('bots');
+        useStore.setState({ activeTeamId: place.teamId, activeBotId: place.botId, activeMemberId: null, activeAutomationId: null });
+        return;
+      case 'automation':
+        show('bots');
+        useStore.setState({ activeAutomationId: place.automationId, activeTeamId: null, activeMemberId: null, activeBotId: null });
+        return;
+      case 'arena':
+        show('arena');
+        s.setActiveTask(place.taskId);
+        return;
+      case 'marketing':
+        show('marketing');
+        return;
     }
   };
   const title = useStore((s) => {
