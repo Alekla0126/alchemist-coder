@@ -1,33 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import type { BotConfig } from '@shared/api';
+import { defaultTemplate, loadTemplates, saveTemplates, setDefaultTemplate, starterTemplates, type Template } from '../org-templates';
 import { baseName } from '../paths';
 import { useOpenProjects, useStore, useT } from '../store';
 import { openMenu, promptText, toast } from '../ui';
 import { errorText } from './Bots';
 import { Chip } from './ComposerChips';
 import { Icon } from './Icon';
-
-/** A saved way of giving an assignment: goal, guidance for the coordinator, plan review, budget. */
-interface Template {
-  id: string;
-  name: string;
-  goal: string;
-  guidance: string;
-  reviewPlan: boolean;
-  budget: string;
-}
-
-const TEMPLATES_KEY = 'alchemist.teamTemplates';
-const loadTemplates = (): Template[] => {
-  try {
-    const v = JSON.parse(localStorage.getItem(TEMPLATES_KEY) ?? '[]') as Array<Partial<Template> & { role?: string }>;
-    // Templates from the Bots era kept the coordinator's role: it is this assignment's guidance now.
-    return Array.isArray(v) ? v.map((x) => ({ id: String(x.id), name: String(x.name ?? ''), goal: x.goal ?? '', guidance: x.guidance ?? x.role ?? '', reviewPlan: x.reviewPlan !== false, budget: x.budget ?? '' })) : [];
-  } catch {
-    return [];
-  }
-};
-const saveTemplates = (list: Template[]) => localStorage.setItem(TEMPLATES_KEY, JSON.stringify(list.slice(0, 30)));
 
 /** --org-goal (screenshots) was already given in this launch. */
 let shotSent = false;
@@ -46,12 +25,15 @@ export function OrgComposer({ coordinator, examples: showExamples }: { coordinat
   // The project you picked on the chip; until then (or once it's closed) the one you're in, so switching projects in the rail takes the box with you.
   const [picked, setPicked] = useState<string | null>(null);
   const cwd = (picked && open.some((p) => p.cwd === picked) ? picked : '') || orgProject || activeProject?.cwd || open[0]?.cwd || '';
-  const [guidance, setGuidance] = useState('');
-  const [budget, setBudget] = useState('');
-  const [reviewPlan, setReviewPlan] = useState(true);
-  const [busy, setBusy] = useState(false);
   const [templates, setTemplates] = useState<Template[]>(loadTemplates);
-  const [tplId, setTplId] = useState<string | null>(null);
+  const all = [...starterTemplates(t), ...templates];
+  // The box starts from the default template: The Alchemist Code's way of working, unless you made another one the default.
+  const [first] = useState(() => defaultTemplate(all));
+  const [guidance, setGuidance] = useState(first?.guidance ?? '');
+  const [budget, setBudget] = useState(first?.budget ?? '');
+  const [reviewPlan, setReviewPlan] = useState(first?.reviewPlan ?? true);
+  const [busy, setBusy] = useState(false);
+  const [tplId, setTplId] = useState<string | null>(first?.id ?? null);
   const box = useRef<HTMLTextAreaElement>(null);
   // Filtering the organization to a project is picking it.
   useEffect(() => setPicked(null), [orgProject]);
@@ -68,8 +50,6 @@ export function OrgComposer({ coordinator, examples: showExamples }: { coordinat
     el.style.height = `${Math.min(el.scrollHeight, 220)}px`;
   }, [goal]);
 
-  const starters: Template[] = ['build', 'security', 'research'].map((k) => ({ id: `starter:${k}`, name: t(`bots.tpl.${k}.name` as never), goal: '', guidance: t(`bots.tpl.${k}.role` as never), reviewPlan: true, budget: '' }));
-  const all = [...starters, ...templates];
   const current = all.find((x) => x.id === tplId);
   const applyTemplate = (tpl: Template | null) => {
     if (tpl?.goal) setGoal(tpl.goal);
@@ -81,15 +61,19 @@ export function OrgComposer({ coordinator, examples: showExamples }: { coordinat
   };
   const pickTemplate = async () => {
     const saved = !!current && !current.id.startsWith('starter:');
+    const isDefault = !!current && defaultTemplate(all)?.id === current.id;
     const id = await openMenu([
       ...all.map((tpl) => ({ id: `t:${tpl.id}`, label: tpl.name, checked: tpl.id === tplId })),
       { type: 'separator' },
       ...(current ? [{ id: 'none', label: t('org.tplNone') }] : []),
+      ...(current ? [{ id: 'default', label: t('org.tplDefault'), checked: isDefault }] : []),
       { id: 'save', label: t('bots.tplSave'), enabled: !!goal.trim() || !!guidance.trim() },
       ...(saved ? [{ id: 'delete', label: `${t('bots.tplDelete')}: ${current.name}` }] : []),
     ]);
     if (!id) return;
     if (id === 'none') return applyTemplate(null);
+    // Unticking it: assignments start with no template.
+    if (id === 'default') return setDefaultTemplate(isDefault ? null : current!.id);
     if (id === 'delete') {
       const next = templates.filter((x) => x.id !== tplId);
       setTemplates(next);
