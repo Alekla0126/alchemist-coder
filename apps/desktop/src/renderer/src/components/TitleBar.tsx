@@ -1,12 +1,12 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { keys } from '../keys';
 import { fitModes, modesRoom, type ModeFit } from '../mode-fit';
 import type { Mode } from '@shared/api';
 import { nextPlace, waitingPlaces, type Place } from '../needs-you';
-import { useStore, useT } from '../store';
+import { sessionTitle, useStore, useT } from '../store';
 import { LogoMark } from './Logo';
 import { Icon, type IconName } from './Icon';
-import { toggleBrowser, toggleSidebar, toggleSplitSide, useLayout, useViewport } from '../layout';
+import { openBrowser, toggleBrowser, toggleSidebar, toggleSplitSide, useLayout, useViewport } from '../layout';
 import { openMenu } from '../ui';
 
 const MODES: Mode[] = ['agents', 'arena', 'code', 'split', 'terminal', 'history', 'bots', 'marketing', 'board'];
@@ -57,7 +57,7 @@ function useModeFit(header: React.RefObject<HTMLElement | null>, measure: React.
 function placeName(place: Place, s: ReturnType<typeof useStore.getState>, t: ReturnType<typeof useT>): string {
   switch (place.kind) {
     case 'session':
-      return Object.values(s.sessions).flat().find((x) => x.id === place.sessionId)?.title || s.latest?.find((x) => x.id === place.sessionId)?.title || s.trees[place.sessionId]?.description || t('attention.aConversation');
+      return sessionTitle(s, place.sessionId) ?? t('attention.aConversation');
     case 'compose':
       return s.projects.find((p) => p.id === place.projectId)?.name ?? t('attention.aConversation');
     case 'bot':
@@ -146,7 +146,20 @@ export function TitleBar() {
   const splitSideHidden = useLayout((l) => l.splitSideHidden);
   const agentLabel = t(splitSideHidden ? 'layout.showAgent' : 'layout.hideAgent');
   const browserOpen = useLayout((l) => l.browserOpen);
-  const browserLabel = t(browserOpen ? 'browser.hide' : 'browser.show');
+  // The globe is in every mode: agents in Marketing or Split use the browser too, and a dot says one is at it.
+  const [driver, setDriver] = useState<string | null>(null);
+  useEffect(() => {
+    void window.alchemist.browserState().then((b) => setDriver(b.driver));
+    return window.alchemist.onBrowserState((b) => setDriver(b.driver));
+  }, []);
+  const browserShown = mode === 'agents' && browserOpen;
+  const browserLabel = driver !== null ? t('browser.driving', { agent: driver || t('browser.anAgent') }) : t(browserShown ? 'browser.hide' : 'browser.show');
+  // The browser's panel lives next to the conversation (Agents): from elsewhere the globe takes you there.
+  const onGlobe = () => {
+    if (mode === 'agents') return toggleBrowser();
+    setMode('agents');
+    openBrowser();
+  };
   // What the button would do: open when the sidebar is out of sight, close when it shows.
   const sideShown = narrow ? drawer : !sideHidden;
   const sideLabel = t(sideShown ? 'layout.hideSidebar' : 'layout.showSidebar');
@@ -207,11 +220,10 @@ export function TitleBar() {
         <Icon name="chevronDown" size={13} />
       </button>
       <div className="title-right">
-        {mode === 'agents' && (
-          <button className={`icon-btn browser-toggle ${browserOpen ? 'on' : ''}`} onClick={toggleBrowser} title={browserLabel} aria-label={browserLabel} aria-expanded={browserOpen}>
-            <Icon name="globe" size={16} />
-          </button>
-        )}
+        <button className={`icon-btn browser-toggle ${browserShown ? 'on' : ''}`} onClick={onGlobe} title={browserLabel} aria-label={browserLabel} aria-expanded={browserShown}>
+          <Icon name="globe" size={16} />
+          {driver !== null && <span className="globe-live" aria-hidden />}
+        </button>
         {mode === 'split' && (
           <button className="icon-btn side-toggle" onClick={toggleSplitSide} title={`${agentLabel} (${keys('⌘⌥B')})`} aria-label={agentLabel} aria-expanded={!splitSideHidden}>
             <Icon name={splitSideHidden ? 'panelRightOpen' : 'panelRightClose'} size={17} />

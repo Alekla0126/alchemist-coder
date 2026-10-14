@@ -14,12 +14,12 @@ interface Layout {
   sideHidden: boolean;
   /** The agent column of the split view, folded away. */
   splitSideHidden: boolean;
-  /** The built-in browser's column, next to the conversation. */
+  /** The built-in browser's column, next to the conversation; 0 = half the room (until you drag it). */
   browser: number;
   browserOpen: boolean;
 }
 
-export const LIMITS = { side: [200, 560, 300], splitSide: [300, 760, 380], splitTerm: [120, 900, 280], peek: [360, 1200, 620], browser: [320, 1600, 620] } as const;
+export const LIMITS = { side: [200, 560, 300], splitSide: [300, 760, 380], splitTerm: [120, 900, 280], peek: [360, 1200, 620], browser: [320, 1600, 0] } as const;
 export type Panel = keyof typeof LIMITS;
 
 const clamp = (v: number, [min, max]: readonly [number, number, number]) => Math.round(Math.min(max, Math.max(min, v)));
@@ -34,7 +34,8 @@ function load(): Layout {
       peek: clamp(Number(raw.peek) || LIMITS.peek[2], LIMITS.peek),
       sideHidden: raw.sideHidden === true,
       splitSideHidden: raw.splitSideHidden === true,
-      browser: clamp(Number(raw.browser) || LIMITS.browser[2], LIMITS.browser),
+      // 620 was the old fixed default, saved without being dragged: it's "auto" now.
+      browser: Number(raw.browser) && Number(raw.browser) !== 620 ? clamp(Number(raw.browser), LIMITS.browser) : 0,
       browserOpen: raw.browserOpen === true,
     };
   } catch {
@@ -44,6 +45,9 @@ function load(): Layout {
 
 /** Panel sizes, kept across launches; applied as CSS variables. */
 export const useLayout = create<Layout>(load);
+
+/** Below this width (about half a laptop screen) the sidebar floats over the page instead of taking a column. */
+export const NARROW = 1000;
 
 /** The middle always keeps room: saved widths give way on a small window. */
 const RAIL = 56;
@@ -60,8 +64,10 @@ function apply(l: Layout) {
   root.setProperty('--split-term-h', `${Math.min(l.splitTerm, window.innerHeight - 260)}px`);
   // The board keeps at least a column of room next to the conversation.
   root.setProperty('--peek-w', `${Math.max(LIMITS.peek[0], Math.min(l.peek, width - RAIL - 380))}px`);
-  // The conversation keeps its room next to the browser.
-  root.setProperty('--browser-w', `${Math.max(LIMITS.browser[0], Math.min(l.browser, width - RAIL - (l.sideHidden ? 0 : side) - MIN_CENTER))}px`);
+  // The conversation keeps its room next to the browser. A floating sidebar (half a screen) takes none;
+  // until you drag it, the browser takes half of what's left.
+  const room = width - RAIL - (l.sideHidden || width < NARROW ? 0 : side);
+  root.setProperty('--browser-w', `${Math.max(LIMITS.browser[0], Math.min(l.browser || Math.round(room / 2), room - MIN_CENTER))}px`);
 }
 apply(useLayout.getState());
 if (typeof window !== 'undefined') window.addEventListener('resize', () => apply(useLayout.getState()));
@@ -77,8 +83,6 @@ useLayout.subscribe((l) => {
 export const setPanel = (panel: Panel, px: number) => useLayout.setState({ [panel]: clamp(px, LIMITS[panel]) } as Partial<Layout>);
 export const resetPanel = (panel: Panel) => useLayout.setState({ [panel]: LIMITS[panel][2] } as Partial<Layout>);
 
-/** Below this width (about half a laptop screen) the sidebar floats over the page instead of taking a column. */
-export const NARROW = 1000;
 const isNarrow = () => typeof window !== 'undefined' && window.innerWidth < NARROW;
 
 /** The window's size class, and whether the floating sidebar is open (it starts closed). */

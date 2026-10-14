@@ -1699,5 +1699,8 @@ export const ru: Messages = {
   'browser.driving': '{agent} использует браузер',
   'browser.takeOver': 'Взять управление',
   'browser.yours': 'Браузер у вас; агенты ждут, пока вы его вернёте',
-  'browser.handBack': 'Вернуть',
+  'browser.handBack': 'Вернуть управление',
+  'browser.anAgent': 'Агент',
+  'browser.stop': 'Остановить',
+  'browser.goToConversation': 'Перейти к разговору: «{name}»',
 };

@@ -1519,5 +1519,8 @@ export const ja: Messages = {
   'browser.driving': '{agent} がブラウザーを使用中',
   'browser.takeOver': '操作を代わる',
   'browser.yours': 'ブラウザーを操作中です。返すまでエージェントは待機します',
-  'browser.handBack': '返す',
+  'browser.handBack': '操作を返す',
+  'browser.anAgent': 'エージェント',
+  'browser.stop': '停止',
+  'browser.goToConversation': '会話へ移動：「{name}」',
 };

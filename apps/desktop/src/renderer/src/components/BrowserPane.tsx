@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { BrowserState } from '@shared/api';
-import { useT } from '../store';
+import { sessionTitle, useStore, useT } from '../store';
 import { Icon } from './Icon';
 
 const api = () => window.alchemist;
@@ -89,19 +89,33 @@ export function BrowserPane({ covered: coveredBy = false, onClose }: { covered?:
     if (address.trim()) void api().browserOpen(address);
   };
   const empty = !state?.url || state.url === 'about:blank';
+  const driving = state?.driver != null;
+  const agent = state?.driver || t('browser.anAgent');
+  // The conversation whose agent is at it, to name it and go there.
+  const conversationId = useStore((s) => {
+    const run = state?.driverRunId ? s.runs[state.driverRunId] : undefined;
+    return run?.sessionId ?? (run?.target.startsWith('s:') ? run.target.slice(2) : null);
+  });
+  const conversationTitle = useStore((s) => (conversationId ? (sessionTitle(s, conversationId) ?? t('attention.aConversation')) : ''));
 
   return (
     <section className="browser-pane" aria-label={t('browser.title')}>
       <form className="browser-bar" onSubmit={go}>
         <button type="button" className="icon-btn" disabled={!state?.canGoBack} onClick={() => void api().browserBack()} title={t('browser.back')} aria-label={t('browser.back')}>
-          ‹
+          <Icon name="chevronLeft" size={15} />
         </button>
         <button type="button" className="icon-btn" disabled={!state?.canGoForward} onClick={() => void api().browserForward()} title={t('browser.forward')} aria-label={t('browser.forward')}>
-          ›
+          <Icon name="chevronRight" size={15} />
         </button>
-        <button type="button" className="icon-btn" disabled={empty} onClick={() => void api().browserReload()} title={t('browser.reload')} aria-label={t('browser.reload')}>
-          {state?.loading ? '×' : '↻'}
-        </button>
+        {state?.loading ? (
+          <button type="button" className="icon-btn" onClick={() => void api().browserStop()} title={t('browser.stop')} aria-label={t('browser.stop')}>
+            <Icon name="stop" size={12} />
+          </button>
+        ) : (
+          <button type="button" className="icon-btn" disabled={empty} onClick={() => void api().browserReload()} title={t('browser.reload')} aria-label={t('browser.reload')}>
+            <Icon name="refresh" size={14} />
+          </button>
+        )}
         <input
           className="browser-address"
           value={address}
@@ -120,17 +134,37 @@ export function BrowserPane({ covered: coveredBy = false, onClose }: { covered?:
           <Icon name="close" size={14} />
         </button>
       </form>
-      {(state?.driver || state?.userControl) && (
-        <div className={`browser-driver ${state.userControl ? 'yours' : ''}`} role="status">
-          <span>{state.userControl ? t('browser.yours') : t('browser.driving', { agent: state.driver ?? '' })}</span>
-          <button className="link small" onClick={() => void api().browserUserControl(!state.userControl)}>
-            {state.userControl ? t('browser.handBack') : t('browser.takeOver')}
-          </button>
+      {/* Always there, so the page never moves: the page's title, or who has the browser. */}
+      {(!empty || driving || state?.userControl) && (
+        <div className={`browser-status ${state?.userControl ? 'yours' : driving ? 'driving' : ''}`} role="status" title={state?.userControl ? t('browser.yours') : driving ? t('browser.driving', { agent }) : state?.title}>
+          {state?.userControl ? (
+            <span className="bs-text">{t('browser.yours')}</span>
+          ) : driving ? (
+            <span className="bs-text">
+              <span className="live-dot" aria-hidden /> <b>{agent}</b>
+              {conversationId && (
+                <>
+                  {' · '}
+                  <button className="bs-link" onClick={() => void useStore.getState().select(conversationId, 'main')} title={t('browser.goToConversation', { name: conversationTitle })}>
+                    {conversationTitle}
+                  </button>
+                </>
+              )}
+            </span>
+          ) : (
+            <span className="bs-text bs-title">{state?.title}</span>
+          )}
+          {(driving || state?.userControl) && (
+            <button className="bs-btn" onClick={() => void api().browserUserControl(!state?.userControl)}>
+              {state?.userControl ? t('browser.handBack') : t('browser.takeOver')}
+            </button>
+          )}
         </div>
       )}
       <div className="browser-body" ref={body}>
         {empty && (
           <div className="browser-empty">
+            <Icon name="globe" size={28} />
             <p>{t('browser.empty')}</p>
           </div>
         )}

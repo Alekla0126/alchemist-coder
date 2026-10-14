@@ -1519,5 +1519,8 @@ export const it: Messages = {
   'browser.driving': '{agent} sta usando il browser',
   'browser.takeOver': 'Prendi il controllo',
   'browser.yours': 'Il browser è tuo; gli agenti aspettano che lo restituisci',
-  'browser.handBack': 'Restituisci',
+  'browser.handBack': 'Restituisci il controllo',
+  'browser.anAgent': 'Un agente',
+  'browser.stop': 'Interrompi',
+  'browser.goToConversation': 'Vai alla sua conversazione: «{name}»',
 };

@@ -8,7 +8,9 @@ import { useT } from '../store';
 export function Resizer({ panel, edge }: { panel: Panel; edge: 'left' | 'right' | 'bottom' }) {
   const vertical = edge !== 'bottom';
   const t = useT();
-  const size = useLayout((l) => l[panel]);
+  const saved = useLayout((l) => l[panel]);
+  // "Auto" widths (0) start from what's drawn.
+  const size = saved || Math.round(Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue(`--${panel}-w`)) || LIMITS[panel][0]);
   return (
     <div
       className={`resizer resizer-${panel}`}

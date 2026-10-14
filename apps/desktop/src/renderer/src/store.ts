@@ -1178,5 +1178,10 @@ export function waitingRuns(s: Pick<State, 'runs' | 'projects'>): Array<{ runId:
     });
 }
 
+/** A conversation's title, wherever the app has it: a project's list, Recent, or its opened tree. */
+export function sessionTitle(s: Pick<State, 'sessions' | 'latest' | 'trees'>, id: string): string | undefined {
+  return Object.values(s.sessions).flat().find((x) => x.id === id)?.title || s.latest?.find((x) => x.id === id)?.title || s.trees[id]?.description || undefined;
+}
+
 export const waitingProjectIds = (s: Pick<State, 'runs' | 'projects'>): number[] =>
   [...new Set(waitingRuns(s).map((w) => w.projectId).filter((id): id is number => id != null))].sort((a, b) => a - b);

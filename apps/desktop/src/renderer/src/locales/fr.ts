@@ -1520,4 +1520,7 @@ export const fr: Messages = {
   'browser.takeOver': 'Prendre la main',
   'browser.yours': 'Le navigateur est à vous ; les agents attendent que vous le rendiez',
   'browser.handBack': 'Rendre la main',
+  'browser.anAgent': 'Un agent',
+  'browser.stop': 'Arrêter',
+  'browser.goToConversation': 'Aller à sa conversation : « {name} »',
 };

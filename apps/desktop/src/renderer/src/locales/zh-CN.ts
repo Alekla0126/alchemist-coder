@@ -1519,5 +1519,8 @@ export const zhCN: Messages = {
   'browser.driving': '{agent} 正在使用浏览器',
   'browser.takeOver': '接管',
   'browser.yours': '浏览器由你控制；在你交还之前，代理会等待',
-  'browser.handBack': '交还',
+  'browser.handBack': '交还控制',
+  'browser.anAgent': '一个代理',
+  'browser.stop': '停止',
+  'browser.goToConversation': '前往它的对话：“{name}”',
 };

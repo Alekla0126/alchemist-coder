@@ -1519,5 +1519,8 @@ export const ko: Messages = {
   'browser.driving': '{agent}이(가) 브라우저를 사용 중',
   'browser.takeOver': '직접 조작',
   'browser.yours': '지금 브라우저를 조작 중이에요. 돌려줄 때까지 에이전트는 기다려요',
-  'browser.handBack': '돌려주기',
+  'browser.handBack': '조작 돌려주기',
+  'browser.anAgent': '에이전트',
+  'browser.stop': '중지',
+  'browser.goToConversation': '대화로 이동: “{name}”',
 };

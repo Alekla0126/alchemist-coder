@@ -214,8 +214,9 @@ export function registerIpc(deps: IpcDeps): void {
     const r = (request ?? {}) as Record<string, unknown>;
     const prepared = await deps.reviews.prepare(r.cwd).catch(() => null);
     // Every run can drive the built-in browser (its pane shows which agent is at it).
-    const browserTools = deps.browser.mcpServer(AGENT_LABEL[String(r.harnessId)] ?? String(r.harnessId ?? 'An agent'));
+    const browserTools = deps.browser.mcpServer(AGENT_LABEL[String(r.harnessId)] ?? String(r.harnessId ?? ''));
     const started = deps.runner.start(request as never, browserTools ? { mcpServers: [browserTools] } : {});
+    if (browserTools) deps.browser.bindRun(browserTools, started.runId);
     if (prepared) deps.reviews.track(started.runId, prepared, r);
     return started;
   });
@@ -241,6 +242,7 @@ export function registerIpc(deps: IpcDeps): void {
   ipcMain.handle(Channels.browserBack, () => deps.browser.back());
   ipcMain.handle(Channels.browserForward, () => deps.browser.forward());
   ipcMain.handle(Channels.browserReload, () => deps.browser.reload());
+  ipcMain.handle(Channels.browserStop, () => deps.browser.stopLoading());
   ipcMain.handle(Channels.browserUserControl, (_e, on: unknown) => deps.browser.setUserControl(on === true));
   ipcMain.handle(Channels.stopRun, (_e, runId: unknown) => deps.runner.stop(text(runId, 'run id', 100)));
   ipcMain.handle(Channels.interruptRun, (_e, runId: unknown) => deps.runner.interrupt(text(runId, 'run id', 100)));

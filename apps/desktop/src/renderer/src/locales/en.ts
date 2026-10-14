@@ -1518,5 +1518,8 @@ export const en = {
   'browser.driving': '{agent} is using the browser',
   'browser.takeOver': 'Take over',
   'browser.yours': 'You have the browser; agents wait until you hand it back',
-  'browser.handBack': 'Hand it back',
+  'browser.handBack': 'Give back control',
+  'browser.anAgent': 'An agent',
+  'browser.stop': 'Stop',
+  'browser.goToConversation': 'Go to its conversation: “{name}”',
 };

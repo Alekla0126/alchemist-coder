@@ -64,8 +64,9 @@ export class BrowserHost {
   private attachedTo: BrowserWindow | null = null;
   private server: Server | null = null;
   private port = 0;
-  private readonly tokens = new Map<string, string>();
-  private driver: { label: string; at: number } | null = null;
+  /** Each run's token: which agent it is ("Claude Code") and, once started, which run. */
+  private readonly tokens = new Map<string, { label: string; runId: string | null }>();
+  private driver: { label: string; runId: string | null; at: number } | null = null;
   private userControl = false;
   private wantsPane = false;
   private driverTimer: ReturnType<typeof setTimeout> | null = null;
@@ -97,7 +98,7 @@ export class BrowserHost {
   mcpServer(label: string): SessionMcpServer | null {
     if (!this.port) return null;
     const token = randomBytes(24).toString('hex');
-    this.tokens.set(token, label);
+    this.tokens.set(token, { label, runId: null });
     return {
       name: SERVER_NAME,
       command: this.bridge.command,
@@ -105,6 +106,12 @@ export class BrowserHost {
       env: { ELECTRON_RUN_AS_NODE: '1', AC_BROWSER_URL: `http://127.0.0.1:${this.port}`, AC_BROWSER_TOKEN: token },
       trusted: true,
     };
+  }
+
+  /** Ties a run's browser tools to the run once it has started, so the pane can name its conversation. */
+  bindRun(server: SessionMcpServer, runId: string): void {
+    const who = this.tokens.get(server.env?.AC_BROWSER_TOKEN ?? '');
+    if (who) who.runId = runId;
   }
 
   /** What the pane shows right now, with where it is in the window (captures), or null when it's closed. */
@@ -131,6 +138,7 @@ export class BrowserHost {
       canGoBack: wc?.navigationHistory.canGoBack() ?? false,
       canGoForward: wc?.navigationHistory.canGoForward() ?? false,
       driver: driving ? this.driver!.label : null,
+      driverRunId: driving ? this.driver!.runId : null,
       userControl: this.userControl,
       wantsPane: this.wantsPane,
     };
@@ -211,6 +219,10 @@ export class BrowserHost {
     if (h?.canGoForward()) h.goForward();
   }
 
+  stopLoading(): void {
+    this.view?.webContents.stop();
+  }
+
   reload(): void {
     this.view?.webContents.reload();
   }
@@ -228,8 +240,8 @@ export class BrowserHost {
       res.writeHead(status, { 'content-type': 'application/json' });
       res.end(JSON.stringify(body));
     };
-    const label = this.tokens.get(String(req.headers['x-browser-token'] ?? ''));
-    if (req.method !== 'POST' || req.url !== '/mcp' || !label) return reply(403, { text: 'Not allowed', isError: true });
+    const who = this.tokens.get(String(req.headers['x-browser-token'] ?? ''));
+    if (req.method !== 'POST' || req.url !== '/mcp' || !who) return reply(403, { text: 'Not allowed', isError: true });
     let raw = '';
     for await (const chunk of req) {
       raw += chunk;
@@ -244,24 +256,24 @@ export class BrowserHost {
     if (body.method === 'tools/list') return reply(200, { tools: TOOLS });
     if (body.method !== 'tools/call') return reply(400, { text: 'Unknown method', isError: true });
     try {
-      reply(200, await this.call(label, String(body.params?.name ?? ''), body.params?.arguments ?? {}));
+      reply(200, await this.call(who, String(body.params?.name ?? ''), body.params?.arguments ?? {}));
     } catch (error) {
       reply(200, { text: error instanceof Error ? error.message : String(error), isError: true });
     }
   }
 
   /** Marks who is driving (shown in the pane for a few seconds) and asks for the pane if hidden. */
-  private acting(label: string) {
-    this.driver = { label, at: Date.now() };
+  private acting(who: { label: string; runId: string | null }) {
+    this.driver = { ...who, at: Date.now() };
     if (!this.bounds) this.wantsPane = true;
     this.emit();
     if (this.driverTimer) clearTimeout(this.driverTimer);
     this.driverTimer = setTimeout(() => this.emit(), DRIVING_MS + 100);
   }
 
-  private async call(label: string, name: string, args: Record<string, unknown>): Promise<Reply> {
+  private async call(who: { label: string; runId: string | null }, name: string, args: Record<string, unknown>): Promise<Reply> {
     if (this.userControl) throw new Error('The user is using the browser right now. Wait for them to hand it back, or ask them what they need.');
-    this.acting(label);
+    this.acting(who);
     const wc = this.ensure().webContents;
     const settle = () => new Promise((r) => setTimeout(r, 400));
     switch (name) {

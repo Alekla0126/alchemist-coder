@@ -310,6 +310,8 @@ export interface BrowserState {
   canGoForward: boolean;
   /** The agent that used it in the last few seconds ("Claude Code"), or null. */
   driver: string | null;
+  /** The run it came from (its conversation is named in the pane), when known. */
+  driverRunId: string | null;
   /** You have it: agents' browser tools wait until you hand it back. */
   userControl: boolean;
   /** An agent is using it while its pane is closed: open the pane. */
@@ -1031,6 +1033,7 @@ export interface AlchemistApi {
   browserBack(): Promise<void>;
   browserForward(): Promise<void>;
   browserReload(): Promise<void>;
+  browserStop(): Promise<void>;
   browserUserControl(on: boolean): Promise<void>;
   /** Agent runs in this project with changes still to review. */
   reviews(projectCwd: string): Promise<AgentReview[]>;
@@ -1215,6 +1218,7 @@ export const Channels = {
   browserBack: 'browser:back',
   browserForward: 'browser:forward',
   browserReload: 'browser:reload',
+  browserStop: 'browser:stop',
   browserUserControl: 'browser:user-control',
   cliVersions: 'usage:versions',
   showMenu: 'menu:show',

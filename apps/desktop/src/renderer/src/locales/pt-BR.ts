@@ -1519,5 +1519,8 @@ export const ptBR: Messages = {
   'browser.driving': '{agent} está usando o navegador',
   'browser.takeOver': 'Assumir o controle',
   'browser.yours': 'O navegador é seu; os agentes esperam até você devolvê-lo',
-  'browser.handBack': 'Devolver',
+  'browser.handBack': 'Devolver o controle',
+  'browser.anAgent': 'Um agente',
+  'browser.stop': 'Parar',
+  'browser.goToConversation': 'Ir para a conversa: “{name}”',
 };

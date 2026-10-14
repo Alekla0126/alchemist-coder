@@ -98,6 +98,7 @@ const api: AlchemistApi = {
   browserBack: () => ipcRenderer.invoke(Channels.browserBack),
   browserForward: () => ipcRenderer.invoke(Channels.browserForward),
   browserReload: () => ipcRenderer.invoke(Channels.browserReload),
+  browserStop: () => ipcRenderer.invoke(Channels.browserStop),
   browserUserControl: (on) => ipcRenderer.invoke(Channels.browserUserControl, on),
   refreshCliVersions: () => ipcRenderer.invoke(Channels.cliVersions),
   showMenu: (items) => ipcRenderer.invoke(Channels.showMenu, items),

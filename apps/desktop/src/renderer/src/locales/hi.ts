@@ -1519,5 +1519,8 @@ export const hi: Messages = {
   'browser.driving': '{agent} ब्राउज़र इस्तेमाल कर रहा है',
   'browser.takeOver': 'नियंत्रण लें',
   'browser.yours': 'ब्राउज़र आपके पास है; जब तक आप लौटाते नहीं, एजेंट इंतज़ार करेंगे',
-  'browser.handBack': 'लौटाएँ',
+  'browser.handBack': 'नियंत्रण लौटाएँ',
+  'browser.anAgent': 'एक एजेंट',
+  'browser.stop': 'रोकें',
+  'browser.goToConversation': 'उसकी बातचीत पर जाएँ: “{name}”',
 };
