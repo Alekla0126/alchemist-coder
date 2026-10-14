@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { BotConfig } from '@shared/api';
-import { defaultTemplate, loadTemplates, saveTemplates, setDefaultTemplate, starterTemplates, type Template } from '../org-templates';
+import { defaultTemplate, HOUSE_TEMPLATE, loadTemplates, saveTemplates, setDefaultTemplate, starterTemplates, type Template } from '../org-templates';
 import { baseName } from '../paths';
 import { useOpenProjects, useStore, useT } from '../store';
 import { openMenu, promptText, toast } from '../ui';
@@ -49,6 +49,20 @@ export function OrgComposer({ coordinator, examples: showExamples }: { coordinat
     el.style.height = 'auto';
     el.style.height = `${Math.min(el.scrollHeight, 220)}px`;
   }, [goal]);
+  // So do the instructions, one rule per line, once they're unfolded.
+  const guidanceBox = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const el = guidanceBox.current;
+    const fit = () => {
+      if (!el || !el.offsetParent) return;
+      el.style.height = 'auto';
+      el.style.height = `${Math.min(el.scrollHeight + 2, 260)}px`;
+    };
+    fit();
+    const details = el?.closest('details');
+    details?.addEventListener('toggle', fit);
+    return () => details?.removeEventListener('toggle', fit);
+  }, [guidance]);
 
   const current = all.find((x) => x.id === tplId);
   const applyTemplate = (tpl: Template | null) => {
@@ -63,17 +77,20 @@ export function OrgComposer({ coordinator, examples: showExamples }: { coordinat
     const saved = !!current && !current.id.startsWith('starter:');
     const isDefault = !!current && defaultTemplate(all)?.id === current.id;
     const id = await openMenu([
-      ...all.map((tpl) => ({ id: `t:${tpl.id}`, label: tpl.name, checked: tpl.id === tplId })),
+      ...all.map((tpl) => ({ id: `t:${tpl.id}`, label: tpl.id === HOUSE_TEMPLATE ? t('org.tplRecommended', { name: tpl.name }) : tpl.name, checked: tpl.id === tplId })),
       { type: 'separator' },
       ...(current ? [{ id: 'none', label: t('org.tplNone') }] : []),
-      ...(current ? [{ id: 'default', label: t('org.tplDefault'), checked: isDefault }] : []),
+      ...(current ? [{ id: 'default', label: t('org.tplDefault', { name: current.name }), checked: isDefault }] : []),
       { id: 'save', label: t('bots.tplSave'), enabled: !!goal.trim() || !!guidance.trim() },
       ...(saved ? [{ id: 'delete', label: `${t('bots.tplDelete')}: ${current.name}` }] : []),
     ]);
     if (!id) return;
     if (id === 'none') return applyTemplate(null);
     // Unticking it: assignments start with no template.
-    if (id === 'default') return setDefaultTemplate(isDefault ? null : current!.id);
+    if (id === 'default') {
+      setDefaultTemplate(isDefault ? null : current!.id);
+      return toast(isDefault ? t('org.tplDefaultNone') : t('org.tplDefaultSet', { name: current!.name }), undefined, 3000);
+    }
     if (id === 'delete') {
       const next = templates.filter((x) => x.id !== tplId);
       setTemplates(next);
@@ -177,7 +194,7 @@ export function OrgComposer({ coordinator, examples: showExamples }: { coordinat
             <span className="cchip-label">{t('bots.reviewPlan')}</span>
           </button>
           <span className="composer-sp" />
-          {why && <span className="composer-note">{why}</span>}
+          {why && <span className="composer-note" title={why}>{why}</span>}
           <button className="btn-send" disabled={!ready || busy} onClick={() => void start()} title={why || t('org.homeLead')}>
             {busy ? <span className="spin" /> : '⚗'} {t('bots.start')} ↵
           </button>
@@ -185,8 +202,12 @@ export function OrgComposer({ coordinator, examples: showExamples }: { coordinat
       </div>
       {guidance && (
         <details className="org-guidance">
-          <summary>{t('bots.coordInstructions')}</summary>
-          <textarea value={guidance} rows={3} aria-label={t('bots.coordInstructions')} onChange={(e) => setGuidance(e.target.value)} />
+          <summary>
+            <Icon name="chevronRight" size={12} />
+            {t('bots.coordInstructions')}
+            {current && <span className="org-guidance-tpl"> · {current.name}</span>}
+          </summary>
+          <textarea ref={guidanceBox} value={guidance} rows={3} aria-label={t('bots.coordInstructions')} onChange={(e) => setGuidance(e.target.value)} />
         </details>
       )}
       {/* Ideas to start from, until the organization has had its first assignment. */}

@@ -1968,12 +1968,19 @@ select.mk-chip { appearance: none; padding-right: 12px; }
 .org-home-head h2 { font-size: 19px; }
 .org-composer { display: flex; flex-direction: column; gap: 8px; }
 .org-composer .composer-box textarea { min-height: 52px; font-size: 13.5px; padding: 12px 14px 4px; }
+/* Why it can't start yet gives way before the button does: «Encargar» never drops to a row of its own. */
+.org-composer .composer-bar .composer-note { margin-top: 0; flex: 1 1 0; text-align: right; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.org-composer .composer-bar .btn-send { margin-left: auto; }
 .cchip.toggle.on, .cchip.on { color: var(--fg); border-color: color-mix(in srgb, var(--accent) 60%, var(--line-2)); background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .org-examples { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 11px; }
 .org-examples .f { text-align: left; }
 .org-guidance { font-size: 12px; color: var(--fg-2); }
-.org-guidance summary { cursor: pointer; }
-.org-guidance textarea { display: block; width: 100%; margin-top: 6px; background: var(--bg-input); color: var(--fg); border: 1px solid var(--line-2); border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 12.5px; resize: vertical; }
+.org-guidance summary { cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 5px; }
+.org-guidance summary::-webkit-details-marker { display: none; }
+.org-guidance summary svg { transition: transform 0.12s; }
+.org-guidance[open] summary svg { transform: rotate(90deg); }
+.org-guidance-tpl { color: var(--fg-3); }
+.org-guidance textarea { display: block; width: 100%; margin-top: 6px; background: var(--bg-input); color: var(--fg); border: 1px solid var(--line-2); border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 12.5px; line-height: 1.55; resize: none; }
 
 .oc-wrap { display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px 18px; background: color-mix(in srgb, var(--bg-input) 55%, transparent); }
 .oc-top { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
