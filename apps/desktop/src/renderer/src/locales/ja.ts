@@ -1294,6 +1294,7 @@ export const ja: Messages = {
   'welcome.project': 'プロジェクトから始める',
   'welcome.openRecent': '{name} を開く',
   'welcome.again': 'ヘルプ → ようこそ からいつでも開けます。',
+  'welcome.star': '無料のオープンソースです。役に立ったら、GitHub のスターがほかの人に見つけてもらう助けになります。',
   'welcome.close': '完了',
   'setup.copied': 'コピーしました。ターミナルで実行してください: {command}',
   'start.running': '実行中',

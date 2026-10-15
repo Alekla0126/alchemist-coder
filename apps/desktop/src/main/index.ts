@@ -407,6 +407,7 @@ void app.whenReady().then(async () => {
       name: 'Alchemist Coder',
       siteUrl: 'https://coder.alekla.com',
       issuesUrl: 'https://github.com/Alekla0126/alchemist-coder/issues',
+      repoUrl: 'https://github.com/Alekla0126/alchemist-coder',
       openExternal: (url) => void shell.openExternal(url),
       locale: menuLocale(),
       autopilot: { on: autopilotOn(), toggle: () => setAutopilot(!autopilotOn()) },

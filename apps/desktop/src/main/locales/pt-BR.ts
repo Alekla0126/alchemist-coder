@@ -4,7 +4,7 @@ export const ptBR: MainWords = {
   menu: {
     settings: 'Configurações…', file: 'Arquivo', newConversation: 'Nova conversa', newProject: 'Novo projeto…', openFolder: 'Abrir pasta…', newTerminal: 'Novo terminal', openProject: 'Abrir projeto…', closeTab: 'Fechar aba',
     view: 'Visualizar', agents: 'Agentes', arena: 'Arena', code: 'Código', split: 'Dividido', terminal: 'Terminal', history: 'Histórico', bots: 'Organização', marketing: 'Marketing', board: 'Quadro', autopilot: 'Piloto automático', sidebar: 'Mostrar ou ocultar barra lateral', agentPanel: 'Mostrar ou ocultar painel do agente',
-    palette: 'Paleta de comandos…', search: 'Pesquisar conversas', welcome: 'Boas-vindas…', website: 'Site do Alchemist Coder', issue: 'Relatar um problema',
+    palette: 'Paleta de comandos…', search: 'Pesquisar conversas', welcome: 'Boas-vindas…', website: 'Site do Alchemist Coder', issue: 'Relatar um problema', star: 'Dar uma estrela no GitHub',
   },
   autopilot: {
     refused: (what: string) => `O piloto automático recusou “${what}”: não dá para desfazer, então fica para você.`,

@@ -1294,6 +1294,7 @@ export const zhCN: Messages = {
   'welcome.project': '从一个项目开始',
   'welcome.openRecent': '打开 {name}',
   'welcome.again': '可以随时在“帮助 → 欢迎”中再次打开。',
+  'welcome.star': '免费开源。如果对你有帮助，在 GitHub 上加个星标能让更多人发现它。',
   'welcome.close': '完成',
   'setup.copied': '已复制。请在终端中运行：{command}',
   'start.running': '正在运行',

@@ -1294,6 +1294,7 @@ export const hi: Messages = {
   'welcome.project': 'किसी प्रोजेक्ट से शुरू करें',
   'welcome.openRecent': '{name} खोलें',
   'welcome.again': 'इसे Help → Welcome से फिर खोल सकते हैं।',
+  'welcome.star': 'मुफ़्त और ओपन सोर्स। अगर यह काम आए, तो GitHub पर एक स्टार दूसरों को इसे ढूँढने में मदद करता है।',
   'welcome.close': 'हो गया',
   'setup.copied': 'कॉपी हो गया। इसे टर्मिनल में चलाएँ: {command}',
   'start.running': 'अभी चल रही',

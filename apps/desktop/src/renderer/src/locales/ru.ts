@@ -1465,6 +1465,7 @@ export const ru: Messages = {
   'welcome.project': 'Начните с проекта',
   'welcome.openRecent': 'Открыть {name}',
   'welcome.again': 'Это окно можно снова открыть через Справка → Добро пожаловать.',
+  'welcome.star': 'Бесплатно и с открытым кодом. Если приложение вам помогает, звезда на GitHub поможет другим его найти.',
   'welcome.close': 'Готово',
   'setup.copied': 'Скопировано. Выполните в терминале: {command}',
   'start.running': 'Сейчас работают',

@@ -1294,6 +1294,7 @@ export const ko: Messages = {
   'welcome.project': '프로젝트로 시작하기',
   'welcome.openRecent': '{name} 열기',
   'welcome.again': '도움말 → 시작하기에서 언제든 다시 열 수 있어요.',
+  'welcome.star': '무료 오픈 소스예요. 도움이 됐다면 GitHub 스타가 다른 사람들이 찾는 데 도움이 돼요.',
   'welcome.close': '완료',
   'setup.copied': '복사했어요. 터미널에서 실행하세요: {command}',
   'start.running': '지금 실행 중',

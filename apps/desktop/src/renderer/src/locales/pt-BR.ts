@@ -1294,6 +1294,7 @@ export const ptBR: Messages = {
   'welcome.project': 'Comece com um projeto',
   'welcome.openRecent': 'Abrir {name}',
   'welcome.again': 'Você pode abrir isto de novo em Ajuda → Boas-vindas.',
+  'welcome.star': 'Gratuito e de código aberto. Se for útil, uma estrela no GitHub ajuda outras pessoas a encontrá-lo.',
   'welcome.close': 'Pronto',
   'setup.copied': 'Copiado. Rode em um terminal: {command}',
   'start.running': 'Em andamento agora',

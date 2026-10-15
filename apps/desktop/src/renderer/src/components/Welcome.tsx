@@ -171,7 +171,12 @@ export function Welcome() {
         </section>
 
         <footer className="wl-foot">
-          <span>{t('welcome.again')}</span>
+          <span>
+            {t('welcome.again')}{' '}
+            <a href="https://github.com/Alekla0126/alchemist-coder" target="_blank" rel="noreferrer">
+              {t('welcome.star')}
+            </a>
+          </span>
           <button className="btn-ghost" onClick={close}>
             {t('welcome.close')}
           </button>

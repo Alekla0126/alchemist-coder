@@ -1293,6 +1293,7 @@ export const en = {
   'welcome.project': 'Start with a project',
   'welcome.openRecent': 'Open {name}',
   'welcome.again': 'You can open this again from Help → Welcome.',
+  'welcome.star': 'Free and open source. If it helps you, a star on GitHub helps other people find it.',
   'welcome.close': 'Done',
   'setup.copied': 'Copied. Run it in a terminal: {command}',
   'start.running': 'Running now',
