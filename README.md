@@ -1,14 +1,23 @@
 <div align="center">
 
-# ⚗ Alchemist Coder
+<img src="apps/desktop/build/icon.png" width="88" alt="">
+
+# Alchemist Coder
 
 **The lab for your coding agents.**
 
-Open several projects at once, follow every agent and every subagent it spawns, let Claude Code, Codex, Gemini CLI and Grok Build compete on the same task, edit with your VS Code themes (or any from Open VSX), and resume any conversation.
+A free, open-source desktop app for Claude Code and Codex. Follow every agent and every subagent it spawns, live. Give work to your own organization of agents, let them drive a browser while you watch, or put them on Autopilot. Search every conversation you've had with Claude Code, Codex, Gemini CLI and Grok Build.
 
-[coder.alekla.com](https://coder.alekla.com) · [Español](#español) · AGPL-3.0
+[![Latest release](https://img.shields.io/github/v/release/Alekla0126/alchemist-coder?label=release&color=d97a4a)](https://github.com/Alekla0126/alchemist-coder/releases/latest)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-3b6fb6)](LICENSE)
+![macOS, Windows, Linux](https://img.shields.io/badge/macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-555)
+[![GitHub stars](https://img.shields.io/github/stars/Alekla0126/alchemist-coder?style=social)](https://github.com/Alekla0126/alchemist-coder/stargazers)
 
-<img src="https://coder.alekla.com/shots/en-org-1440.webp" alt="Alchemist Coder organization chart: a coordinator, six agents with their pictures, and a plan waiting for approval" width="900">
+**[Download](https://coder.alekla.com/#download)** · [Website](https://coder.alekla.com) · [What's new in 1.3](https://github.com/Alekla0126/alchemist-coder/releases/tag/v1.3.0) · [Español](#español)
+
+<img src="https://coder.alekla.com/preview/tour-en.webp" alt="A tour of Alchemist Coder 1.3: a conversation with its subagents, the editor, the built-in browser, the coordinator on Autopilot, the organization chart, the Board and an automation" width="900">
+
+<sub>Real screens with a demo project; the agents run on local models. If it's useful to you, a star helps other people find it.</sub>
 
 </div>
 
