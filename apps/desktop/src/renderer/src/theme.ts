@@ -223,6 +223,27 @@ export function readableMuted(muted: string | undefined, fg: string, bg: string)
   return toHex(f);
 }
 
+/** The theme's accents, in the order the app prefers them: the first one that shows is the app's accent. */
+const ACCENTS = ['focusBorder', 'button.background', 'activityBarBadge.background', 'textLink.foreground', 'button.hoverBackground'];
+
+/**
+ * An accent you can see on the theme's background. Switches, active tabs, the Autopilot pill and
+ * icons are drawn in it, so one that blends in hides whether they're on (Shades of Purple's
+ * focusBorder is #15152b on #191830). Below 3:1 the next of the theme's own accents that reaches
+ * it is used; null keeps the first one (it shows, or none does).
+ */
+export function readableAccent(candidates: Array<string | undefined>, bg: string): string | null {
+  const b = rgbOf(bg);
+  const list = candidates.filter((c): c is string => typeof c === 'string' && c.length > 0);
+  if (!b || !list.length) return null;
+  const shows = (c: string) => {
+    const rgb = rgbOf(c, b);
+    return !!rgb && contrast(rgb, b) >= 3;
+  };
+  if (shows(list[0]!)) return null;
+  return list.slice(1).find(shows) ?? null;
+}
+
 export function applyWorkbench(theme: VsTheme): void {
   const colors = theme.colors ?? {};
   const root = document.documentElement.style;
@@ -238,9 +259,11 @@ export function applyWorkbench(theme: VsTheme): void {
     const muted = readableMuted(picked['--fg-3'], picked['--fg'], picked['--bg']);
     if (muted) root.setProperty('--fg-3', muted);
   }
+  const accent = picked['--bg'] ? readableAccent(ACCENTS.map((k) => colors[k]), picked['--bg']) : null;
+  if (accent) root.setProperty('--accent', accent);
   // Text on accent buttons: the theme's own button text, else dark or light by the accent's brightness.
   // Buttons are a gradient between the two accents: judge by both.
-  const ends = [colors.focusBorder ?? colors['button.background'], colors['button.hoverBackground'] ?? colors['textLink.foreground']].filter((c): c is string => typeof c === 'string');
+  const ends = [accent ?? colors.focusBorder ?? colors['button.background'], colors['button.hoverBackground'] ?? colors['textLink.foreground']].filter((c): c is string => typeof c === 'string');
   root.setProperty('--on-accent', typeof colors['button.foreground'] === 'string' ? colors['button.foreground'] : onColor(...(ends.length ? ends : ['#d97a4a', '#f0b27a'])));
   root.setProperty('color-scheme', theme.type === 'light' ? 'light' : 'dark');
   document.documentElement.dataset.themeType = theme.type === 'light' ? 'light' : 'dark';

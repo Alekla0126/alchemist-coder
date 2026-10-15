@@ -1352,7 +1352,13 @@ code.md-path:hover { color: var(--accent-2); }
 .org-member-panel .org-instructions { max-width: 760px; }
 .org-autopilot { display: flex; flex-direction: column; gap: 12px; max-width: 760px; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; background: var(--bg-input); }
 .org-autopilot.on { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
-.org-autopilot-head { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+.org-autopilot-head { display: flex; align-items: flex-start; gap: 10px; }
+.org-ap-switch { flex: none; display: inline-flex; align-items: center; gap: 7px; border-radius: 999px; padding: 4px 12px 4px 5px; font: inherit; font-size: 12px; font-weight: 600; border: 1px solid var(--line-2); color: var(--fg-2); background: var(--bg); cursor: pointer; }
+.org-ap-switch:hover { border-color: var(--fg-3); }
+.org-ap-knob { width: 14px; height: 14px; border-radius: 50%; background: var(--fg-3); }
+.org-ap-switch.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.org-ap-switch.on .org-ap-knob { background: var(--on-accent); }
+.org-ap-mark { color: var(--accent); display: inline-flex; vertical-align: -1px; }
 .org-autopilot-head > svg { margin-top: 1px; color: var(--fg-3); flex: none; }
 .org-autopilot.on .org-autopilot-head > svg { color: var(--accent); }
 .org-autopilot-head > span { flex: 1; display: flex; flex-direction: column; gap: 3px; font-size: 13px; }

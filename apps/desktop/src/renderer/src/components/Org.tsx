@@ -369,6 +369,7 @@ function MemberRow({ member, depth, teams, compact, focus }: { member: BotConfig
   const a = activityOf(member, teams);
   const doing = a.doing ? doingText(a.doing, t) : null;
   const lead = member.kind === 'coordinator';
+  const orgAutopilot = useStore((s) => s.orgSettings?.autopilot === true);
   const role = member.role.replace(/\s+/g, ' ').split(/(?<=[.!?])\s/)[0]?.slice(0, 90) ?? '';
   const scope = member.projects?.length ? `${folderName(member.projects[0]!)}${member.projects.length > 1 ? ` +${member.projects.length - 1}` : ''}` : '';
   const select = () => useStore.setState({ activeMemberId: member.id, activeTeamId: null, activeBotId: null });
@@ -410,6 +411,12 @@ function MemberRow({ member, depth, teams, compact, focus }: { member: BotConfig
         <span className="org-member-name" onDoubleClick={(e) => (e.stopPropagation(), void renameMember(member))} title={t('org.renameHint2')}>
           {lead && <span className="org-lead-mark">⚗ </span>}
           {member.name}
+          {lead && orgAutopilot && (
+            <span className="org-ap-mark" title={t('org.autopilotPill')} aria-label={t('org.autopilotPill')}>
+              {' '}
+              <Icon name="plane" size={12} />
+            </span>
+          )}
           {unsaved && (
             <span className="org-unsaved" title={t('org.unsaved')} aria-label={t('org.unsaved')}>
               {' '}
@@ -696,15 +703,19 @@ function CoordinatorAutopilot() {
   const lessons = org?.lessons ?? [];
   return (
     <section className={`org-autopilot ${on ? 'on' : ''}`} aria-label={t('org.autopilot')}>
-      <label className="org-autopilot-head">
+      <div className="org-autopilot-head">
         <Icon name="plane" size={16} />
         <span>
           <b>{t('org.autopilot')}</b>
           <small>{t('org.autopilotHint')}</small>
           {everyone && !on && <small>{t('org.autopilotEveryone')}</small>}
         </span>
-        <input type="checkbox" className="set-switch" checked={on} onChange={(e) => void save({ autopilot: e.target.checked })} />
-      </label>
+        {/* Says its state in words, not only in a color the theme might hide. */}
+        <button role="switch" aria-checked={on} aria-label={t('org.autopilot')} className={`org-ap-switch ${on ? 'on' : ''}`} onClick={() => void save({ autopilot: !on })}>
+          <span className="org-ap-knob" aria-hidden />
+          {on ? t('org.autopilotOn') : t('org.autopilotOff')}
+        </button>
+      </div>
       <div className="org-lessons">
         <h4>
           {t('org.lessons')} {lessons.length > 0 && <small>{lessons.length}</small>}

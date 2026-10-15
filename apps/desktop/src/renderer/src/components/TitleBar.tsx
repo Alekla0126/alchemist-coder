@@ -58,11 +58,26 @@ function AutopilotButton() {
   const t = useT();
   const on = useStore((s) => s.settings.autopilot);
   const setAutopilot = useStore((s) => s.setAutopilot);
+  // The coordinator's own switch: said here too while it's on, and a click goes to it.
+  const orgOn = useStore((s) => s.orgSettings?.autopilot === true);
+  const openCoordinator = () => {
+    const s = useStore.getState();
+    s.setMode('bots');
+    useStore.setState({ activeMemberId: s.botConfigs.find((c) => c.kind === 'coordinator')?.id ?? null, activeTeamId: null, activeBotId: null });
+  };
   return (
-    <button className={`autopilot-btn ${on ? 'on' : 'icon-btn'}`} onClick={() => setAutopilot(!on)} title={t(on ? 'autopilot.onTip' : 'autopilot.offTip')} aria-label={t('autopilot.name')} aria-pressed={on}>
-      <Icon name="plane" size={on ? 13 : 16} />
-      {on && <span className="ap-label">{t('autopilot.name')}</span>}
-    </button>
+    <>
+      {orgOn && !on && (
+        <button className="autopilot-btn on" onClick={openCoordinator} title={t('org.autopilotPillTip')} aria-label={t('org.autopilotPill')}>
+          <Icon name="plane" size={13} />
+          <span className="ap-label">{t('org.autopilotPill')}</span>
+        </button>
+      )}
+      <button className={`autopilot-btn ${on ? 'on' : 'icon-btn'}`} onClick={() => setAutopilot(!on)} title={t(on ? 'autopilot.onTip' : 'autopilot.offTip')} aria-label={t('autopilot.name')} aria-pressed={on}>
+        <Icon name="plane" size={on ? 13 : 16} />
+        {on && <span className="ap-label">{t('autopilot.name')}</span>}
+      </button>
+    </>
   );
 }
 
