@@ -1013,7 +1013,14 @@ function MemberPanel({ member }: { member: BotConfig }) {
             </button>
           </div>
         )}
-        {lead ? <p className="composer-note">{t('org.coordinatorHint')}</p> : <TeamSection member={member} coordinatorName={coordinator?.name ?? ''} />}
+        {lead ? (
+          <>
+            <p className="composer-note">{t('org.coordinatorHint')}</p>
+            <CoordinatorAutopilot />
+          </>
+        ) : (
+          <TeamSection member={member} coordinatorName={coordinator?.name ?? ''} />
+        )}
         {a.status === 'working' && a.doing && <p className="org-doing">◐ {doingText(a.doing, t).text}</p>}
         <div className="org-stats" role="list" aria-label={t('org.record')}>
           {tiles.map((x) => (
@@ -1068,10 +1075,7 @@ function MemberPanel({ member }: { member: BotConfig }) {
           </div>
         </section>
         {lead ? (
-          <>
-            <CoordinatorAutopilot />
-            <OrgInstructions />
-          </>
+          <OrgInstructions />
         ) : (
           <details className="org-also">
             <summary>
