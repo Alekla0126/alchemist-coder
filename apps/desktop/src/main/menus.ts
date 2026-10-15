@@ -55,7 +55,7 @@ export function editMenu(contents: WebContents) {
 /** The menu bar. Commands the renderer handles are sent as `app:command` with an id. Call again when the language changes. */
 export function appMenu(
   send: (command: string) => void,
-  options: { debug: boolean; name: string; issuesUrl: string; siteUrl: string; openExternal: (url: string) => void; locale?: Locale; autopilot?: { on: boolean; toggle: () => void } },
+  options: { debug: boolean; name: string; issuesUrl: string; siteUrl: string; repoUrl: string; openExternal: (url: string) => void; locale?: Locale; autopilot?: { on: boolean; toggle: () => void } },
 ) {
   const cmd = (id: string) => () => send(id);
   const L = mainWords(options.locale ?? 'en').menu;
@@ -120,6 +120,7 @@ export function appMenu(
         { type: 'separator' },
         { label: L.website, click: () => options.openExternal(options.siteUrl) },
         { label: L.issue, click: () => options.openExternal(options.issuesUrl) },
+        { label: L.star, click: () => options.openExternal(options.repoUrl) },
       ],
     },
   ];

@@ -1294,6 +1294,7 @@ export const fr: Messages = {
   'welcome.project': 'Commencez par un projet',
   'welcome.openRecent': 'Ouvrir {name}',
   'welcome.again': 'Vous pouvez rouvrir ceci depuis Aide → Bienvenue.',
+  'welcome.star': 'Gratuit et open source. S’il vous est utile, une étoile sur GitHub aide d’autres personnes à le trouver.',
   'welcome.close': 'Terminé',
   'setup.copied': 'Copié. Exécutez-le dans un terminal : {command}',
   'start.running': 'En cours',

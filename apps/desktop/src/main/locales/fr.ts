@@ -4,7 +4,7 @@ export const fr: MainWords = {
   menu: {
     settings: 'Paramètres…', file: 'Fichier', newConversation: 'Nouvelle conversation', newProject: 'Nouveau projet…', openFolder: 'Ouvrir un dossier…', newTerminal: 'Nouveau terminal', openProject: 'Ouvrir un projet…', closeTab: 'Fermer l’onglet',
     view: 'Affichage', agents: 'Agents', arena: 'Arène', code: 'Code', split: 'Divisé', terminal: 'Terminal', history: 'Historique', bots: 'Organisation', marketing: 'Marketing', board: 'Tableau', autopilot: 'Pilote automatique', sidebar: 'Afficher/masquer la barre latérale', agentPanel: 'Afficher/masquer le panneau de l’agent',
-    palette: 'Palette de commandes…', search: 'Rechercher dans les conversations', welcome: 'Bienvenue…', website: 'Site web d’Alchemist Coder', issue: 'Signaler un problème',
+    palette: 'Palette de commandes…', search: 'Rechercher dans les conversations', welcome: 'Bienvenue…', website: 'Site web d’Alchemist Coder', issue: 'Signaler un problème', star: 'Ajouter une étoile sur GitHub',
   },
   autopilot: {
     refused: (what: string) => `Le pilote automatique a refusé « ${what} » : c’est irréversible, donc c’est à vous de le faire.`,

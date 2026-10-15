@@ -4,7 +4,7 @@ export const it: MainWords = {
   menu: {
     settings: 'Impostazioni…', file: 'File', newConversation: 'Nuova conversazione', newProject: 'Nuovo progetto…', openFolder: 'Apri cartella…', newTerminal: 'Nuovo terminale', openProject: 'Apri progetto…', closeTab: 'Chiudi scheda',
     view: 'Vista', agents: 'Agenti', arena: 'Arena', code: 'Codice', split: 'Diviso', terminal: 'Terminale', history: 'Cronologia', bots: 'Organizzazione', marketing: 'Marketing', board: 'Bacheca', autopilot: 'Pilota automatico', sidebar: 'Mostra/nascondi barra laterale', agentPanel: 'Mostra/nascondi pannello dell’agente',
-    palette: 'Riquadro comandi…', search: 'Cerca nelle conversazioni', welcome: 'Benvenuto…', website: 'Sito di Alchemist Coder', issue: 'Segnala un problema',
+    palette: 'Riquadro comandi…', search: 'Cerca nelle conversazioni', welcome: 'Benvenuto…', website: 'Sito di Alchemist Coder', issue: 'Segnala un problema', star: 'Metti una stella su GitHub',
   },
   autopilot: {
     refused: (what: string) => `Il pilota automatico ha rifiutato «${what}»: non si può annullare, quindi resta a te.`,
