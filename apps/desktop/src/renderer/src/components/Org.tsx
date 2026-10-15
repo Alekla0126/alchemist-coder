@@ -410,13 +410,13 @@ function MemberRow({ member, depth, teams, compact, focus }: { member: BotConfig
       <span className="tt">
         <span className="org-member-name" onDoubleClick={(e) => (e.stopPropagation(), void renameMember(member))} title={t('org.renameHint2')}>
           {lead && <span className="org-lead-mark">⚗ </span>}
-          {member.name}
+          {/* Before the name, so a long one never cuts it off. */}
           {lead && orgAutopilot && (
             <span className="org-ap-mark" title={t('org.autopilotPill')} aria-label={t('org.autopilotPill')}>
-              {' '}
-              <Icon name="plane" size={12} />
+              <Icon name="plane" size={12} />{' '}
             </span>
           )}
+          {member.name}
           {unsaved && (
             <span className="org-unsaved" title={t('org.unsaved')} aria-label={t('org.unsaved')}>
               {' '}
