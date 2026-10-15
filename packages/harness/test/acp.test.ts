@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import type { ProviderAdapter, RunHandle, RunnerEvent } from '@alchemist-coder/core';
+import type { Autopilot, ProviderAdapter, RunHandle, RunnerEvent } from '@alchemist-coder/core';
 import { acpHarness, pickChoice, type AcpAgentSpec } from '../src/index.ts';
 import { formFields } from '../src/acp.ts';
 
@@ -184,6 +184,54 @@ describe('acpHarness', () => {
     expect(await harness.detect()).toEqual({ installed: false, version: null, path: null });
     const events = await collect(harness.run({ cwd, prompt: 'x', provider: provider(), model: 'm' }), null, (e) => e.type === 'status');
     expect(events[0]).toEqual({ type: 'error', message: 'Fake agent is not installed.' });
+  });
+});
+
+describe('Autopilot', () => {
+  const said = (events: RunnerEvent[]) => events.flatMap((e) => (e.type === 'text' ? [e.text] : [])).join('');
+  const seen: Array<Parameters<Autopilot['permission']>[0]> = [];
+  const pilot: Autopilot = {
+    permission(request) {
+      seen.push(request);
+      const refuse = /--force/.test(request.command ?? '');
+      return { choiceId: refuse ? 'deny' : 'allow', note: refuse ? 'refused it' : null };
+    },
+    question: ({ fields }) => ({ answer: { action: 'accept', content: { [fields[1]!.key]: 'you decide' } }, note: 'left it to the agent' }),
+  };
+
+  it('answers permissions without a card, and says when it refused one', async () => {
+    const run = acpHarness(spec()).run({ cwd, prompt: 'edit it', provider: provider(), model: 'default', permissionMode: 'default', autopilot: pilot });
+    const events = await collect(run, null, (e) => e.type === 'result');
+    expect(said(events)).toContain(' | edited');
+    expect(events.some((e) => e.type === 'permission' || (e.type === 'status' && e.status === 'waiting'))).toBe(false);
+    expect(events.some((e) => e.type === 'notice')).toBe(false);
+    expect(seen.at(-1)).toMatchObject({ title: 'Edit a.txt', kind: 'edit', command: null, choices: [{ id: 'allow', kind: 'allow_once' }, { id: 'deny', kind: 'reject_once' }] });
+
+    const second = collect(run, null, (e) => e.type === 'result');
+    run.send('force push it');
+    const refused = await second;
+    run.stop();
+    expect(seen.at(-1)!.command).toBe('git push --force origin main');
+    expect(said(refused)).toContain(' | denied');
+    expect(refused.find((e) => e.type === 'notice')).toMatchObject({ level: 'info', text: 'refused it' });
+  });
+
+  it('answers questions without a card', async () => {
+    const run = acpHarness(spec()).run({ cwd, prompt: 'ask me', provider: provider(), model: 'default', permissionMode: 'default', autopilot: pilot });
+    const events = await collect(run, null, (e) => e.type === 'result');
+    run.stop();
+    expect(events.some((e) => e.type === 'question')).toBe(false);
+    expect(events.find((e) => e.type === 'notice')).toMatchObject({ text: 'left it to the agent' });
+    expect(said(events)).toContain('answer={"action":"accept","content":{"question_0_custom":"you decide"}}');
+  });
+
+  it('shows the card as always when it leaves the decision to you', async () => {
+    const off: Autopilot = { permission: () => null, question: () => null };
+    const run = acpHarness(spec()).run({ cwd, prompt: 'edit it', provider: provider(), model: 'default', permissionMode: 'default', autopilot: off });
+    const events = await collect(run, 'allow', (e) => e.type === 'result');
+    run.stop();
+    expect(events.some((e) => e.type === 'permission')).toBe(true);
+    expect(said(events)).toContain(' | edited');
   });
 });
 

@@ -4,7 +4,7 @@ import { isLocale, type Mode, type Settings } from '../shared/api';
 
 const MODES: Mode[] = ['agents', 'arena', 'code', 'split', 'terminal', 'history'];
 
-export const defaultSettings = (): Settings => ({ locale: null, theme: 'alchemist-dark', openProjectIds: [], activeProjectId: null, mode: 'agents', backupDir: null, backupAuto: true });
+export const defaultSettings = (): Settings => ({ locale: null, theme: 'alchemist-dark', openProjectIds: [], activeProjectId: null, mode: 'agents', backupDir: null, backupAuto: true, autopilot: false });
 
 /** Only known keys with the right types survive: settings.json is user-editable. */
 export function sanitize(input: unknown, base: Settings): Settings {
@@ -18,6 +18,7 @@ export function sanitize(input: unknown, base: Settings): Settings {
     mode: MODES.includes(o.mode as Mode) ? (o.mode as Mode) : base.mode,
     backupDir: typeof o.backupDir === 'string' && isAbsolute(o.backupDir) ? o.backupDir : o.backupDir === null ? null : base.backupDir,
     backupAuto: typeof o.backupAuto === 'boolean' ? o.backupAuto : base.backupAuto,
+    autopilot: typeof o.autopilot === 'boolean' ? o.autopilot : base.autopilot,
   };
 }
 

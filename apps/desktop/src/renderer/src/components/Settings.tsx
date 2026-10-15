@@ -31,6 +31,8 @@ function General() {
   const t = useT();
   const locale = useStore((s) => s.locale);
   const setLocale = useStore((s) => s.setLocale);
+  const autopilot = useStore((s) => s.settings.autopilot);
+  const setAutopilot = useStore((s) => s.setAutopilot);
   const [sendKey, setSendKey] = useState(localStorage.getItem(SEND_KEY) === 'mod-enter' ? 'mod-enter' : 'enter');
   const prefs = (() => {
     try {
@@ -100,6 +102,13 @@ function General() {
             </option>
           ))}
         </select>
+      </div>
+      <div className="set-row">
+        <div>
+          <b>{t('autopilot.name')}</b>
+          <p>{t('autopilot.hint')}</p>
+        </div>
+        <input type="checkbox" className="set-switch" checked={autopilot} onChange={(e) => setAutopilot(e.target.checked)} />
       </div>
       <div className="set-row">
         <div>

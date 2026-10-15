@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { AgentChoice, BotConfig, BotMember, BotTeam, PermissionMode } from '@shared/api';
+import type { AgentChoice, BotConfig, BotMember, BotTeam, OrgSettings, PermissionMode } from '@shared/api';
 import type { LiveQuestion } from '../live-turns';
 import { money, modelLabel as rawModelLabel, relativeTime } from '../format';
 import { sourceOf } from '../sources';
@@ -671,6 +671,67 @@ export function OrgSidebar() {
   );
 }
 
+/**
+ * The coordinator's switch: it decides everything (its agents' permissions bar what can't be undone,
+ * their questions, its plans, the automations' steps), and the lessons it learned from its mistakes.
+ */
+function CoordinatorAutopilot() {
+  const t = useT();
+  const locale = useStore((s) => s.locale);
+  const org = useStore((s) => s.orgSettings);
+  const everyone = useStore((s) => s.settings.autopilot);
+  // A lesson saved during an assignment shows up here as soon as it's logged.
+  const learned = useStore((s) => s.botTeams.reduce((n, team) => n + (team.activity ?? []).filter((e) => e.kind === 'learned').length, 0));
+  useEffect(() => {
+    void window.alchemist.orgSettings().then((o) => useStore.setState({ orgSettings: o }));
+  }, [learned]);
+  const save = async (patch: Partial<OrgSettings>) => {
+    try {
+      useStore.setState({ orgSettings: await window.alchemist.saveOrgSettings(patch) });
+    } catch (e) {
+      toast(errorText(e));
+    }
+  };
+  const on = org?.autopilot === true;
+  const lessons = org?.lessons ?? [];
+  return (
+    <section className={`org-autopilot ${on ? 'on' : ''}`} aria-label={t('org.autopilot')}>
+      <label className="org-autopilot-head">
+        <Icon name="plane" size={16} />
+        <span>
+          <b>{t('org.autopilot')}</b>
+          <small>{t('org.autopilotHint')}</small>
+          {everyone && !on && <small>{t('org.autopilotEveryone')}</small>}
+        </span>
+        <input type="checkbox" className="set-switch" checked={on} onChange={(e) => void save({ autopilot: e.target.checked })} />
+      </label>
+      <div className="org-lessons">
+        <h4>
+          {t('org.lessons')} {lessons.length > 0 && <small>{lessons.length}</small>}
+        </h4>
+        <p className="composer-note">{t('org.lessonsHint')}</p>
+        {lessons.length ? (
+          <ul>
+            {lessons.map((l) => (
+              <li key={l.id}>
+                <span className="org-lesson-text">
+                  {l.text}
+                  <small>{[l.by, l.from, l.at ? relativeTime(l.at, locale) : ''].filter(Boolean).join(' · ')}</small>
+                </span>
+                <button className="icon-btn ic-btn" title={t('org.forget')} aria-label={t('org.forget')} onClick={() => void save({ lessons: lessons.filter((x) => x.id !== l.id) })}>
+                  <Icon name="close" size={12} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="empty">{t('org.noLessons')}</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
 /** The instructions the coordinator and every agent get; saved as you type. */
 function OrgInstructions() {
   const t = useT();
@@ -1007,7 +1068,10 @@ function MemberPanel({ member }: { member: BotConfig }) {
           </div>
         </section>
         {lead ? (
-          <OrgInstructions />
+          <>
+            <CoordinatorAutopilot />
+            <OrgInstructions />
+          </>
         ) : (
           <details className="org-also">
             <summary>

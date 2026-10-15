@@ -3,8 +3,15 @@ import type { MainWords } from '.';
 export const ru: MainWords = {
   menu: {
     settings: 'Настройки…', file: 'Файл', newConversation: 'Новый чат', newProject: 'Новый проект…', openFolder: 'Открыть папку…', newTerminal: 'Новый терминал', openProject: 'Открыть проект…', closeTab: 'Закрыть вкладку',
-    view: 'Вид', agents: 'Агенты', arena: 'Арена', code: 'Код', split: 'Разделённый', terminal: 'Терминал', history: 'История', bots: 'Организация', marketing: 'Маркетинг', board: 'Доска', sidebar: 'Показать или скрыть боковую панель', agentPanel: 'Показать или скрыть панель агента',
+    view: 'Вид', agents: 'Агенты', arena: 'Арена', code: 'Код', split: 'Разделённый', terminal: 'Терминал', history: 'История', bots: 'Организация', marketing: 'Маркетинг', board: 'Доска', autopilot: 'Автопилот', sidebar: 'Показать или скрыть боковую панель', agentPanel: 'Показать или скрыть панель агента',
     palette: 'Палитра команд…', search: 'Поиск по чатам', welcome: 'Добро пожаловать…', website: 'Сайт Alchemist Coder', issue: 'Сообщить о проблеме',
+  },
+  autopilot: {
+    refused: (what: string) => `Автопилот отклонил «${what}»: это нельзя отменить, поэтому решение остаётся за вами.`,
+    decides: (q: string) => `Автопилот вернул вопрос «${q}» агенту: он решит сам.`,
+    picked: (q: string, a: string) => `Автопилот ответил на «${q}»: ${a}`,
+    declined: (q: string) => `Автопилот пропустил «${q}»: нужно то, что можете дать только вы.`,
+    chose: (c: string) => `Автопилот выбрал: ${c}`,
   },
   automation: {
     start: 'Старт',

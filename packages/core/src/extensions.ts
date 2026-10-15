@@ -124,7 +124,7 @@ export type RunnerEvent =
   | { type: 'tool'; name: string; summary: string; id?: string; kind?: string; state?: ToolState; diffs?: FileDiff[]; /** JSON, clipped */ input?: string; /** text, clipped */ output?: string }
   | { type: 'plan'; entries: PlanEntry[]; markdown?: string }
   /** The agent is waiting for the user; answer with RunHandle.respond(). */
-  | { type: 'permission'; requestId: string; toolId: string | null; title: string; kind: string | null; diffs: FileDiff[]; choices: PermissionChoice[]; content: string | null }
+  | { type: 'permission'; requestId: string; toolId: string | null; title: string; kind: string | null; diffs: FileDiff[]; choices: PermissionChoice[]; content: string | null; /** The shell command it would run, when it says. */ command?: string }
   | { type: 'permissionClosed'; requestId: string; choiceId: string | null }
   /** The agent asks you something (a form); answer with RunHandle.answer(). */
   | { type: 'question'; requestId: string; message: string; fields: QuestionField[] }
@@ -187,6 +187,15 @@ export interface SessionMcpServer {
   trusted?: boolean;
 }
 
+/**
+ * Decides for you while you're away (the app's Autopilot): asked the moment an agent would wait for
+ * you. null leaves it to you, as always. `note` says what was decided, for the conversation.
+ */
+export interface Autopilot {
+  permission(request: { title: string; kind: string | null; command: string | null; choices: PermissionChoice[] }): { choiceId: string; note: string | null } | null;
+  question(request: { message: string; fields: QuestionField[] }): { answer: QuestionAnswer; note: string } | null;
+}
+
 export interface RunOptions {
   cwd: string;
   prompt: string;
@@ -203,6 +212,8 @@ export interface RunOptions {
   permissionMode?: PermissionMode;
   /** Reasoning effort ("low", "high"…), applied when the agent offers it for the model. */
   effort?: string;
+  /** Answers what the agent asks while you're away (only the main process sets it). */
+  autopilot?: Autopilot;
 }
 
 export interface RunHandle {

@@ -3,8 +3,15 @@ import type { MainWords } from '.';
 export const ja: MainWords = {
   menu: {
     settings: '設定…', file: 'ファイル', newConversation: '新しい会話', newProject: '新しいプロジェクト…', openFolder: 'フォルダーを開く…', newTerminal: '新しいターミナル', openProject: 'プロジェクトを開く…', closeTab: 'タブを閉じる',
-    view: '表示', agents: 'エージェント', arena: 'アリーナ', code: 'コード', split: '分割', terminal: 'ターミナル', history: '履歴', bots: '組織', marketing: 'マーケティング', board: 'ボード', sidebar: 'サイドバーの表示 / 非表示', agentPanel: 'エージェントパネルの表示 / 非表示',
+    view: '表示', agents: 'エージェント', arena: 'アリーナ', code: 'コード', split: '分割', terminal: 'ターミナル', history: '履歴', bots: '組織', marketing: 'マーケティング', board: 'ボード', autopilot: 'オートパイロット', sidebar: 'サイドバーの表示 / 非表示', agentPanel: 'エージェントパネルの表示 / 非表示',
     palette: 'コマンドパレット…', search: '会話を検索', welcome: 'ようこそ…', website: 'Alchemist Coder の Web サイト', issue: '問題を報告',
+  },
+  autopilot: {
+    refused: (what: string) => `オートパイロットは「${what}」を拒否しました。元に戻せない操作なので、あなたに任せます。`,
+    decides: (q: string) => `オートパイロットは「${q}」をエージェントに戻しました。エージェントが自分で決めます。`,
+    picked: (q: string, a: string) => `オートパイロットが「${q}」に回答しました：${a}`,
+    declined: (q: string) => `オートパイロットは「${q}」をスキップしました。あなたにしか出せない情報が必要です。`,
+    chose: (c: string) => `オートパイロットの選択：${c}`,
   },
   automation: {
     start: '開始',

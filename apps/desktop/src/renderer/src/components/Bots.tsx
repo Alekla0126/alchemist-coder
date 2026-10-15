@@ -133,7 +133,7 @@ function SavedConversation({ sessionId, fallback, onGone }: { sessionId: string;
 function EventLine({ e, team }: { e: TeamEvent; team: BotTeam }) {
   const t = useT();
   const locale = useStore((s) => s.locale);
-  const nameOf = (id: string) => (id === 'you' ? t('bots.you') : (team.bots.find((b) => b.id === id)?.name ?? id));
+  const nameOf = (id: string) => (id === 'you' ? t('bots.you') : id === 'autopilot' ? t('autopilot.name') : (team.bots.find((b) => b.id === id)?.name ?? id));
   const [other, rest] = e.detail.includes('|') ? [e.detail.slice(0, e.detail.indexOf('|')), e.detail.slice(e.detail.indexOf('|') + 1)] : ['', e.detail];
   const who = nameOf(e.botId);
   const text =
@@ -144,14 +144,16 @@ function EventLine({ e, team }: { e: TeamEvent; team: BotTeam }) {
     : e.kind === 'failed' ? t('bots.ev.failed', { who })
     : e.kind === 'stopped' ? t('bots.ev.stopped', { who })
     : e.kind === 'plan' ? t('bots.ev.plan', { who, n: rest })
-    : e.kind === 'approved' ? t('bots.ev.approved', { n: rest })
+    : e.kind === 'approved' ? t(e.botId === 'autopilot' ? 'autopilot.approvedPlan' : 'bots.ev.approved', { n: rest })
     : e.kind === 'changes' ? t('bots.ev.changes')
     : e.kind === 'applied' ? t('bots.ev.applied', { who, other: nameOf(other), n: rest })
+    : e.kind === 'learned' ? t('bots.ev.learned', { who })
+    : e.kind === 'nudged' ? t('autopilot.nudged', { who })
     : t('bots.ev.message', { who, other: nameOf(other) });
   const target = ['created', 'applied', 'message'].includes(e.kind) && other ? other : e.botId;
-  const detail = ['created', 'message'].includes(e.kind) ? rest : e.kind === 'waiting' || e.kind === 'changes' ? rest : '';
+  const detail = ['created', 'message'].includes(e.kind) ? rest : ['waiting', 'changes', 'learned'].includes(e.kind) ? rest : '';
   return (
-    <li className={`ev ev-${e.kind}`} onClick={() => target !== 'you' && useStore.setState({ activeBotId: target })} title={detail || undefined}>
+    <li className={`ev ev-${e.kind}`} onClick={() => target !== 'you' && target !== 'autopilot' && useStore.setState({ activeBotId: target })} title={detail || undefined}>
       <span className="ev-time">{clockTime(e.at, locale)}</span>
       <span className="ev-text">
         {text}

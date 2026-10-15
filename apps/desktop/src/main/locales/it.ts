@@ -3,8 +3,15 @@ import type { MainWords } from '.';
 export const it: MainWords = {
   menu: {
     settings: 'Impostazioni…', file: 'File', newConversation: 'Nuova conversazione', newProject: 'Nuovo progetto…', openFolder: 'Apri cartella…', newTerminal: 'Nuovo terminale', openProject: 'Apri progetto…', closeTab: 'Chiudi scheda',
-    view: 'Vista', agents: 'Agenti', arena: 'Arena', code: 'Codice', split: 'Diviso', terminal: 'Terminale', history: 'Cronologia', bots: 'Organizzazione', marketing: 'Marketing', board: 'Bacheca', sidebar: 'Mostra/nascondi barra laterale', agentPanel: 'Mostra/nascondi pannello dell’agente',
+    view: 'Vista', agents: 'Agenti', arena: 'Arena', code: 'Codice', split: 'Diviso', terminal: 'Terminale', history: 'Cronologia', bots: 'Organizzazione', marketing: 'Marketing', board: 'Bacheca', autopilot: 'Pilota automatico', sidebar: 'Mostra/nascondi barra laterale', agentPanel: 'Mostra/nascondi pannello dell’agente',
     palette: 'Riquadro comandi…', search: 'Cerca nelle conversazioni', welcome: 'Benvenuto…', website: 'Sito di Alchemist Coder', issue: 'Segnala un problema',
+  },
+  autopilot: {
+    refused: (what: string) => `Il pilota automatico ha rifiutato «${what}»: non si può annullare, quindi resta a te.`,
+    decides: (q: string) => `Il pilota automatico ha restituito «${q}» all’agente perché decida da solo.`,
+    picked: (q: string, a: string) => `Il pilota automatico ha risposto a «${q}»: ${a}`,
+    declined: (q: string) => `Il pilota automatico ha saltato «${q}»: serve qualcosa che solo tu puoi dare.`,
+    chose: (c: string) => `Il pilota automatico ha scelto: ${c}`,
   },
   automation: {
     start: 'Inizio',

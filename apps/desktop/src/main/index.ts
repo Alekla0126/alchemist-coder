@@ -1,4 +1,4 @@
-import { app, BrowserWindow, session, shell } from 'electron';
+import { app, BrowserWindow, powerSaveBlocker, session, shell } from 'electron';
 import { existsSync, mkdirSync, watch, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { Worker } from 'node:worker_threads';
@@ -10,6 +10,8 @@ import type { IndexProgress } from '@alchemist-coder/core';
 import { Channels, isLocale, matchLocale, type AppInfo, type Locale, type Mode } from '../shared/api';
 import { registerIpc } from './ipc';
 import { SettingsStore } from './settings';
+import { appAutopilot } from './autopilot';
+import { mainWords } from './locales';
 import { RunnerManager } from './runner';
 import { TaskManager } from './tasks';
 import { BotManager } from './bots';
@@ -284,7 +286,13 @@ void app.whenReady().then(async () => {
   for (const p of personal) registry.registerProvider(p);
   if (pro) await registry.load(pro.extension).catch((e) => console.error('[pro] activation failed', e));
   const workspace = new Workspace(() => reader?.listProjects().map((p) => p.cwd) ?? []);
-  const runner = new RunnerManager(registry, (message) => send(Channels.runnerEvent, message), new Set(personal.map((p) => p.id)), (cwd) => workspace.isProjectFolder(cwd));
+  // The language you see the app in (a capture's --locale too).
+  const lang = (): Locale => (capturePath && isLocale(arg('locale')) ? (arg('locale') as Locale) : null) ?? settings.get().locale ?? matchLocale(app.getLocale());
+  // Autopilot: while it's on, agents never wait for you (Settings, the title bar or the app menu).
+  const autopilotOn = () => settings.get().autopilot;
+  const pilotFor = (on: () => boolean) => appAutopilot(on, () => mainWords(lang()).autopilot);
+  const autopilot = pilotFor(autopilotOn);
+  const runner = new RunnerManager(registry, (message) => send(Channels.runnerEvent, message), new Set(personal.map((p) => p.id)), (cwd) => workspace.isProjectFolder(cwd), autopilot);
   const hub = new ExtensionsHub((p) => workspace.resolveInside(p));
   const backup = new BackupService(settings, (dir) => indexerWorker?.postMessage({ type: 'backup-root', path: dir }), (status) => send(Channels.backupChanged, status));
   const preview = new PreviewServer((p) => workspace.resolveInside(p));
@@ -319,6 +327,9 @@ void app.whenReady().then(async () => {
     { command: process.execPath, script: writeBridge(userData) },
     (cwd) => workspace.projectFolder(cwd),
     (team) => send(Channels.botTeamChanged, team),
+    autopilotOn,
+    // The organization's runs also follow the coordinator's own switch.
+    pilotFor,
   );
   await bots.start();
   // The built-in browser: one page view over its pane, and tools any agent run can drive it with.
@@ -334,8 +345,9 @@ void app.whenReady().then(async () => {
     secrets,
     send,
     channel: Channels.automationChanged,
-    // The language you see the app in (a capture's --locale too).
-    lang: () => (capturePath && isLocale(arg('locale')) ? (arg('locale') as Locale) : null) ?? settings.get().locale ?? matchLocale(app.getLocale()),
+    lang,
+    // Automations are the organization's work: its switch counts too.
+    autopilot: () => bots.decidesAlone(),
     show: (automationId) => {
       if (!window || window.isDestroyed()) opened();
       window?.show();
@@ -354,7 +366,38 @@ void app.whenReady().then(async () => {
     terminals.killAll();
     browser.stop();
   });
-  registerIpc({ info: appInfo, bots, settings, onSettingsChanged: (patch) => 'locale' in patch && buildMenu(), reader: () => reader, progress: () => progress, onRendered: () => void capture(), runner, tasks, preview, hub, backup, reviews, usage, exportSession: (id, format) => (reader ? exportSession(window, reader, id, format) : Promise.reject(new Error('The index is still loading'))), workspace, terminals, dataDir: userData, board, automations, browser });
+  // On Autopilot an agent at work keeps the Mac from sleeping (the screen still may), so the day's work goes on.
+  let awake: number | null = null;
+  const stayAwake = () => {
+    const want = bots.decidesAlone() && runner.working();
+    if (want && awake == null) awake = powerSaveBlocker.start('prevent-app-suspension');
+    if (!want && awake != null) {
+      powerSaveBlocker.stop(awake);
+      awake = null;
+    }
+  };
+  runner.observe((m) => m.event.type === 'status' && stayAwake());
+  const autopilotChanged = () => {
+    buildMenu();
+    stayAwake();
+    if (!bots.decidesAlone()) return;
+    // What was already waiting for you is decided now, the same way.
+    runner.decideWaiting();
+    bots.decideWaiting();
+    automations.decideWaiting();
+  };
+  // The coordinator's own switch (its section in the Organization) works the same way.
+  bots.onAutopilotChanged(autopilotChanged);
+  const setAutopilot = (on: boolean) => {
+    settings.update({ autopilot: on });
+    send(Channels.appCommand, on ? 'autopilot:on' : 'autopilot:off');
+    autopilotChanged();
+  };
+  const onSettingsChanged = (patch: Record<string, unknown>) => {
+    if ('autopilot' in patch) autopilotChanged();
+    else if ('locale' in patch) buildMenu();
+  };
+  registerIpc({ info: appInfo, bots, settings, onSettingsChanged, reader: () => reader, progress: () => progress, onRendered: () => void capture(), runner, tasks, preview, hub, backup, reviews, usage, exportSession: (id, format) => (reader ? exportSession(window, reader, id, format) : Promise.reject(new Error('The index is still loading'))), workspace, terminals, dataDir: userData, board, automations, browser });
   startIndexer(join(userData, 'index.db'), backup.root(), (source) => usage.touch(source));
   backup.start();
   const menuLocale = () => settings.get().locale ?? matchLocale(app.getLocale());
@@ -366,6 +409,7 @@ void app.whenReady().then(async () => {
       issuesUrl: 'https://github.com/Alekla0126/alchemist-coder/issues',
       openExternal: (url) => void shell.openExternal(url),
       locale: menuLocale(),
+      autopilot: { on: autopilotOn(), toggle: () => setAutopilot(!autopilotOn()) },
     });
   buildMenu();
   // Terminals belong to the window that shows them (macOS keeps the app running without one).

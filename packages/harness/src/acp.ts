@@ -77,6 +77,14 @@ function contentText(content: ToolCallContent[] | null | undefined, rawInput: un
   return typeof plan === 'string' && plan.trim() ? plan.trim() : null;
 }
 
+/** The shell command a tool call would run, when it says (a `command` string, or an argv list). */
+function commandOf(rawInput: unknown): string | null {
+  const c = rawInput && typeof rawInput === 'object' ? (rawInput as Json).command : null;
+  if (typeof c === 'string') return c.slice(0, 4000);
+  if (Array.isArray(c)) return c.map(String).join(' ').slice(0, 4000);
+  return null;
+}
+
 function toolState(status: string | null | undefined): ToolState | undefined {
   switch (status) {
     case 'pending':
@@ -380,6 +388,14 @@ class AcpRun extends RunBase {
     const allow = request.options.find((c) => c.kind === 'allow_once') ?? request.options.find((c) => c.kind === 'allow_always');
     if (allow && this.trustedTool(`${tool.title ?? ''} ${(tool as { name?: string }).name ?? ''}`)) return Promise.resolve({ outcome: { outcome: 'selected', optionId: allow.optionId } });
     const choices = request.options.map((c) => ({ id: c.optionId, label: c.name, kind: c.kind }));
+    const title = (tool.title ?? tool.name ?? tool.kind ?? 'Tool').split('\n')[0]!.slice(0, 300);
+    const command = commandOf(tool.rawInput);
+    // You're away (Autopilot): decided now, without a card.
+    const auto = this.options_.autopilot?.permission({ title, kind: tool.kind ?? null, command, choices });
+    if (auto && choices.some((c) => c.id === auto.choiceId)) {
+      if (auto.note) this.emit({ type: 'notice', level: 'info', text: auto.note });
+      return Promise.resolve({ outcome: { outcome: 'selected', optionId: auto.choiceId } });
+    }
     return new Promise<string | null>((resolve) => {
       if (this.stopped) return resolve(null);
       this.pending.set(requestId, { choices: new Set(choices.map((c) => c.id)), resolve });
@@ -387,11 +403,12 @@ class AcpRun extends RunBase {
         type: 'permission',
         requestId,
         toolId: tool.toolCallId ?? null,
-        title: (tool.title ?? tool.name ?? tool.kind ?? 'Tool').split('\n')[0]!.slice(0, 300),
+        title,
         kind: tool.kind ?? null,
         diffs: diffsOf(tool.content),
         choices,
         content: contentText(tool.content, tool.rawInput),
+        ...(command ? { command } : {}),
       });
       this.emit({ type: 'status', status: 'waiting' });
     }).then((choiceId) => {
@@ -421,10 +438,16 @@ class AcpRun extends RunBase {
     if (request.mode !== 'form' || this.stopped) return Promise.resolve({ action: 'cancel' });
     const fields = formFields(request.requestedSchema);
     if (!fields.length) return Promise.resolve({ action: 'decline' });
+    const message = String(request.message ?? '').slice(0, 2000);
+    const auto = this.options_.autopilot?.question({ message, fields });
+    if (auto) {
+      this.emit({ type: 'notice', level: 'info', text: auto.note });
+      return Promise.resolve(auto.answer.action === 'decline' ? { action: 'decline' } : { action: 'accept', content: auto.answer.content ?? {} });
+    }
     const requestId = `form-${++this.formCounter}`;
     return new Promise<QuestionAnswer | null>((resolve) => {
       this.forms.set(requestId, { keys: new Set(fields.map((f) => f.key)), resolve });
-      this.emit({ type: 'question', requestId, message: String(request.message ?? '').slice(0, 2000), fields });
+      this.emit({ type: 'question', requestId, message, fields });
       this.emit({ type: 'status', status: 'waiting' });
     }).then((answer) => {
       this.forms.delete(requestId);

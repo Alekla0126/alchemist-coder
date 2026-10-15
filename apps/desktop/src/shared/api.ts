@@ -120,6 +120,8 @@ export interface Settings {
   backupDir: string | null;
   /** Back up automatically every 30 minutes. */
   backupAuto: boolean;
+  /** Autopilot: agents never wait for you. Permissions are allowed (bar what can't be undone), questions go back to the agent, plans and steps that ask you are decided for you. */
+  autopilot: boolean;
 }
 
 export interface BackupStatus {
@@ -362,6 +364,21 @@ export interface BotConfig {
 export interface OrgSettings {
   name: string;
   instructions: string;
+  /** The coordinator decides everything: its agents' permissions (bar what can't be undone), their questions, its plans and the automations' steps never wait for you. */
+  autopilot: boolean;
+  /** What the organization learned from its mistakes, newest first; every agent of it is told. */
+  lessons: OrgLesson[];
+}
+
+/** One thing to do differently next time, written by the agent that learned it. */
+export interface OrgLesson {
+  id: string;
+  text: string;
+  /** Who learned it (an agent's name). */
+  by: string;
+  /** The assignment it came from. */
+  from: string;
+  at: number;
 }
 
 export type BotStatus = 'starting' | 'working' | 'waiting' | 'idle' | 'done' | 'error' | 'stopped';
@@ -405,7 +422,7 @@ export interface PlannedBot {
   ownWorktree: boolean;
 }
 
-export type TeamEventKind = 'created' | 'waiting' | 'finished' | 'failed' | 'stopped' | 'plan' | 'approved' | 'changes' | 'applied' | 'message' | 'done';
+export type TeamEventKind = 'created' | 'waiting' | 'finished' | 'failed' | 'stopped' | 'plan' | 'approved' | 'changes' | 'applied' | 'message' | 'done' | 'learned' | 'nudged';
 
 /** One line of a team's activity: who (bot id) did what, and when. */
 export interface TeamEvent {

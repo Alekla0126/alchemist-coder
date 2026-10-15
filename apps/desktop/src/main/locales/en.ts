@@ -5,8 +5,15 @@
 export const en = {
   menu: {
     settings: 'Settings…', file: 'File', newConversation: 'New Conversation', newProject: 'New Project…', openFolder: 'Open Folder…', newTerminal: 'New Terminal', openProject: 'Open Project…', closeTab: 'Close Tab',
-    view: 'View', agents: 'Agents', arena: 'Arena', code: 'Code', split: 'Split', terminal: 'Terminal', history: 'History', bots: 'Organization', marketing: 'Marketing', board: 'Board', sidebar: 'Toggle Sidebar', agentPanel: 'Toggle Agent Panel',
+    view: 'View', agents: 'Agents', arena: 'Arena', code: 'Code', split: 'Split', terminal: 'Terminal', history: 'History', bots: 'Organization', marketing: 'Marketing', board: 'Board', autopilot: 'Autopilot', sidebar: 'Toggle Sidebar', agentPanel: 'Toggle Agent Panel',
     palette: 'Command Palette…', search: 'Search Conversations', welcome: 'Welcome…', website: 'Alchemist Coder Website', issue: 'Report an Issue',
+  },
+  autopilot: {
+    refused: (what: string) => `Autopilot refused "${what}": it can't be undone, so it's left for you.`,
+    decides: (q: string) => `Autopilot sent "${q}" back to the agent to decide.`,
+    picked: (q: string, a: string) => `Autopilot answered "${q}": ${a}`,
+    declined: (q: string) => `Autopilot skipped "${q}": it needs something only you can give.`,
+    chose: (c: string) => `Autopilot chose: ${c}`,
   },
   automation: {
     start: 'Start',

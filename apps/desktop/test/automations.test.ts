@@ -309,6 +309,41 @@ describe('running automations', () => {
     expect(h.notes.at(-1)!.title).toContain('se detuvo');
   });
 
+  it('on Autopilot an agent decides your step, changes come in, and nothing reaches your phone', async () => {
+    const h = harness((task) => (task.includes('Pick exactly one of') ? { text: 'It looks right.\nDECISION: Rechazar' } : { text: 'Changed it', changes: 1 }));
+    h.deps.autopilot = () => true;
+    const state = h.manager.save({
+      name: 'Ship',
+      prompt: 'p',
+      cwd: '/p',
+      nodes: [{ id: 'start', kind: 'trigger', title: 'Go' }, { id: 'fix', kind: 'agent', title: 'Fix', agentId: 'dev', text: 'x' }, { id: 'ok', kind: 'human', title: '¿Lo publico?', branches: ['Aprobar', 'Rechazar'] }, { id: 'pub', kind: 'agent', title: 'Publish', agentId: 'dev', text: 'y' }],
+      edges: [{ from: 'start', to: 'fix' }, { from: 'fix', to: 'ok' }, { from: 'ok', to: 'pub', branch: 'Aprobar' }],
+    });
+    await h.manager.runNow(state.automation.id);
+    const run = await h.settled(state.automation.id);
+    expect(run.status).toBe('done');
+    // The fix came in without asking; the agent said no to publishing, so it didn't.
+    expect(h.applied).toHaveLength(1);
+    expect(run.steps.map((s) => [s.nodeId, s.branch])).toEqual([['start', null], ['fix', null], ['ok', 'Rechazar']]);
+    expect(run.steps[2]!.output).toContain('El piloto automático eligió: Rechazar');
+    expect(h.started.find((x) => x.task.includes('Pick exactly one of'))!.readOnly).toBe(true);
+    expect(h.notes.some((n) => n.ask)).toBe(false);
+  });
+
+  it('answers what was already waiting once Autopilot is turned on', async () => {
+    const h = harness(() => ({ text: 'ok', changes: 1 }));
+    let on = false;
+    h.deps.autopilot = () => on;
+    const state = h.manager.save({ name: 'C', prompt: 'p', cwd: '/p', nodes: [{ id: 'start', kind: 'trigger', title: 'Go' }, { id: 'fix', kind: 'agent', title: 'Fix', agentId: 'dev', text: 'x' }], edges: [{ from: 'start', to: 'fix' }] });
+    await h.manager.runNow(state.automation.id);
+    await h.waitingAsk(state.automation.id);
+    on = true;
+    h.manager.decideWaiting();
+    const run = await h.settled(state.automation.id);
+    expect(run.status).toBe('done');
+    expect(h.applied).toHaveLength(1);
+  });
+
   it('pauses at the daily cap', async () => {
     const h = harness(() => ({ text: 'ok' }));
     const state = h.manager.save({ name: 'Cap', prompt: 'p', cwd: '/p', budgetUsdPerDay: 0.05, nodes: [{ id: 'start', kind: 'trigger', title: 'Go' }, { id: 'a', kind: 'agent', title: 'A', text: 'x' }, { id: 'b', kind: 'agent', title: 'B', text: 'y' }], edges: [{ from: 'start', to: 'a' }, { from: 'a', to: 'b' }] });

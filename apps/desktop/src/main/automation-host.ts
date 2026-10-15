@@ -48,6 +48,8 @@ export class AutomationHost {
       lang: () => Lang;
       /** Brings the window up on an automation (a notification was clicked). */
       show: (automationId: string | null) => void;
+      /** Autopilot is on: automations don't wait for you. */
+      autopilot?: () => boolean;
     },
   ) {
     try {
@@ -75,6 +77,7 @@ export class AutomationHost {
           this.stayAwake();
         },
         lang: deps.lang,
+        autopilot: deps.autopilot,
       },
     );
     // Agents of an automation asking for permission: to your phone too, with its buttons.
@@ -105,6 +108,11 @@ export class AutomationHost {
     void this.telegram?.stop();
     if (this.blocker != null) powerSaveBlocker.stop(this.blocker);
     this.blocker = null;
+  }
+
+  /** Autopilot was just turned on: what automations were asking you is decided now. */
+  decideWaiting() {
+    this.manager.decideWaiting();
   }
 
   settings(): AutomationSettings {

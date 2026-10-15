@@ -3,14 +3,19 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { commitAll, createWorktree, git, headCommit, listChanges, repoRoot } from '@alchemist-coder/arena';
-import type { SessionMcpServer } from '@alchemist-coder/core';
-import type { AgentChoice, BotConfig, BotMember, BotStatus, BotTeam, OrgSettings, PermissionMode, PlannedBot, RunnerEventMessage, StartTeamRequest, TeamEventKind, TeamOrigin, TeamPlan } from '../shared/api';
+import type { Autopilot, SessionMcpServer } from '@alchemist-coder/core';
+import type { AgentChoice, BotConfig, BotMember, BotStatus, BotTeam, OrgLesson, OrgSettings, PermissionMode, PlannedBot, RunnerEventMessage, StartTeamRequest, TeamEventKind, TeamOrigin, TeamPlan } from '../shared/api';
 import type { RunnerManager } from './runner';
 
 /** Coordinator (0), the bots it creates (1), and theirs (2). */
 export const MAX_DEPTH = 2;
 export const MAX_BOTS = 10;
 const MAX_TEAMS = 40;
+/** The organization remembers this many lessons (the oldest go first), each this long at most. */
+export const MAX_LESSONS = 30;
+const LESSON_CHARS = 400;
+/** On Autopilot a coordinator that ends its turn asking you is told to decide this many times per assignment, then it's yours. */
+const AUTOPILOT_NUDGES = 2;
 const REPLY_CHARS = 12_000;
 const PERMISSION_MODES: PermissionMode[] = ['default', 'acceptEdits', 'plan', 'bypassPermissions'];
 const ENDED: BotStatus[] = ['done', 'error', 'stopped'];
@@ -112,7 +117,7 @@ const TOOLS: Record<string, ToolDef> = {
   finish_team: {
     name: 'finish_team',
     description:
-      "Coordinator only: tell the user the goal is done. `summary`: what was done and by whom, what is left in bots' own copies, and anything still open. If you need the user's input instead, ask in your reply and don't call this.",
+      "Coordinator only: tell the user the goal is done. `summary`: what was done and by whom, what is left in bots' own copies, and anything still open. If something went wrong along the way, save what you learned with record_lesson first. If you need the user's input instead, ask in your reply and don't call this.",
     inputSchema: { type: 'object', properties: { summary: { type: 'string' } }, required: ['summary'] },
   },
   stop_bot: {
@@ -120,14 +125,26 @@ const TOOLS: Record<string, ToolDef> = {
     description: 'Stop one of your bots (and the bots it created).',
     inputSchema: { type: 'object', properties: { bot_id: { type: 'string' } }, required: ['bot_id'] },
   },
+  record_lesson: {
+    name: 'record_lesson',
+    description:
+      "Save what the organization learned from a mistake, so every one of its agents does better next time: one short, general rule (what to do or avoid, and when), not the story of what happened. The user sees it and can remove it; the same lesson isn't saved twice.",
+    inputSchema: {
+      type: 'object',
+      properties: { lesson: { type: 'string', description: 'E.g. "Build Android apps with ./gradlew assembleDebug: flutter build hangs on this Mac."' } },
+      required: ['lesson'],
+    },
+  },
 };
 
 /** What the coordinator is told about your answer to its plan. */
-function planAnswer(plan: TeamPlan): string {
+function planAnswer(plan: TeamPlan, byAutopilot = false): string {
   if (plan.status === 'pending') return 'The user is still reviewing the plan. Call wait_for_plan again.';
-  if (plan.status === 'changes') return `The user wants changes to the plan: ${plan.feedback || '(no details)'}\nPropose a new plan with propose_plan, then call wait_for_plan.`;
+  if (plan.status === 'changes')
+    return `The user wants changes to the plan: ${plan.feedback || '(no details)'}\nPropose a new plan with propose_plan, then call wait_for_plan. If what they ask is something to do from now on, save it with record_lesson too.`;
   const list = plan.bots.map((x, i) => `${i + 1}. ${x.name}${x.config ? ` (config ${x.config})` : ''}${x.ownWorktree ? ' [own_worktree]' : ''}: ${x.task}${x.role && !x.config ? `\n   role: ${x.role}` : ''}`).join('\n');
-  return `The user approved the plan${plan.feedback ? ` and adds: ${plan.feedback}` : ''}. Create exactly these bots with create_bot (same names and tasks):\n${list}`;
+  const who = byAutopilot ? 'Autopilot approved the plan for the user, who is away' : `The user approved the plan${plan.feedback ? ` and adds: ${plan.feedback}` : ''}`;
+  return `${who}. Create exactly these bots with create_bot (same names and tasks):\n${list}`;
 }
 
 /** A team's name from its goal: the first sentence or line, at most 60 characters. */
@@ -139,19 +156,45 @@ export function teamTitle(goal: string): string {
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max)}\n…` : text);
 const str = (v: unknown, max = 20_000) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 
+/** What every agent of the organization is told besides its task: what it learned, and whether you're away. */
+interface OrgBrief {
+  /** The lessons, as a list for a prompt ('' when there are none). */
+  lessons: string;
+  /** Autopilot: nobody will answer, so it decides. */
+  alone: boolean;
+}
+
 /** What the organization's coordinator knows about it: its rules, its agents here, and this assignment's guidance. */
-interface OrgContext {
+interface OrgContext extends OrgBrief {
   name: string;
   instructions: string;
   roster: string;
   guidance: string;
 }
 
+/** The lessons as a prompt block, newest first. */
+export function lessonsBlock(lessons: OrgLesson[]): string {
+  return lessons.length ? `Lessons this organization learned from earlier mistakes (follow them):\n${lessons.map((l) => `- ${l.text}`).join('\n')}` : '';
+}
+
+const LEARN =
+  "Learn from mistakes: when something goes wrong (a bot fails or gets it wrong, a check or build breaks, a command is refused, the user corrects you) and you find out why, save what to do differently next time with record_lesson: one short, general rule, not the story. Don't save one when all went well or for a one-off accident.";
+
+const ALONE_LEAD =
+  "The user is away: Autopilot is on and nobody will answer you. Decide everything yourself (the plan, what your agents ask you, what to fix), choosing what you would recommend, and list the decisions you made in finish_team's summary. Permissions are granted for your agents, except what can't be undone or goes out to the world (publishing, force-pushing, deleting data, sudo): leave those for the user as open items. Don't end your turn to ask the user anything: finish the assignment and call finish_team.";
+
+/** What a coordinator on Autopilot is told when it ends its turn without finishing (it was asking you). */
+export const AUTOPILOT_CONTINUE =
+  "Autopilot: the user is away and won't answer. Don't wait for them: decide what you would recommend and carry on with the assignment. When it's done, call finish_team, listing the decisions you made and what's left for the user (anything that can't be undone or goes out to the world).";
+
+const ALONE_AGENT ="Nobody will answer questions while you work (Autopilot is on): decide yourself what you'd recommend, and say what you decided in your reply.";
+
 function coordinatorPrompt(goal: string, role: string, cwd: string, approvePlan = false, org?: OrgContext): string {
   return [
     org ? `You are the coordinator of the organization "${org.name}" in Alchemist Coder. The user gives you assignments; you plan them and give the work to the organization's agents.` : 'You are the coordinator bot of a team in Alchemist Coder.',
     role ? `Your role: ${role}` : null,
     org?.instructions ? `Organization instructions (for you and every agent):\n${org.instructions}` : null,
+    org?.lessons || null,
     org ? `The assignment: ${goal}` : `The goal: ${goal}`,
     org?.guidance ? `For this assignment: ${org.guidance}` : null,
     org
@@ -160,10 +203,12 @@ function coordinatorPrompt(goal: string, role: string, cwd: string, approvePlan 
         : "The organization has no agents for this project yet: define them in create_bot with role. They join the organization as proposed agents the user can keep."
       : null,
     '',
-    `You can create other bots with the tools of the "${SERVER_NAME}" MCP server: list_bot_configs, create_bot, message_bot, wait_for_bot, list_bots, bot_changes, apply_bot_work, stop_bot and finish_team.`,
+    `You can create other bots with the tools of the "${SERVER_NAME}" MCP server: list_bot_configs, create_bot, message_bot, wait_for_bot, list_bots, bot_changes, apply_bot_work, stop_bot, finish_team and record_lesson.`,
     'Split the work into clear tasks, give each bot everything it needs in its task, wait for their answers, check them, and ask for fixes when needed.',
     `Bots work in the project folder (${cwd}) unless you give them their own copy with own_worktree: then check their result with bot_changes and bring it in with apply_bot_work. Give bots in the shared folder separate files or steps so they don't overwrite each other.`,
-    `At most ${MAX_BOTS} bots per team. When the goal is done, call finish_team with a short summary of what was done and by whom (and anything left open), then end your turn. If you need the user's input instead, ask in your reply and don't call finish_team.`,
+    `At most ${MAX_BOTS} bots per team. When the goal is done, call finish_team with a short summary of what was done and by whom (and anything left open), then end your turn.${org?.alone ? '' : " If you need the user's input instead, ask in your reply and don't call finish_team."}`,
+    LEARN,
+    org?.alone ? ALONE_LEAD : null,
     'Write your plan, the tasks you give bots and your summary in the same language as the goal.',
     approvePlan
       ? 'IMPORTANT: the user reviews your plan first. Before creating any bot, call propose_plan with the bots you intend to create (name, task, and config or role), then call wait_for_plan until they answer. Create exactly the approved bots, with the approved names and tasks. If they ask for changes, propose a new plan.'
@@ -173,11 +218,12 @@ function coordinatorPrompt(goal: string, role: string, cwd: string, approvePlan 
     .join('\n');
 }
 
-function workerPrompt(bot: BotMember, parentName: string, orgInstructions = '', team: BotConfig[] = []): string {
+function workerPrompt(bot: BotMember, parentName: string, orgInstructions = '', team: BotConfig[] = [], brief?: OrgBrief): string {
   return [
     `You are "${bot.name}", a bot in a team coordinated by "${parentName}" in Alchemist Coder.`,
     bot.role && `Your role: ${bot.role}`,
     orgInstructions && `Organization instructions:\n${orgInstructions}`,
+    brief?.lessons,
     `Your task: ${bot.task}`,
     team.length && bot.canSpawn
       ? `You lead a team. Hand parts of your task to its members with create_bot (config: their name) from the "${SERVER_NAME}" MCP tools, wait for them, check their work, and answer with the combined result:\n${team.map((m) => `- ${m.name}: ${m.role.slice(0, 200) || 'no role set'}`).join('\n')}`
@@ -185,7 +231,8 @@ function workerPrompt(bot: BotMember, parentName: string, orgInstructions = '', 
         ? `If it helps, you can create helper bots with the "${SERVER_NAME}" MCP tools.`
         : '',
     bot.worktree ? `You work in your own copy of the project (${bot.worktree.path}). Your changes reach the main folder only when "${parentName}" applies them, so finish them completely there.` : '',
-    'When you finish, reply with what you did and anything the coordinator needs to know (files changed, open problems).',
+    brief?.alone ? ALONE_AGENT : '',
+    'When you finish, reply with what you did and anything the coordinator needs to know (files changed, open problems, and what went wrong and why, so the organization can learn from it).',
   ]
     .filter(Boolean)
     .join('\n');
@@ -215,14 +262,16 @@ async function copyUncommitted(root: string, dest: string): Promise<number> {
 }
 
 /** One organization agent doing a task by itself (an automation's step): no team, no bots to create. */
-function soloPrompt(config: BotConfig, task: string, orgName: string, orgInstructions: string, worktree: string | null, readOnly: boolean): string {
+function soloPrompt(config: BotConfig, task: string, orgName: string, orgInstructions: string, worktree: string | null, readOnly: boolean, brief?: OrgBrief): string {
   return [
     `You are "${config.name}", an agent of the organization "${orgName}" in Alchemist Coder. An automation gave you this task; nobody is watching live, so work on it until it's done.`,
     config.role && `Your role: ${config.role}`,
     orgInstructions && `Organization instructions:\n${orgInstructions}`,
+    brief?.lessons,
     `Your task: ${task}`,
     readOnly ? "Don't change any file: read, think and answer." : '',
     worktree ? `You work in your own copy of the project (${worktree}); the user decides whether your changes reach the main folder, so finish them completely there.` : '',
+    brief?.alone ? ALONE_AGENT : '',
     'End your turn with a short summary of what you did and anything left open, in the language of the task.',
   ]
     .filter(Boolean)
@@ -244,10 +293,32 @@ export function avatarOf(v: unknown): string | null {
   return null;
 }
 
+/** Lessons as saved (org.json is user-editable): well-formed ones only, newest first, at most MAX_LESSONS. */
+function lessonsOf(v: unknown): OrgLesson[] {
+  if (!Array.isArray(v)) return [];
+  const out: OrgLesson[] = [];
+  for (const x of v as Array<Partial<OrgLesson>>) {
+    const text = str(x?.text, LESSON_CHARS);
+    if (!text || typeof x.id !== 'string' || !/^[\w-]{1,40}$/.test(x.id)) continue;
+    out.push({ id: x.id, text, by: str(x.by, 80), from: str(x.from, 120), at: typeof x.at === 'number' && Number.isFinite(x.at) ? x.at : 0 });
+  }
+  return out.sort((a, b) => b.at - a.at).slice(0, MAX_LESSONS);
+}
+
+/** The same lesson in other words: case, spacing and the final full stop don't count. */
+const sameLesson = (a: string, b: string) => {
+  const norm = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').replace(/[.!\s]+$/, '').trim();
+  return norm(a) === norm(b);
+};
+
 export class BotManager {
   private configs: BotConfig[] = [];
   private teams: BotTeam[] = [];
-  private org: OrgSettings = { name: 'My organization', instructions: '' };
+  private org: OrgSettings = { name: 'My organization', instructions: '', autopilot: false, lessons: [] };
+  /** Decides for the organization's agents while it runs on Autopilot (asked by each of their runs). */
+  private readonly pilot: Autopilot | undefined;
+  /** How many times Autopilot told each assignment's coordinator to decide instead of asking you. */
+  private readonly nudges = new Map<string, number>();
   private readonly tokens = new Map<string, Caller>();
   private readonly runs = new Map<string, Caller>();
   private readonly turnText = new Map<string, string>();
@@ -268,11 +339,16 @@ export class BotManager {
     private readonly bridge: { command: string; script: string },
     private readonly resolveProject: (cwd: unknown) => string,
     private readonly emit: (team: BotTeam) => void,
+    /** Autopilot is on for every agent (your settings): plans that wait for your review are approved as they come. */
+    private readonly autopilotOn: () => boolean = () => false,
+    /** The app's Autopilot, made for the organization's runs: on while `on` says so. */
+    pilotFor?: (on: () => boolean) => Autopilot,
   ) {
+    this.pilot = pilotFor?.(() => this.decidesAlone());
     this.configs = this.read<BotConfig[]>(files.configs) ?? [];
     try {
       const o = JSON.parse(readFileSync(this.orgFile, 'utf8')) as Partial<OrgSettings>;
-      this.org = { name: str(o.name, 80) || this.org.name, instructions: str(o.instructions) };
+      this.org = { name: str(o.name, 80) || this.org.name, instructions: str(o.instructions), autopilot: o.autopilot === true, lessons: lessonsOf(o.lessons) };
     } catch {
       // first run: the default name, no instructions
     }
@@ -349,15 +425,50 @@ export class BotManager {
   }
 
   orgSettings(): OrgSettings {
-    return { ...this.org };
+    return { ...this.org, lessons: this.org.lessons.map((l) => ({ ...l })) };
   }
 
   saveOrgSettings(input: unknown): OrgSettings {
     const o = (input ?? {}) as Partial<OrgSettings>;
+    const wasAlone = this.decidesAlone();
     if (typeof o.name === 'string') this.org.name = str(o.name, 80) || this.org.name;
     if (typeof o.instructions === 'string') this.org.instructions = str(o.instructions);
+    if (typeof o.autopilot === 'boolean') this.org.autopilot = o.autopilot;
+    // You removing (or rewording) what it learned.
+    if (Array.isArray(o.lessons)) this.org.lessons = lessonsOf(o.lessons);
     this.write(this.orgFile, this.org);
+    if (this.decidesAlone() !== wasAlone) for (const w of this.orgWatchers) w(this.decidesAlone());
     return this.orgSettings();
+  }
+
+  /** The organization decides by itself: its own Autopilot (the coordinator's switch) or the app's. */
+  decidesAlone(): boolean {
+    return this.org.autopilot || this.autopilotOn();
+  }
+
+  private readonly orgWatchers = new Set<(alone: boolean) => void>();
+
+  /** Told when the organization's Autopilot is switched (so what's waiting is decided at once). */
+  onAutopilotChanged(listener: (alone: boolean) => void): () => void {
+    this.orgWatchers.add(listener);
+    return () => this.orgWatchers.delete(listener);
+  }
+
+  /** Saves what an agent learned; the same lesson again only moves to the top. */
+  learn(text: string, by: string, from: string): OrgLesson {
+    const clean = str(text, LESSON_CHARS).replace(/\s+/g, ' ');
+    if (!clean) throw new Error('record_lesson needs a lesson.');
+    const at = Date.now();
+    const known = this.org.lessons.find((l) => sameLesson(l.text, clean));
+    const lesson = known ? { ...known, at, by: by || known.by, from: from || known.from } : { id: randomBytes(6).toString('hex'), text: clean, by, from, at };
+    this.org.lessons = [lesson, ...this.org.lessons.filter((l) => l.id !== lesson.id)].slice(0, MAX_LESSONS);
+    this.write(this.orgFile, this.org);
+    return { ...lesson };
+  }
+
+  /** What every agent of the organization is told besides its task. */
+  private brief(): OrgBrief {
+    return { lessons: lessonsBlock(this.org.lessons), alone: this.decidesAlone() };
   }
 
   /** The organization's coordinator, if it has one. */
@@ -506,6 +617,7 @@ export class BotManager {
               })
               .join('\n'),
             guidance: str(r.guidance, 4000),
+            ...this.brief(),
           }
         : undefined;
     this.launch(team, coordinator, coordinatorPrompt(goal, coordinator.role, cwd, team.approvePlan, org));
@@ -540,6 +652,29 @@ export class BotManager {
       this.sendTo(team, lead, planAnswer(team.plan));
     }
     this.changed(team);
+  }
+
+  /** Autopilot approves a plan waiting for you, as it is. */
+  private approveForYou(team: BotTeam) {
+    if (!team.plan || team.plan.status !== 'pending') return;
+    team.plan = { ...team.plan, status: 'approved', feedback: '' };
+    this.log(team, 'autopilot', 'approved', String(team.plan.bots.length));
+    this.changed(team);
+  }
+
+  /** Autopilot was just turned on: plans already waiting for you are approved, and their coordinators told. */
+  decideWaiting() {
+    for (const team of this.teams) {
+      if (team.plan?.status !== 'pending') continue;
+      this.approveForYou(team);
+      const lead = team.bots[0];
+      if (!lead) continue;
+      if (ACTIVE_STATUSES.includes(lead.status)) this.wake(`plan:${team.id}`);
+      else {
+        if (team.stoppedReason === 'appClosed') team.stoppedReason = null;
+        this.sendTo(team, lead, planAnswer(team.plan, true));
+      }
+    }
   }
 
   rename(teamId: string, title: string) {
@@ -676,7 +811,7 @@ export class BotManager {
     // Not a git project: it works in the folder itself, asking first when told to.
     const workIn = input.ownWorktree && !input.readOnly ? await this.makeWorktree(team, bot).catch(() => cwd) : cwd;
     if (input.ownWorktree && !bot.worktree && input.noCopyPermission) bot.permissionMode = input.noCopyPermission;
-    this.launch(team, bot, soloPrompt(config, task, this.org.name, this.org.instructions, bot.worktree?.path ?? null, input.readOnly === true), workIn);
+    this.launch(team, bot, soloPrompt(config, task, this.org.name, this.org.instructions, bot.worktree?.path ?? null, input.readOnly === true, this.brief()), workIn);
     this.changed(team);
     return structuredClone(team);
   }
@@ -765,7 +900,7 @@ export class BotManager {
       });
     }
     try {
-      const { runId } = this.runner.start({ cwd, harnessId: bot.agent.harnessId, providerId: bot.agent.providerId, model: bot.agent.model, prompt, permissionMode: bot.permissionMode, resumeSessionId }, { mcpServers });
+      const { runId } = this.runner.start({ cwd, harnessId: bot.agent.harnessId, providerId: bot.agent.providerId, model: bot.agent.model, prompt, permissionMode: bot.permissionMode, resumeSessionId }, { mcpServers, autopilot: this.pilot });
       bot.runId = runId;
       bot.status = 'working';
       bot.error = null;
@@ -910,6 +1045,27 @@ export class BotManager {
         this.stop(team.id);
       }
     }
+    if (event.type === 'result' && event.ok) this.keepGoing(team, bot);
+  }
+
+  /**
+   * On Autopilot a coordinator that ends its turn without finishing is asking you something: it's
+   * told to decide and carry on instead, a couple of times per assignment; after that it's yours.
+   */
+  private keepGoing(team: BotTeam, bot: BotMember) {
+    if (bot.depth !== 0 || !bot.canSpawn || bot.status !== 'idle' || team.finished || team.stoppedReason || !this.decidesAlone()) return;
+    const n = this.nudges.get(team.id) ?? 0;
+    if (n >= AUTOPILOT_NUDGES) return;
+    this.nudges.set(team.id, n + 1);
+    this.log(team, 'autopilot', 'nudged', bot.name);
+    setTimeout(() => {
+      if (bot.status !== 'idle' || team.finished || team.stoppedReason) return;
+      try {
+        this.sendTo(team, bot, AUTOPILOT_CONTINUE);
+      } catch {
+        // It can't be continued: the assignment waits for you, as without Autopilot.
+      }
+    }, 0);
   }
 
   // ---------- the bot tools ----------
@@ -990,6 +1146,10 @@ export class BotManager {
           team.plan.status = 'approved';
           return 'Noted (this team does not review plans): go ahead and create the bots.';
         }
+        if (this.decidesAlone()) {
+          this.approveForYou(team);
+          return planAnswer(team.plan, true);
+        }
         return 'The plan is with the user now. Call wait_for_plan to get their answer.';
       }
       case 'wait_for_plan': {
@@ -1004,7 +1164,7 @@ export class BotManager {
             this.waiters.set(`plan:${team.id}`, list);
           });
         }
-        return planAnswer(team.plan!);
+        return planAnswer(team.plan!, team.plan!.status === 'approved' && team.activity?.findLast((e) => e.kind === 'approved')?.botId === 'autopilot');
       }
       case 'create_bot': {
         if (team.stoppedReason) throw new Error('The team reached its spending cap and was stopped.');
@@ -1059,7 +1219,7 @@ export class BotManager {
         }
         team.bots.push(child);
         this.log(team, me.id, 'created', `${child.id}|${task}`);
-        this.launch(team, child, workerPrompt(child, me.name, this.org.instructions, config ? this.teamOf(config.id) : []), cwd);
+        this.launch(team, child, workerPrompt(child, me.name, this.org.instructions, config ? this.teamOf(config.id) : [], this.brief()), cwd);
         this.changed(team);
         if (child.status === 'error') throw new Error(`${child.name} couldn't start: ${child.lastReply}`);
         const copy = child.worktree ? ' in its own copy of the project (use bot_changes and apply_bot_work when it is done)' : '';
@@ -1086,7 +1246,7 @@ export class BotManager {
         }
         if (target.status === 'working' || target.status === 'starting') return `${target.name} is still working. Call wait_for_bot again.`;
         if (target.status === 'waiting') return `${target.name} is waiting for the user to approve something in Alchemist Coder. Call wait_for_bot again later.`;
-        return `${target.name} (${target.status}):\n${target.lastReply || '(no answer)'}${target.error ? `\nIts turn failed: ${target.error}` : ''}`;
+        return `${target.name} (${target.status}):\n${target.lastReply || '(no answer)'}${target.error ? `\nIts turn failed: ${target.error}\nIf you find out why and it can happen again, save what to do differently with record_lesson.` : ''}`;
       }
       case 'list_bots': {
         const visible = me.depth === 0 ? team.bots : team.bots.filter((b) => this.subtree(team, me.id).includes(b.id));
@@ -1113,6 +1273,12 @@ export class BotManager {
         this.log(team, me.id, 'done');
         this.changed(team);
         return 'The user now sees the team as finished, with your summary. End your turn with a one-line reply.';
+      }
+      case 'record_lesson': {
+        const lesson = this.learn(str(args.lesson, LESSON_CHARS), me.name, team.title || teamTitle(team.goal));
+        this.log(team, me.id, 'learned', lesson.text);
+        this.changed(team);
+        return `Saved. Every agent of the organization will be told: "${lesson.text}"`;
       }
       case 'stop_bot': {
         const target = mine(args.bot_id);

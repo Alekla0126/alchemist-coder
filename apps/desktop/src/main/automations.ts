@@ -49,6 +49,8 @@ export interface AutomationDeps {
   now?: () => number;
   /** The app's language, for what automations say. */
   lang?: () => Lang;
+  /** Autopilot is on: nothing waits for you (questions are decided, work is brought in). */
+  autopilot?: () => boolean;
 }
 
 const str = (v: unknown, max = 20_000) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
@@ -298,8 +300,9 @@ export class AutomationManager {
   private automations: Automation[] = [];
   private runs: AutomationRun[] = [];
   private readonly live = new Map<string, Live>();
-  /** Questions waiting for you, by `${runId}:${askId}`. */
-  private readonly asks = new Map<string, (choice: string) => void>();
+  /** Questions waiting for you, by `${runId}:${askId}`; `forYou` is how Autopilot would answer. */
+  private readonly asks = new Map<string, (choice: string, byAutopilot?: boolean) => void>();
+  private readonly forYou = new Map<string, () => Promise<string> | string>();
   private timer: NodeJS.Timeout | null = null;
   private readonly now: () => number;
 
@@ -309,6 +312,10 @@ export class AutomationManager {
 
   private get w() {
     return WORDS(this.lang);
+  }
+
+  private autopilot(): boolean {
+    return this.deps.autopilot?.() === true;
   }
 
   constructor(
@@ -526,6 +533,23 @@ export class AutomationManager {
     }
   }
 
+  /** Autopilot was just turned on: questions already waiting for you are answered the way it would. */
+  decideWaiting() {
+    for (const [key, forYou] of [...this.forYou]) {
+      this.forYou.delete(key);
+      void Promise.resolve()
+        .then(forYou)
+        .then((choice) => {
+          const resolve = this.asks.get(key);
+          if (!resolve) return;
+          resolve(choice, true);
+          this.deps.resolved?.(key, choice);
+        })
+        // Its agent failed: the question stays yours.
+        .catch(() => this.asks.has(key) && this.forYou.set(key, forYou));
+    }
+  }
+
   /** Your answer to a run's question (from the app, or from your phone with `fromPhone`). */
   answer(runId: string, askId: string, choice: string, fromPhone = false) {
     const key = `${runId}:${askId}`;
@@ -642,8 +666,23 @@ export class AutomationManager {
         return { output: body, branch: null };
       }
       case 'human': {
-        const choice = await this.ask(live, step, { question: node.text || node.title, detail: clip(prev.output, 3000), choices: node.branches ?? [this.w.approve, this.w.reject] });
-        return { output: this.w.chose(choice), branch: choice };
+        const choices = node.branches ?? [this.w.approve, this.w.reject];
+        // On Autopilot an agent decides in your place, as on a decision step.
+        const decided = async () => {
+          const d = await this.decide(live, node, prev, step, choices, origin(a.name));
+          return { output: d.output, branch: d.branch };
+        };
+        if (this.autopilot()) {
+          const d = await decided();
+          return { output: `${d.output}\n\n${mainWords(this.lang).autopilot.chose(d.branch)}`, branch: d.branch };
+        }
+        let reasons = '';
+        const r = await this.ask(live, step, { question: node.text || node.title, detail: clip(prev.output, 3000), choices }, async () => {
+          const d = await decided();
+          reasons = d.output;
+          return d.branch;
+        });
+        return { output: r.byAutopilot ? `${reasons}\n\n${mainWords(this.lang).autopilot.chose(r.choice)}` : this.w.chose(r.choice), branch: r.choice };
       }
       case 'agent': {
         const team = await this.solo(live, step, { configId: node.agentId ?? this.coordinatorId(), task: `${node.text || node.title}\n\n${this.context(a, prev)}`, title: node.title, ownWorktree: true, origin: origin(a.name) });
@@ -651,17 +690,8 @@ export class AutomationManager {
         const applied = await this.bringIn(live, step, team, node.title);
         return { output: [answer, applied.text].filter(Boolean).join('\n\n'), branch: null };
       }
-      case 'decision': {
-        const branches = node.branches ?? [this.w.yes, this.w.no];
-        const task = `${node.text || node.title}\n\n${this.context(a, prev)}\n\nPick exactly one of: ${branches.join(' | ')}. Explain briefly why, and end with a last line exactly like "DECISION: <option>".`;
-        const team = await this.solo(live, step, { configId: node.agentId ?? this.coordinatorId(), task, title: node.title, readOnly: true, origin: origin(a.name) });
-        const answer = team.bots[0]?.lastReply ?? '';
-        const branch = parseDecision(answer, branches);
-        if (branch) return { output: answer, branch };
-        // It couldn't decide clearly: you do.
-        const choice = await this.ask(live, step, { question: this.w.unclear(node.title), detail: clip(answer, 3000), choices: branches });
-        return { output: `${answer}\n\n${this.w.chose(choice)}`, branch: choice };
-      }
+      case 'decision':
+        return this.decide(live, node, prev, step, node.branches ?? [this.w.yes, this.w.no], origin(a.name));
       case 'cards':
         return this.planCards(live, node, prev, step, origin(a.name));
       case 'work':
@@ -669,6 +699,17 @@ export class AutomationManager {
       default:
         return { output: '', branch: null };
     }
+  }
+
+  /** An agent picks one of the branches; when it doesn't say clearly, you do (on Autopilot, the first one). */
+  private async decide(live: Live, node: FlowNode, prev: { title: string; output: string }, step: RunStep, branches: string[], origin: TeamOrigin): Promise<{ output: string; branch: string }> {
+    const task = `${node.text || node.title}\n\n${this.context(live.automation, prev)}\n\nPick exactly one of: ${branches.join(' | ')}. Explain briefly why, and end with a last line exactly like "DECISION: <option>".`;
+    const team = await this.solo(live, step, { configId: node.agentId ?? this.coordinatorId(), task, title: node.title, readOnly: true, origin });
+    const answer = team.bots[0]?.lastReply ?? '';
+    const branch = parseDecision(answer, branches);
+    if (branch) return { output: answer, branch };
+    const r = await this.ask(live, step, { question: this.w.unclear(node.title), detail: clip(answer, 3000), choices: branches }, () => branches[0]!);
+    return { output: `${answer}\n\n${r.byAutopilot ? mainWords(this.lang).autopilot.chose(r.choice) : this.w.chose(r.choice)}`, branch: r.choice };
   }
 
   /** An employee alone on a task, waited for; its assignment follows the run. */
@@ -711,17 +752,23 @@ export class AutomationManager {
     });
   }
 
-  /** A question for you: shown in the app and sent to your phone; the run waits for the answer. */
-  private ask(live: Live, step: RunStep, q: { question: string; detail: string; choices: string[]; cardId?: string }): Promise<string> {
+  /**
+   * A question for you: shown in the app and sent to your phone; the run waits for the answer. On
+   * Autopilot `forYou` answers it instead, at once (or as soon as Autopilot is turned on).
+   */
+  private async ask(live: Live, step: RunStep, q: { question: string; detail: string; choices: string[]; cardId?: string }, forYou: () => Promise<string> | string): Promise<{ choice: string; byAutopilot: boolean }> {
+    if (this.autopilot()) return { choice: await forYou(), byAutopilot: true };
     const ask: AutomationAsk = { id: id('ask').slice(0, 13), question: clip(q.question, 500), detail: q.detail, choices: q.choices, cardId: q.cardId ?? null };
     const key = `${live.run.id}:${ask.id}`;
     return new Promise((resolve) => {
-      this.asks.set(key, (choice) => {
+      this.forYou.set(key, forYou);
+      this.asks.set(key, (choice, byAutopilot = false) => {
         this.asks.delete(key);
+        this.forYou.delete(key);
         live.run.asks = live.run.asks.filter((x) => x.id !== ask.id);
         if (step.status === 'waiting' && !live.run.asks.length) step.status = 'running';
         this.touch(live);
-        resolve(choice);
+        resolve({ choice, byAutopilot });
       });
       live.run.asks.push(ask);
       step.status = 'waiting';
@@ -743,7 +790,7 @@ export class AutomationManager {
     const files = changes.slice(0, 12).map((c) => c.path).join(', ');
     if (live.automation.autonomy !== 'autonomous') {
       const w = this.w;
-      const choice = await this.ask(live, step, { question: w.bringIn(bot.name, title), detail: `${w.files(changes.length, files)}\n\n${clip(bot.lastReply, 2000)}`, choices: [w.apply, w.discard], cardId });
+      const { choice } = await this.ask(live, step, { question: w.bringIn(bot.name, title), detail: `${w.files(changes.length, files)}\n\n${clip(bot.lastReply, 2000)}`, choices: [w.apply, w.discard], cardId }, () => w.apply);
       if (choice !== w.apply) return { text: w.notApplied(bot.name, bot.worktree.branch), kept: false };
     }
     const result = await this.deps.apply(team.id, bot.id);

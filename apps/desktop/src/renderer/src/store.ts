@@ -255,6 +255,8 @@ interface State {
   setPickerOpen(open: boolean): void;
   search(query: string): Promise<void>;
   setLocale(locale: Locale): void;
+  /** Autopilot: agents never wait for you (main decides what they ask). */
+  setAutopilot(on: boolean): void;
   toggleFavorite(session: SessionSummary): Promise<void>;
   /** After renaming, hiding or trashing: reload the project's list and everything keyed on revision. */
   sessionsChanged(projectId: number, sessionIds?: string[]): Promise<void>;
@@ -277,7 +279,7 @@ function findPath(node: AgentNode | null, id: string, trail: string[] = []): str
 export const useStore = create<State>((set, get) => ({
   ready: false,
   info: null,
-  settings: { locale: null, theme: 'alchemist-dark', openProjectIds: [], activeProjectId: null, mode: 'agents', backupDir: null, backupAuto: true },
+  settings: { locale: null, theme: 'alchemist-dark', openProjectIds: [], activeProjectId: null, mode: 'agents', backupDir: null, backupAuto: true, autopilot: false },
   locale: 'en',
   progress: { phase: 'scanning', done: 0, total: 0 },
   projects: [],
@@ -691,6 +693,11 @@ export const useStore = create<State>((set, get) => ({
     void api.setSettings({ locale });
   },
 
+  setAutopilot(on) {
+    set((s) => ({ settings: { ...s.settings, autopilot: on } }));
+    void api.setSettings({ autopilot: on });
+  },
+
   async toggleFavorite(session) {
     await api.setFavorite(session.id, !session.favorite);
     await get().loadSessions(session.projectId);
@@ -1037,6 +1044,11 @@ function runAppCommand(command: string) {
       return;
     case 'welcome':
       useWelcome.setState({ open: true });
+      return;
+    // The app menu switched Autopilot (main already saved it).
+    case 'autopilot:on':
+    case 'autopilot:off':
+      useStore.setState({ settings: { ...s.settings, autopilot: command === 'autopilot:on' } });
       return;
   }
 }

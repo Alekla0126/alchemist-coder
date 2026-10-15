@@ -65,6 +65,7 @@ const PATHS = {
   menu: <path d="M4.5 7h15M4.5 12h15M4.5 17h15" />,
   // Composer
   bolt: <path d="M13 3.5L5.5 13.5h6l-1 7 8-10.5h-6z" />,
+  plane: <path d="M10.5 4.5a1.5 1.5 0 0 1 3 0v5l6.5 4v2l-6.5-2v4l2 1.5v1.5L12 19.5l-3.5 1V19l2-1.5v-4l-6.5 2v-2l6.5-4z" />,
   globe: (
     <>
       <circle cx="12" cy="12" r="8.5" />

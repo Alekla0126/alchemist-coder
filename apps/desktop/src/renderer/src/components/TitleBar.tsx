@@ -53,6 +53,19 @@ function useModeFit(header: React.RefObject<HTMLElement | null>, measure: React.
 }
 
 
+/** Autopilot on or off: off it's an icon; on it says so, in the accent color, so it's never forgotten. */
+function AutopilotButton() {
+  const t = useT();
+  const on = useStore((s) => s.settings.autopilot);
+  const setAutopilot = useStore((s) => s.setAutopilot);
+  return (
+    <button className={`autopilot-btn ${on ? 'on' : 'icon-btn'}`} onClick={() => setAutopilot(!on)} title={t(on ? 'autopilot.onTip' : 'autopilot.offTip')} aria-label={t('autopilot.name')} aria-pressed={on}>
+      <Icon name="plane" size={on ? 13 : 16} />
+      {on && <span className="ap-label">{t('autopilot.name')}</span>}
+    </button>
+  );
+}
+
 /** What a waiting place is called: the conversation's title, the project, the bot, the task… */
 function placeName(place: Place, s: ReturnType<typeof useStore.getState>, t: ReturnType<typeof useT>): string {
   switch (place.kind) {
@@ -229,6 +242,7 @@ export function TitleBar() {
             <Icon name={splitSideHidden ? 'panelRightOpen' : 'panelRightClose'} size={17} />
           </button>
         )}
+        <AutopilotButton />
         {waiting > 0 && (
           <button className="needs-you-btn" onClick={() => void goToWaiting()} title={goToLabel || t('attention.goTo')}>
             ● {t('attention.needYou', { n: waiting })}

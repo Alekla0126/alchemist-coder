@@ -3,7 +3,7 @@ import { cliStatus } from './cli-status';
 import { installStep } from './install';
 import { cliSearchPath } from './shell-path';
 import { detectBinary, stageData, stageFile } from '@alchemist-coder/harness';
-import { isLocalEndpoint, type ExtensionRegistry, type PromptFile, type QuestionAnswer, type RunHandle, type SessionMcpServer, validImages } from '@alchemist-coder/core';
+import { isLocalEndpoint, type Autopilot, type ExtensionRegistry, type PromptFile, type QuestionAnswer, type RunHandle, type RunnerEvent, type SessionMcpServer, validImages } from '@alchemist-coder/core';
 import type { PermissionMode, RunnerCatalog, RunnerEventMessage, StartRunRequest } from '../shared/api';
 
 const PERMISSION_MODES: PermissionMode[] = ['default', 'acceptEdits', 'plan', 'bypassPermissions'];
@@ -41,6 +41,12 @@ export class RunnerManager {
   /** Each run's project folder, where its attachments go. */
   private readonly cwds = new Map<string, string>();
   private readonly observers = new Set<(message: RunnerEventMessage) => void>();
+  /** Runs with an agent at work or waiting (their last status said so). */
+  private readonly active = new Set<string>();
+  /** What each run is waiting on you for (permissions and questions), until it's answered. */
+  private readonly waiting = new Map<string, Map<string, Extract<RunnerEvent, { type: 'permission' | 'question' }>>>();
+  /** Who decides for each run while you're away: the app's Autopilot, or its organization's. */
+  private readonly pilots = new Map<string, Autopilot>();
 
   constructor(
     private readonly registry: ExtensionRegistry,
@@ -49,6 +55,8 @@ export class RunnerManager {
     private readonly exempt: ReadonlySet<string> = new Set(),
     /** Agents only run inside the user's projects (and Arena worktrees in them). */
     private readonly isProjectFolder?: (cwd: string) => boolean,
+    /** Decides for you while you're away (asked by every run, on or off). */
+    private readonly autopilot?: Autopilot,
   ) {}
 
   private harnessStatus() {
@@ -87,8 +95,8 @@ export class RunnerManager {
   }
 
   /** Validates everything coming from the renderer before starting a subprocess. */
-  /** `internal`: what only the main process may add (the bots' own MCP server). */
-  start(request: StartRunRequest, internal: { mcpServers?: SessionMcpServer[] } = {}): { runId: string } {
+  /** `internal`: what only the main process may add (the bots' own MCP server, the organization's Autopilot). */
+  start(request: StartRunRequest, internal: { mcpServers?: SessionMcpServer[]; autopilot?: Autopilot } = {}): { runId: string } {
     const harness = this.registry.harnesses.get(String(request?.harnessId));
     const provider = this.registry.providers.get(String(request?.providerId));
     if (!harness) throw new Error('Unknown agent CLI');
@@ -109,15 +117,55 @@ export class RunnerManager {
     const permissionMode = PERMISSION_MODES.includes(request.permissionMode as PermissionMode) ? request.permissionMode : 'acceptEdits';
 
     const effort = typeof request.effort === 'string' && /^[\w-]{1,24}$/.test(request.effort) ? request.effort : undefined;
-    const handle = harness.run({ cwd, prompt, images: validImages(request.images), files: stageAttachments(cwd, request.files), provider, model, resumeSessionId: resume, fork: !!resume && request.fork === true, permissionMode, effort, mcpServers: internal.mcpServers });
+    const handle = harness.run({ cwd, prompt, images: validImages(request.images), files: stageAttachments(cwd, request.files), provider, model, resumeSessionId: resume, fork: !!resume && request.fork === true, permissionMode, effort, mcpServers: internal.mcpServers, autopilot: internal.autopilot ?? this.autopilot });
     this.runs.set(handle.id, handle);
+    const pilot = internal.autopilot ?? this.autopilot;
+    if (pilot) this.pilots.set(handle.id, pilot);
     this.cwds.set(handle.id, cwd);
     handle.onEvent((event) => {
-      const message = { runId: handle.id, event };
-      this.emit(message);
-      for (const o of this.observers) o(message);
+      this.track(handle.id, event);
+      this.publish(handle.id, event);
     });
     return { runId: handle.id };
+  }
+
+  private publish(runId: string, event: RunnerEvent) {
+    const message = { runId, event };
+    this.emit(message);
+    for (const o of this.observers) o(message);
+  }
+
+  private track(runId: string, event: RunnerEvent) {
+    if (event.type === 'status') {
+      if (event.status === 'running' || event.status === 'waiting') this.active.add(runId);
+      else this.active.delete(runId);
+    } else if (event.type === 'permission' || event.type === 'question') {
+      const list = this.waiting.get(runId) ?? new Map();
+      list.set(event.requestId, event);
+      this.waiting.set(runId, list);
+    } else if (event.type === 'permissionClosed' || event.type === 'questionClosed') this.waiting.get(runId)?.delete(event.requestId);
+  }
+
+  /** Autopilot was just turned on: what was already waiting for you is decided now, the same way. */
+  decideWaiting(): void {
+    for (const [runId, list] of this.waiting) {
+      const run = this.runs.get(runId);
+      const pilot = this.pilots.get(runId);
+      if (!pilot) continue;
+      for (const e of [...list.values()]) {
+        if (e.type === 'permission') {
+          const d = pilot.permission({ title: e.title, kind: e.kind, command: e.command ?? null, choices: e.choices });
+          if (!d || !run?.respond) continue;
+          if (d.note) this.publish(runId, { type: 'notice', level: 'info', text: d.note });
+          run.respond(e.requestId, d.choiceId);
+        } else {
+          const d = pilot.question({ message: e.message, fields: e.fields });
+          if (!d || !run?.answer) continue;
+          this.publish(runId, { type: 'notice', level: 'info', text: d.note });
+          run.answer(e.requestId, d.answer);
+        }
+      }
+    }
   }
 
   /** Main-process listeners (e.g. the Arena) see every run's events too. */
@@ -128,6 +176,11 @@ export class RunnerManager {
 
   isRunning(runId: string): boolean {
     return this.runs.has(runId);
+  }
+
+  /** Whether some agent is at work (or waiting) right now. */
+  working(): boolean {
+    return this.active.size > 0;
   }
 
   async setCredential(providerId: string, value: string | null): Promise<void> {
@@ -183,10 +236,15 @@ export class RunnerManager {
     this.runs.get(runId)?.stop();
     this.runs.delete(runId);
     this.cwds.delete(runId);
+    this.waiting.delete(runId);
+    this.active.delete(runId);
+    this.pilots.delete(runId);
   }
 
   stopAll(): void {
     for (const run of this.runs.values()) run.stop();
     this.runs.clear();
+    this.waiting.clear();
+    this.active.clear();
   }
 }

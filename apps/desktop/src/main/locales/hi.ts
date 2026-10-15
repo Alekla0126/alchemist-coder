@@ -3,8 +3,15 @@ import type { MainWords } from '.';
 export const hi: MainWords = {
   menu: {
     settings: 'सेटिंग्स…', file: 'फ़ाइल', newConversation: 'नई बातचीत', newProject: 'नया प्रोजेक्ट…', openFolder: 'फ़ोल्डर खोलें…', newTerminal: 'नया टर्मिनल', openProject: 'प्रोजेक्ट खोलें…', closeTab: 'टैब बंद करें',
-    view: 'व्यू', agents: 'एजेंट', arena: 'एरीना', code: 'कोड', split: 'स्प्लिट', terminal: 'टर्मिनल', history: 'इतिहास', bots: 'संगठन', marketing: 'मार्केटिंग', board: 'बोर्ड', sidebar: 'साइडबार दिखाएँ/छिपाएँ', agentPanel: 'एजेंट पैनल दिखाएँ/छिपाएँ',
+    view: 'व्यू', agents: 'एजेंट', arena: 'एरीना', code: 'कोड', split: 'स्प्लिट', terminal: 'टर्मिनल', history: 'इतिहास', bots: 'संगठन', marketing: 'मार्केटिंग', board: 'बोर्ड', autopilot: 'ऑटोपायलट', sidebar: 'साइडबार दिखाएँ/छिपाएँ', agentPanel: 'एजेंट पैनल दिखाएँ/छिपाएँ',
     palette: 'कमांड पैलेट…', search: 'बातचीत खोजें', welcome: 'स्वागत…', website: 'Alchemist Coder वेबसाइट', issue: 'समस्या रिपोर्ट करें',
+  },
+  autopilot: {
+    refused: (what: string) => `ऑटोपायलट ने “${what}” मना कर दिया: इसे वापस नहीं किया जा सकता, इसलिए यह आपके लिए छोड़ा गया है।`,
+    decides: (q: string) => `ऑटोपायलट ने “${q}” एजेंट को लौटा दिया: वह खुद तय करेगा।`,
+    picked: (q: string, a: string) => `ऑटोपायलट ने “${q}” का जवाब दिया: ${a}`,
+    declined: (q: string) => `ऑटोपायलट ने “${q}” छोड़ दिया: इसके लिए ऐसी जानकारी चाहिए जो सिर्फ़ आप दे सकते हैं।`,
+    chose: (c: string) => `ऑटोपायलट ने चुना: ${c}`,
   },
   automation: {
     start: 'शुरुआत',

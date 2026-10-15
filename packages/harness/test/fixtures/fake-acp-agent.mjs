@@ -90,7 +90,7 @@ new AgentSideConnection((conn) => ({
     await say({ sessionUpdate: 'tool_call', toolCallId: 't1', title: 'Edit a.txt', kind: 'edit', status: 'pending', content: [diff] });
     const answer = await conn.requestPermission({
       sessionId,
-      toolCall: { toolCallId: 't1', title: 'Edit a.txt', kind: 'edit', content: [diff, { type: 'content', content: { type: 'text', text: 'Why: fix the greeting' } }] },
+      toolCall: { toolCallId: 't1', title: 'Edit a.txt', kind: 'edit', content: [diff, { type: 'content', content: { type: 'text', text: 'Why: fix the greeting' } }], ...(words.includes('force push') ? { rawInput: { command: 'git push --force origin main' } } : {}) },
       options: [
         { optionId: 'allow', name: 'Allow', kind: 'allow_once' },
         { optionId: 'deny', name: 'Deny', kind: 'reject_once' },

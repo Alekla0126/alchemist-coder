@@ -3,8 +3,15 @@ import type { MainWords } from '.';
 export const fr: MainWords = {
   menu: {
     settings: 'Paramètres…', file: 'Fichier', newConversation: 'Nouvelle conversation', newProject: 'Nouveau projet…', openFolder: 'Ouvrir un dossier…', newTerminal: 'Nouveau terminal', openProject: 'Ouvrir un projet…', closeTab: 'Fermer l’onglet',
-    view: 'Affichage', agents: 'Agents', arena: 'Arène', code: 'Code', split: 'Divisé', terminal: 'Terminal', history: 'Historique', bots: 'Organisation', marketing: 'Marketing', board: 'Tableau', sidebar: 'Afficher/masquer la barre latérale', agentPanel: 'Afficher/masquer le panneau de l’agent',
+    view: 'Affichage', agents: 'Agents', arena: 'Arène', code: 'Code', split: 'Divisé', terminal: 'Terminal', history: 'Historique', bots: 'Organisation', marketing: 'Marketing', board: 'Tableau', autopilot: 'Pilote automatique', sidebar: 'Afficher/masquer la barre latérale', agentPanel: 'Afficher/masquer le panneau de l’agent',
     palette: 'Palette de commandes…', search: 'Rechercher dans les conversations', welcome: 'Bienvenue…', website: 'Site web d’Alchemist Coder', issue: 'Signaler un problème',
+  },
+  autopilot: {
+    refused: (what: string) => `Le pilote automatique a refusé « ${what} » : c’est irréversible, donc c’est à vous de le faire.`,
+    decides: (q: string) => `Le pilote automatique a renvoyé « ${q} » à l’agent pour qu’il décide.`,
+    picked: (q: string, a: string) => `Le pilote automatique a répondu à « ${q} » : ${a}`,
+    declined: (q: string) => `Le pilote automatique a ignoré « ${q} » : il faut quelque chose que vous seul pouvez donner.`,
+    chose: (c: string) => `Le pilote automatique a choisi : ${c}`,
   },
   automation: {
     start: 'Démarrer',

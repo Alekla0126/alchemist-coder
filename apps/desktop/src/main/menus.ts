@@ -53,16 +53,21 @@ export function editMenu(contents: WebContents) {
 
 
 /** The menu bar. Commands the renderer handles are sent as `app:command` with an id. Call again when the language changes. */
-export function appMenu(send: (command: string) => void, options: { debug: boolean; name: string; issuesUrl: string; siteUrl: string; openExternal: (url: string) => void; locale?: Locale }) {
+export function appMenu(
+  send: (command: string) => void,
+  options: { debug: boolean; name: string; issuesUrl: string; siteUrl: string; openExternal: (url: string) => void; locale?: Locale; autopilot?: { on: boolean; toggle: () => void } },
+) {
   const cmd = (id: string) => () => send(id);
   const L = mainWords(options.locale ?? 'en').menu;
   const mac = process.platform === 'darwin';
+  // Agents decide on their own while it's checked; next to Settings, where it's found.
+  const autopilot: MenuItemConstructorOptions[] = options.autopilot ? [{ label: L.autopilot, type: 'checkbox', checked: options.autopilot.on, click: options.autopilot.toggle }] : [];
   const template: MenuItemConstructorOptions[] = [
     ...(mac
       ? [
           {
             label: options.name,
-            submenu: [{ role: 'about' }, { type: 'separator' }, { label: L.settings, accelerator: 'CmdOrCtrl+,', click: cmd('settings') }, { type: 'separator' }, { role: 'services' }, { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' }],
+            submenu: [{ role: 'about' }, { type: 'separator' }, { label: L.settings, accelerator: 'CmdOrCtrl+,', click: cmd('settings') }, ...autopilot, { type: 'separator' }, { role: 'services' }, { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' }],
           } as MenuItemConstructorOptions,
         ]
       : []),
@@ -77,7 +82,7 @@ export function appMenu(send: (command: string) => void, options: { debug: boole
         { label: L.openFolder, click: cmd('open-folder') },
         { type: 'separator' },
         { label: L.closeTab, accelerator: 'CmdOrCtrl+W', click: cmd('close-tab') },
-        ...(mac ? [] : [{ type: 'separator' as const }, { label: L.settings, accelerator: 'CmdOrCtrl+,', click: cmd('settings') }, { role: 'quit' as const }]),
+        ...(mac ? [] : [{ type: 'separator' as const }, { label: L.settings, accelerator: 'CmdOrCtrl+,', click: cmd('settings') }, ...autopilot, { role: 'quit' as const }]),
       ],
     },
     { role: 'editMenu' },

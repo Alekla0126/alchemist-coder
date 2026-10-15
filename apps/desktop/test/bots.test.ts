@@ -14,13 +14,13 @@ afterAll(() => rmSync(dir, { recursive: true, force: true }));
 function fakeRunner() {
   let n = 0;
   const listeners: Array<(m: RunnerEventMessage) => void> = [];
-  const started: Array<{ runId: string; prompt: string; model: string; permissionMode?: string; mcp: number; cwd?: string }> = [];
+  const started: Array<{ runId: string; prompt: string; model: string; permissionMode?: string; mcp: number; cwd?: string; pilot?: unknown }> = [];
   const sent: Array<[string, string]> = [];
   const stopped: string[] = [];
   const runner = {
-    start(req: { prompt: string; model: string; permissionMode?: string; cwd?: string }, internal: { mcpServers?: unknown[] } = {}) {
+    start(req: { prompt: string; model: string; permissionMode?: string; cwd?: string }, internal: { mcpServers?: unknown[]; autopilot?: unknown } = {}) {
       const runId = `run-${++n}`;
-      started.push({ runId, prompt: req.prompt, model: req.model, permissionMode: req.permissionMode, mcp: internal.mcpServers?.length ?? 0, cwd: req.cwd, resume: (req as { resumeSessionId?: string }).resumeSessionId } as never);
+      started.push({ runId, prompt: req.prompt, model: req.model, permissionMode: req.permissionMode, mcp: internal.mcpServers?.length ?? 0, cwd: req.cwd, resume: (req as { resumeSessionId?: string }).resumeSessionId, pilot: internal.autopilot } as never);
       return { runId };
     },
     send: (runId: string, text: string) => void sent.push([runId, text]),
@@ -171,6 +171,29 @@ describe('bot teams', () => {
     expect(() => bots.answerPlan(team.id, { approve: true })).toThrow(/No plan/);
   });
 
+  it('on Autopilot approves the plan as it comes, and one already waiting once Autopilot is on', async () => {
+    const fake = fakeRunner();
+    let on = true;
+    const bots = new BotManager({ configs: join(dir, `c-${Math.random()}.json`), teams: join(dir, `t-${Math.random()}.json`) }, fake.runner as never, { command: process.execPath, script: writeBridge(dir) }, (cwd) => String(cwd), () => {}, () => on);
+    const plan = { summary: 's', bots: [{ name: 'Builder', task: 'Build it' }] };
+    const a = bots.startTeam({ goal: 'Add login', cwd: '/p', approvePlan: true, coordinator: { name: 'Lead', role: '', agent, permissionMode: 'acceptEdits' } });
+    const reply = await bots.callTool({ teamId: a.id, botId: 'b1' }, 'propose_plan', plan);
+    expect(reply).toMatch(/^Autopilot approved the plan for the user, who is away\. Create exactly these bots/);
+    expect(reply).toContain('1. Builder: Build it');
+    expect(bots.team(a.id)!.plan!.status).toBe('approved');
+    expect(bots.team(a.id)!.activity!.at(-1)).toMatchObject({ botId: 'autopilot', kind: 'approved', detail: '1' });
+    expect(await bots.callTool({ teamId: a.id, botId: 'b1' }, 'create_bot', { name: 'Builder', task: 'Build it' })).toContain('Created Builder');
+
+    on = false;
+    const b = bots.startTeam({ goal: 'Add search', cwd: '/p', approvePlan: true, coordinator: { name: 'Lead', role: '', agent, permissionMode: 'acceptEdits' } });
+    expect(await bots.callTool({ teamId: b.id, botId: 'b1' }, 'propose_plan', plan)).toContain('wait_for_plan');
+    const waiting = bots.callTool({ teamId: b.id, botId: 'b1' }, 'wait_for_plan', { timeout_seconds: 5 });
+    on = true;
+    bots.decideWaiting();
+    expect(await waiting).toMatch(/^Autopilot approved the plan/);
+    expect(bots.team(b.id)!.plan!.status).toBe('approved');
+  });
+
   it('records the team activity and what each bot is doing', async () => {
     const { fake, bots } = setup();
     const team = bots.startTeam({ goal: 'g', cwd: '/p', coordinator: { name: 'Lead', role: '', agent, permissionMode: 'acceptEdits' } });
@@ -298,6 +321,76 @@ describe('bot teams', () => {
     expect(w().error).toBeNull();
   });
 
+  it('learns from its mistakes: a lesson once, in every later prompt, until you remove it', async () => {
+    const fake = fakeRunner();
+    const files = { configs: join(dir, `c-${Math.random()}.json`), teams: join(dir, `t-${Math.random()}.json`) };
+    const bots = new BotManager(files, fake.runner as never, { command: process.execPath, script: writeBridge(dir) }, (cwd) => String(cwd), () => {});
+    const lead = bots.ensureOrg(agent, { coordinator: { name: 'Coordinator', role: 'Plan' }, coder: { name: 'Programmer', role: 'Code' } }).find((c) => c.kind === 'coordinator')!;
+    const a = bots.startTeam({ goal: 'Build the Android apps', cwd: '/p', configId: lead.id });
+    expect(fake.started[0]!.prompt).toContain('record_lesson');
+    expect(fake.started[0]!.prompt).not.toContain('Lessons this organization learned');
+    const me = { teamId: a.id, botId: 'b1' };
+    expect(await bots.callTool(me, 'record_lesson', { lesson: 'Build Android apps with ./gradlew assembleDebug: flutter build hangs on this Mac.' })).toContain('Saved');
+    // The same lesson in other words isn't saved twice.
+    await bots.callTool(me, 'record_lesson', { lesson: '  build android apps with ./gradlew assembleDebug:  flutter build hangs on this Mac ' });
+    await expect(bots.callTool(me, 'record_lesson', { lesson: '   ' })).rejects.toThrow(/needs a lesson/);
+    const saved = bots.orgSettings().lessons;
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).toMatchObject({ by: 'Coordinator', from: 'Build the Android apps' });
+    expect(bots.team(a.id)!.activity!.at(-1)).toMatchObject({ kind: 'learned', botId: 'b1' });
+    // The next assignment, and the agents it creates, are told.
+    const b = bots.startTeam({ goal: 'Ship the iOS apps', cwd: '/p', configId: lead.id });
+    expect(fake.started.at(-1)!.prompt).toContain('Lessons this organization learned from earlier mistakes (follow them):\n- Build Android apps with ./gradlew assembleDebug');
+    await bots.callTool({ teamId: b.id, botId: 'b1' }, 'create_bot', { name: 'P', task: 'build it', config: 'Programmer' });
+    expect(fake.started.at(-1)!.prompt).toContain('./gradlew assembleDebug');
+    // It survives a restart; you can remove it.
+    const again = new BotManager(files, fake.runner as never, { command: process.execPath, script: writeBridge(dir) }, (cwd) => String(cwd), () => {});
+    expect(again.orgSettings().lessons.map((l) => l.text)).toEqual([saved[0]!.text]);
+    again.saveOrgSettings({ lessons: [] });
+    again.startTeam({ goal: 'Again', cwd: '/p', configId: lead.id });
+    expect(fake.started.at(-1)!.prompt).not.toContain('Lessons this organization learned');
+  });
+
+  it("decides everything on the coordinator's own switch: plans, permissions and its own turns", async () => {
+    const fake = fakeRunner();
+    const pilots: Array<() => boolean> = [];
+    const bots = new BotManager({ configs: join(dir, `c-${Math.random()}.json`), teams: join(dir, `t-${Math.random()}.json`) }, fake.runner as never, { command: process.execPath, script: writeBridge(dir) }, (cwd) => String(cwd), () => {}, () => false, (on) => (pilots.push(on), { permission: () => null, question: () => null }));
+    const lead = bots.ensureOrg(agent, { coordinator: { name: 'Coordinator', role: 'Plan' } }).find((c) => c.kind === 'coordinator')!;
+    const switched: boolean[] = [];
+    bots.onAutopilotChanged((on) => switched.push(on));
+    // Off: it asks you, as always.
+    const a = bots.startTeam({ goal: 'Add login', cwd: '/p', configId: lead.id, approvePlan: true });
+    expect(fake.started[0]!.pilot).toBeTruthy();
+    expect(pilots[0]!()).toBe(false);
+    expect(fake.started[0]!.prompt).toContain("If you need the user's input instead");
+    const plan = { summary: 's', bots: [{ name: 'Builder', task: 'Build it' }] };
+    expect(await bots.callTool({ teamId: a.id, botId: 'b1' }, 'propose_plan', plan)).toContain('wait_for_plan');
+    // On: what's waiting is decided, new plans are approved, and the coordinator never stops to ask.
+    bots.saveOrgSettings({ autopilot: true });
+    expect(switched).toEqual([true]);
+    expect(pilots[0]!()).toBe(true);
+    bots.decideWaiting();
+    expect(bots.team(a.id)!.plan!.status).toBe('approved');
+    const b = bots.startTeam({ goal: 'Add search', cwd: '/p', configId: lead.id, approvePlan: true });
+    const prompt = fake.started.at(-1)!.prompt;
+    expect(prompt).toContain('Autopilot is on and nobody will answer you');
+    expect(prompt).not.toContain("If you need the user's input instead");
+    expect(await bots.callTool({ teamId: b.id, botId: 'b1' }, 'propose_plan', plan)).toMatch(/^Autopilot approved the plan/);
+    const run = fake.started.at(-1)!.runId;
+    const nudged = async () => {
+      fake.play(run, 'Should I use OAuth or passwords?');
+      await new Promise((r) => setTimeout(r, 5));
+      return fake.sent.filter(([id, text]) => id === run && text.startsWith('Autopilot: the user is away')).length;
+    };
+    expect(await nudged()).toBe(1);
+    expect(await nudged()).toBe(2);
+    // Twice per assignment, then it's yours.
+    expect(await nudged()).toBe(2);
+    expect(bots.team(b.id)!.activity!.filter((e) => e.kind === 'nudged')).toHaveLength(2);
+    bots.saveOrgSettings({ autopilot: false });
+    expect(switched).toEqual([true, false]);
+  });
+
   it('runs an organization: one coordinator, its agents per project, its rules for everyone, and proposed agents', async () => {
     const { fake, bots } = setup();
     const starters = { coordinator: { name: 'Coordinator', role: 'Plan and delegate' }, coder: { name: 'Programmer', role: 'Writes code' }, uijudge: { name: 'UI Judge', role: 'Judges the interface' } };
@@ -311,7 +404,7 @@ describe('bot teams', () => {
     const judge = list.find((c) => c.name === 'UI Judge')!;
     bots.saveConfig({ ...judge, projects: ['/other'] });
     bots.saveOrgSettings({ name: 'Acme', instructions: 'Always write tests.' });
-    expect(bots.orgSettings()).toEqual({ name: 'Acme', instructions: 'Always write tests.' });
+    expect(bots.orgSettings()).toEqual({ name: 'Acme', instructions: 'Always write tests.', autopilot: false, lessons: [] });
     const team = bots.startTeam({ goal: 'Add login', cwd: '/p', configId: lead.id, guidance: 'Keep it small' });
     const prompt = fake.started[0]!.prompt;
     expect(prompt).toContain('organization "Acme"');
