@@ -4,4 +4,4 @@
 
 - [ ] `pnpm test` and `pnpm typecheck` pass
 - [ ] New record shapes have fixture tests
-- [ ] User-facing strings are translated (EN/ES)
+- [ ] User-facing strings are in all 11 locale files
