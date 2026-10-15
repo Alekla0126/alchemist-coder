@@ -176,7 +176,8 @@ export function buildActivity(input: ActivityInput): ActivityItem[] {
     if (takenRuns.has(run.runId) || !LIVE.includes(run.status)) continue;
     // Conversations only: other background runs (a planner, a piece being written) show where they belong.
     if (!run.target.startsWith('s:') && !run.target.startsWith('p:')) continue;
-    if (input.runByTarget[run.target] !== run.runId) continue;
+    // A new conversation's run moves from its «New conversation» screen to the conversation (its s: alias).
+    if (input.runByTarget[run.target] !== run.runId && !(run.sessionId && input.runByTarget[`s:${run.sessionId}`] === run.runId)) continue;
     const session = sessionId ? sessionById.get(sessionId) : undefined;
     const project = session ? input.projects.find((p) => p.id === session.projectId) : run.target.startsWith('p:') ? input.projects.find((p) => p.id === Number(run.target.slice(2))) : projectOf(run.cwd);
     if (sessionId) takenSessions.add(sessionId);

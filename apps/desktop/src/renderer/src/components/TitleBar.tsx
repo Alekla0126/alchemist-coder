@@ -175,11 +175,13 @@ export function TitleBar() {
   const agentLabel = t(splitSideHidden ? 'layout.showAgent' : 'layout.hideAgent');
   const browserOpen = useLayout((l) => l.browserOpen);
   // The globe is in every mode: agents in Marketing or Split use the browser too, and a dot says one is at it.
-  const [driver, setDriver] = useState<string | null>(null);
+  const [liveDriver, setDriver] = useState<string | null>(null);
   useEffect(() => {
     void window.alchemist.browserState().then((b) => setDriver(b.driver));
     return window.alchemist.onBrowserState((b) => setDriver(b.driver));
   }, []);
+  // --browser-driver (captures): as if that agent were browsing.
+  const driver = useStore((s) => s.info?.capture?.browserDriver) ?? liveDriver;
   const browserShown = mode === 'agents' && browserOpen;
   const browserLabel = driver !== null ? t('browser.driving', { agent: driver || t('browser.anAgent') }) : t(browserShown ? 'browser.hide' : 'browser.show');
   // The browser's panel lives next to the conversation (Agents): from elsewhere the globe takes you there.
@@ -248,6 +250,13 @@ export function TitleBar() {
         <Icon name="chevronDown" size={13} />
       </button>
       <div className="title-right">
+        {/* An agent browsing never opens the pane by itself (you may be elsewhere): it says so here, in words, and waits for your click. */}
+        {driver !== null && !browserShown && (
+          <button className="browsing-pill" onClick={onGlobe} title={`${browserLabel} · ${t('browser.show')}`}>
+            <span className="dot" aria-hidden />
+            <span className="bp-label">{t('browser.browsing', { agent: driver || t('browser.anAgent') })}</span>
+          </button>
+        )}
         <button className={`icon-btn browser-toggle ${browserShown ? 'on' : ''}`} onClick={onGlobe} title={browserLabel} aria-label={browserLabel} aria-expanded={browserShown}>
           <Icon name="globe" size={16} />
           {driver !== null && <span className="globe-live" aria-hidden />}

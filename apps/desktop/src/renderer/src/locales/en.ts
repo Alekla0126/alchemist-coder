@@ -1537,6 +1537,7 @@ export const en = {
   'browser.close': 'Close the browser',
   'browser.empty': 'Type an address above, or ask an agent to open a page: you will see everything it does here.',
   'browser.driving': '{agent} is using the browser',
+  'browser.browsing': '{agent} is browsing',
   'browser.takeOver': 'Take over',
   'browser.yours': 'You have the browser; agents wait until you hand it back',
   'browser.handBack': 'Give back control',

@@ -18,6 +18,7 @@ export type Place =
 /** The parts of the app's state this reads (a subset of the store's). */
 export interface NeedsYouState {
   runs: Record<string, { runId: string; target: string; status: string; cwd?: string; sessionId?: string | null }>;
+  runByTarget: Record<string, string>;
   projects: Array<{ id: number; cwd: string }>;
   botTeams: Array<{ id: string; plan?: { status: string } | null; bots: Array<{ id: string; runId: string | null }> }>;
   tasks: Record<string, { id: string; planner: { runId: string | null } | null; contestants: Array<{ runId: string | null }> }>;
@@ -49,6 +50,8 @@ export function waitingPlaces(s: NeedsYouState): Place[] {
     if (run.target.startsWith('s:')) places.push({ kind: 'session', key: `run:${run.runId}`, sessionId: run.target.slice(2) });
     // A Marketing piece's agent asks in its conversation (Marketing's own «Open its conversation» goes there too).
     else if (run.target.startsWith('mk:')) places.push(run.sessionId ? { kind: 'session', key: `run:${run.runId}`, sessionId: run.sessionId } : { kind: 'marketing', key: `run:${run.runId}` });
+    // A new conversation is answered on its «New conversation» screen until it becomes the conversation.
+    else if (run.target.startsWith('p:') && run.sessionId && s.runByTarget[run.target] !== run.runId) places.push({ kind: 'session', key: `run:${run.runId}`, sessionId: run.sessionId });
     else if (run.target.startsWith('p:')) places.push({ kind: 'compose', key: `run:${run.runId}`, projectId: Number(run.target.slice(2)) });
     else {
       // Started elsewhere, in a project folder: its composer.

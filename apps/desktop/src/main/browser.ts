@@ -17,7 +17,7 @@ const TOOLS = [
   {
     name: 'browser_open',
     description:
-      "Opens a web address (or searches for words) in Alchemist Coder's built-in browser, which the user watches live next to this conversation. Then read the page with browser_read.",
+      "Opens a web address (or searches for words) in Alchemist Coder's built-in browser, which the user can watch next to the conversation. Then read the page with browser_read.",
     inputSchema: { type: 'object', properties: { url: { type: 'string', description: 'A web address, a domain, or words to search for' } }, required: ['url'] },
   },
   {
@@ -68,7 +68,6 @@ export class BrowserHost {
   private readonly tokens = new Map<string, { label: string; runId: string | null }>();
   private driver: { label: string; runId: string | null; at: number } | null = null;
   private userControl = false;
-  private wantsPane = false;
   private driverTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
@@ -140,7 +139,6 @@ export class BrowserHost {
       driver: driving ? this.driver!.label : null,
       driverRunId: driving ? this.driver!.runId : null,
       userControl: this.userControl,
-      wantsPane: this.wantsPane,
     };
   }
 
@@ -176,10 +174,6 @@ export class BrowserHost {
    */
   setBounds(bounds: Rectangle | null): void {
     this.bounds = bounds && bounds.width > 0 && bounds.height > 0 ? bounds : null;
-    if (this.bounds && this.wantsPane) {
-      this.wantsPane = false;
-      this.emit();
-    }
     this.place();
   }
 
@@ -262,10 +256,12 @@ export class BrowserHost {
     }
   }
 
-  /** Marks who is driving (shown in the pane for a few seconds) and asks for the pane if hidden. */
+  /**
+   * Marks who is driving, for a few seconds. It never opens the pane: you may be somewhere else. The
+   * title bar says an agent is browsing, and its pages work the same with the pane closed.
+   */
   private acting(who: { label: string; runId: string | null }) {
     this.driver = { ...who, at: Date.now() };
-    if (!this.bounds) this.wantsPane = true;
     this.emit();
     if (this.driverTimer) clearTimeout(this.driverTimer);
     this.driverTimer = setTimeout(() => this.emit(), DRIVING_MS + 100);

@@ -1538,6 +1538,7 @@ export const zhCN: Messages = {
   'browser.close': '关闭浏览器',
   'browser.empty': '在上方输入地址，或让代理打开一个页面：它做的一切都会显示在这里。',
   'browser.driving': '{agent} 正在使用浏览器',
+  'browser.browsing': '{agent} 正在浏览',
   'browser.takeOver': '接管',
   'browser.yours': '浏览器由你控制；在你交还之前，代理会等待',
   'browser.handBack': '交还控制',

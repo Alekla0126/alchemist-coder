@@ -123,6 +123,14 @@ describe('activity bar', () => {
     expect(activityTotals(items)).toEqual({ waiting: 0, working: 6, costUsd: 0.5 });
   });
 
+  it('keeps a new conversation’s run once its «New conversation» screen is free again', () => {
+    const sessions = [session('n', 1, { title: 'Add CSV export', runningAgents: 1, status: 'running' })];
+    const runs = { r2: run('r2', 'p:1', { sessionId: 'n' }) };
+    const items = buildActivity({ ...base, runs, runByTarget: { 's:n': 'r2' }, sessions, projects: [project(1, 'castbook', 1)] });
+    expect(items.map((x) => [x.key, x.name])).toEqual([['run:r2', 'Add CSV export']]);
+    expect(items[0]).toMatchObject({ target: { kind: 'session', sessionId: 'n' } });
+  });
+
   it('is empty when nobody works', () => {
     expect(buildActivity({ ...base, sessions: [session('a', 1)] })).toEqual([]);
   });

@@ -1718,6 +1718,7 @@ export const ru: Messages = {
   'browser.close': 'Закрыть браузер',
   'browser.empty': 'Введите адрес выше или попросите агента открыть страницу: здесь вы увидите всё, что он делает.',
   'browser.driving': '{agent} использует браузер',
+  'browser.browsing': '{agent} в браузере',
   'browser.takeOver': 'Взять управление',
   'browser.yours': 'Браузер у вас; агенты ждут, пока вы его вернёте',
   'browser.handBack': 'Вернуть управление',

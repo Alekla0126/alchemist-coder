@@ -61,9 +61,6 @@ export function App() {
     void init();
   }, [init]);
 
-  // An agent using the browser with its pane closed opens the pane (where it always goes).
-  useEffect(() => window.alchemist.onBrowserState((s) => s.wantsPane && openBrowser()), []);
-
   // --browser[=<address>] (captures): the pane open, on that page; a run with it says when to shoot.
   useEffect(() => {
     const target = info?.capture?.browser;

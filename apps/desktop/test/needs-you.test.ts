@@ -3,6 +3,7 @@ import { nextPlace, waitingPlaces, type NeedsYouState } from '../src/renderer/sr
 
 const base = (): NeedsYouState => ({
   runs: {},
+  runByTarget: {},
   projects: [{ id: 1, cwd: '/p/shop' }],
   botTeams: [],
   tasks: {},
@@ -34,6 +35,15 @@ describe('where each thing that needs you is answered', () => {
     expect(waitingPlaces(s).map((p) => p.kind)).toEqual(['session', 'compose', 'bot', 'arena', 'marketing', 'plan', 'automation']);
     const arena = waitingPlaces(s).find((p) => p.kind === 'arena');
     expect(arena).toMatchObject({ taskId: 'task-1' });
+  });
+
+  it('a new conversation, once it has become the conversation, is answered there', () => {
+    const s = base();
+    s.runs = { b: { ...run('b', 'p:1'), sessionId: 'sess-7' } };
+    s.runByTarget = { 'p:1': 'b' };
+    expect(waitingPlaces(s)).toEqual([{ kind: 'compose', key: 'run:b', projectId: 1 }]);
+    s.runByTarget = { 's:sess-7': 'b' };
+    expect(waitingPlaces(s)).toEqual([{ kind: 'session', key: 'run:b', sessionId: 'sess-7' }]);
   });
 
   it("a Marketing piece's agent, once it has a conversation, is answered there", () => {

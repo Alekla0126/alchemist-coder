@@ -10,6 +10,7 @@ import { toggleSidebar, toggleSplitSide } from './layout';
 import { useCurrentTheme } from './theme-state';
 import { useWelcome } from './welcome-state';
 import { markViewed } from './attention';
+import { bornConversation, provisionalProjects } from './stay-put';
 
 const api = window.alchemist;
 const CATALOG_KEY = 'alchemist.catalog';
@@ -566,7 +567,7 @@ export const useStore = create<State>((set, get) => ({
     const indexed = get().progress.phase === 'ready';
     // Until the user picks projects, show the four most active ones; save that choice only
     // once the first index is complete so it reflects the whole history.
-    if (provisional) open = projects.slice(0, 4).map((p) => p.id);
+    if (provisional) open = provisionalProjects(projects.map((p) => p.id), settings.activeProjectId);
     const active = settings.activeProjectId != null && open.includes(settings.activeProjectId) ? settings.activeProjectId : (open[0] ?? null);
     if (provisional && !indexed) {
       settings = { ...settings, openProjectIds: open, activeProjectId: active };
@@ -645,7 +646,8 @@ export const useStore = create<State>((set, get) => ({
   },
 
   async setActiveProject(projectId) {
-    set((s) => ({ settings: { ...s.settings, activeProjectId: projectId } }));
+    // Another project's «New conversation» screen doesn't come along.
+    set((s) => ({ settings: { ...s.settings, activeProjectId: projectId }, composeProjectId: s.composeProjectId === projectId ? s.composeProjectId : null }));
     void api.setSettings({ activeProjectId: projectId });
     await get().loadSessions(projectId);
   },
@@ -722,13 +724,17 @@ export const useStore = create<State>((set, get) => ({
   },
 
   async onChanged(ids) {
-    const { trees, settings, runs, composeProjectId } = get();
-    const open = get().selection?.sessionId;
+    const { trees, settings, runs, runByTarget, composeProjectId, selection } = get();
+    const open = selection?.sessionId;
     if (open && ids.includes(open) && document.hasFocus()) markViewed(open);
-    const born = Object.values(runs).find((r) => r.target.startsWith('p:') && r.sessionId && ids.includes(r.sessionId));
-    if (born?.sessionId && composeProjectId != null) {
-      set({ composeProjectId: null });
-      void get().select(born.sessionId, 'main');
+    const born = bornConversation({ runs, runByTarget, composeProjectId, selection, activeProjectId: settings.activeProjectId }, ids);
+    if (born) {
+      // Its «New conversation» screen is free for the next one; the run lives on as the conversation's.
+      set((s) => ({ runByTarget: Object.fromEntries(Object.entries(s.runByTarget).filter(([target]) => target !== born.target)) }));
+      if (born.follow) {
+        set({ composeProjectId: null });
+        void get().select(born.sessionId, 'main');
+      }
     }
     await Promise.all(ids.filter((id) => id in trees).map((id) => get().loadTree(id)));
     const projects = await api.projects();
@@ -1145,13 +1151,13 @@ function reduceRun(r: RunState, event: RunnerEventMessage['event']): RunState {
 }
 
 function afterRunEvent(runId: string, event: RunnerEventMessage['event']) {
-  // A brand-new conversation gets selected once its transcript shows up in the index.
   const run = useStore.getState().runs[runId];
   notifyInBackground(runId, event);
   const edited = event.type === 'tool' && event.state === 'done' && ['edit', 'delete', 'move', 'execute'].includes(event.kind ?? '');
   const turnOver = event.type === 'status' && event.status !== 'running' && event.status !== 'waiting';
   if (run?.cwd && (edited || turnOver || event.type === 'result')) refreshReviewsSoon(run.cwd);
-  if (run?.sessionId && run.target.startsWith('p:')) {
+  // Only while its «New conversation» screen is still its own: after that, what you type there is a new conversation's.
+  if (run?.sessionId && run.target.startsWith('p:') && useStore.getState().runByTarget[run.target] === runId) {
     moveComposerState(run.target, `s:${run.sessionId}`);
     useStore.setState((s) => ({ runByTarget: { ...s.runByTarget, [`s:${run.sessionId}`]: runId } }));
   }

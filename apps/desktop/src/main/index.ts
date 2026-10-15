@@ -87,6 +87,7 @@ function appInfo(): AppInfo {
           review: process.argv.includes('--review'),
           usage: process.argv.includes('--usage'),
           browser: arg('browser') ?? (process.argv.includes('--browser') ? '1' : null),
+          browserDriver: arg('browser-driver') ?? null,
           activity: process.argv.includes('--activity'),
           scrollTo: arg('scroll-to') ?? null,
           runUntil: arg('run-until') === 'subagent' ? 'subagent' : null,

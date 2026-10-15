@@ -1538,6 +1538,7 @@ export const es: Messages = {
   'browser.close': 'Cerrar el navegador',
   'browser.empty': 'Escribe una dirección arriba o pide a un agente que abra una página: aquí verás todo lo que hace.',
   'browser.driving': '{agent} está usando el navegador',
+  'browser.browsing': '{agent} está navegando',
   'browser.takeOver': 'Tomar el control',
   'browser.yours': 'Tienes el navegador; los agentes esperan a que lo devuelvas',
   'browser.handBack': 'Devolver el control',

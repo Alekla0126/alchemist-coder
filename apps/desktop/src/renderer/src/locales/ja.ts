@@ -1538,6 +1538,7 @@ export const ja: Messages = {
   'browser.close': 'ブラウザーを閉じる',
   'browser.empty': '上にアドレスを入力するか、エージェントにページを開くよう頼んでください。その操作はすべてここに表示されます。',
   'browser.driving': '{agent} がブラウザーを使用中',
+  'browser.browsing': '{agent} がブラウズ中',
   'browser.takeOver': '操作を代わる',
   'browser.yours': 'ブラウザーを操作中です。返すまでエージェントは待機します',
   'browser.handBack': '操作を返す',

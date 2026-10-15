@@ -1538,6 +1538,7 @@ export const hi: Messages = {
   'browser.close': 'ब्राउज़र बंद करें',
   'browser.empty': 'ऊपर पता लिखें या किसी एजेंट से पेज खोलने को कहें: वह जो कुछ करेगा, सब यहाँ दिखेगा।',
   'browser.driving': '{agent} ब्राउज़र इस्तेमाल कर रहा है',
+  'browser.browsing': '{agent} ब्राउज़ कर रहा है',
   'browser.takeOver': 'नियंत्रण लें',
   'browser.yours': 'ब्राउज़र आपके पास है; जब तक आप लौटाते नहीं, एजेंट इंतज़ार करेंगे',
   'browser.handBack': 'नियंत्रण लौटाएँ',

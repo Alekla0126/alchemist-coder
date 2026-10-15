@@ -195,6 +195,8 @@ export interface AppInfo {
     usage: boolean;
     /** Open the built-in browser's pane, on this address unless it's "1". */
     browser?: string | null;
+    /** --browser-driver="Claude Code": the title bar as while that agent browses with the pane closed. */
+    browserDriver?: string | null;
     /** Open the status bar's activity list. */
     activity?: boolean;
     /** Scroll the open conversation to the first element matching this selector. */
@@ -316,8 +318,6 @@ export interface BrowserState {
   driverRunId: string | null;
   /** You have it: agents' browser tools wait until you hand it back. */
   userControl: boolean;
-  /** An agent is using it while its pane is closed: open the pane. */
-  wantsPane: boolean;
 }
 
 /** Where the browser pane's page area is, in window pixels. */

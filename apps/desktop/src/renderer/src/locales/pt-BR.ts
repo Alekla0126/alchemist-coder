@@ -1538,6 +1538,7 @@ export const ptBR: Messages = {
   'browser.close': 'Fechar o navegador',
   'browser.empty': 'Digite um endereço acima ou peça a um agente para abrir uma página: você verá aqui tudo o que ele faz.',
   'browser.driving': '{agent} está usando o navegador',
+  'browser.browsing': '{agent} está navegando',
   'browser.takeOver': 'Assumir o controle',
   'browser.yours': 'O navegador é seu; os agentes esperam até você devolvê-lo',
   'browser.handBack': 'Devolver o controle',
