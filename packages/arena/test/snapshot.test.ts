@@ -6,7 +6,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { fileInTree, replaceInTree, snapshotTree, treeChanges } from '../src/index.ts';
 
 const dirs: string[] = [];
-afterEach(() => dirs.splice(0).forEach((d) => rmSync(d, { recursive: true, force: true })));
+// Windows keeps a git process's files locked for a moment after it exits: retry instead of failing the run.
+afterEach(() => dirs.splice(0).forEach((d) => rmSync(d, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })));
 
 function repo() {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'snap-')));
@@ -28,7 +29,8 @@ function repo() {
 }
 
 describe('snapshots', () => {
-  it('sees exactly what changed since the snapshot, including new and deleted files', async () => {
+  // Real git commands each: a Windows runner can take well over the default 5 s.
+  it('sees exactly what changed since the snapshot, including new and deleted files', { timeout: 30_000 }, async () => {
     const { root, sh, index } = repo();
     const statusBefore = sh('status', '--porcelain');
     const base = await snapshotTree(root, index);
@@ -53,7 +55,7 @@ describe('snapshots', () => {
     expect(sh('status', '--porcelain')).toBe(statusBefore);
   });
 
-  it('moves the baseline one file at a time, keeping file modes', async () => {
+  it('moves the baseline one file at a time, keeping file modes', { timeout: 30_000 }, async () => {
     const { root, index, scratch } = repo();
     const base = await snapshotTree(root, index);
     writeFileSync(join(root, 'run.sh'), 'echo bye\n');

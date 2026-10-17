@@ -11,7 +11,8 @@ const dir = () => {
   dirs.push(d);
   return d;
 };
-afterAll(() => dirs.forEach((d) => rmSync(d, { recursive: true, force: true })));
+// Windows keeps a git process's files locked for a moment after it exits: retry instead of failing the run.
+afterAll(() => dirs.forEach((d) => rmSync(d, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })));
 const g = (cwd: string, ...args: string[]) => execFileSync('git', ['-c', 'user.name=Tester', '-c', 'user.email=t@example.com', ...args], { cwd, stdio: 'pipe' }).toString();
 
 describe('git overview', () => {
@@ -33,7 +34,8 @@ describe('git overview', () => {
     expect(cleanRemote('https://user:ghp_secret@github.com/a/b.git')).toBe('https://github.com/a/b.git');
   });
 
-  it('describes a real repository: commits by agents, what is to push, branches, and initializing', async () => {
+  // A dozen real git commands: a Windows runner can take well over the default 5 s.
+  it('describes a real repository: commits by agents, what is to push, branches, and initializing', { timeout: 30_000 }, async () => {
     const remote = dir();
     g(remote, 'init', '-q', '--bare');
     const repo = dir();
