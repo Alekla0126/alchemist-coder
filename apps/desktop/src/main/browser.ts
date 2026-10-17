@@ -6,7 +6,7 @@ import { app, session, WebContentsView, type BrowserWindow, type Rectangle, type
 import type { SessionMcpServer } from '@alchemist-coder/core';
 import { BROWSER_MAX_TABS, type BrowserState } from '../shared/api';
 import { clickScript, focusScript, formatSnapshot, KEYS, keyScript, locateScript, normalizeUrl, SNAPSHOT_SCRIPT, type Key, type PageSnapshot } from './browser-page';
-import { acceptLanguages, activeAfterClose, browserUserAgent, cookiesToImport, keepsAsPopup, partitionFor, SHARED_PARTITION, tabAt, tabsText } from './browser-tabs';
+import { acceptLanguages, activeAfterClose, browserUserAgent, cookiesToImport, keepsAsPopup, partitionFor, readSignInChoices, SHARED_PARTITION, sitesOf, tabAt, tabsText } from './browser-tabs';
 
 export type { BrowserState };
 
@@ -96,10 +96,10 @@ interface ProjectBrowser {
  * The browser inside the app: a browser per project, each with its own cookies and sign-ins and its
  * own tabs, so an agent of one project never sees another's pages or logins. The pane shows the
  * browser of the project you're on: its front tab is a native view laid exactly over the pane (what
- * would open a window opens a tab, except sign-in popups, which stay small windows so they can hand the
- * sign-in back to the page that opened them). Agents use their own project's
- * browser through `browser-bridge.ts`, whether it's on screen or not. You watch it live and can take
- * it over at any time.
+ * would open a window opens a tab, except a sign-in popup while you're the one looking at that page:
+ * it stays a small window so it can hand the sign-in back to the page that opened it). Agents use
+ * their own project's browser through `browser-bridge.ts`, whether it's on screen or not. You watch it
+ * live and can take it over at any time.
  */
 export class BrowserHost {
   private readonly browsers = new Map<string, ProjectBrowser>();
@@ -117,8 +117,11 @@ export class BrowserHost {
   /** The partitions whose session is set up (user agent, languages), to write their sign-ins to disk. */
   private readonly sessions = new Set<string>();
   private flushTimer: ReturnType<typeof setInterval> | null = null;
-  /** Each project's browser, once it has brought the sign-ins of the browser the app had before. */
-  private readonly ready = new Map<string, Promise<void>>();
+  /**
+   * Per project's partition, the sites whose sign-ins it could bring from the browser the app had
+   * before 1.3.1 (the pane offers them), or null: none to bring, or you already chose.
+   */
+  private readonly offers = new Map<string, string[] | null>();
 
   constructor(
     private readonly window: () => BrowserWindow | null,
@@ -153,39 +156,57 @@ export class BrowserHost {
     return ses;
   }
 
-  /** Resolves once a project's browser has its sign-ins (the first time, brought from the app's earlier browser). */
-  private signInsReady(partition: string): Promise<void> {
-    let p = this.ready.get(partition);
-    if (!p) {
-      p = this.importSignIns(partition).catch(() => {});
-      this.ready.set(partition, p);
-    }
-    return p;
+  private choicesFile(): string {
+    return join(app.getPath('userData'), 'browser-sign-ins.json');
+  }
+
+  private readChoices() {
+    let raw: string | null = null;
+    try {
+      raw = readFileSync(this.choicesFile(), 'utf8');
+    } catch {}
+    return readSignInChoices(raw);
   }
 
   /**
-   * Once per project: until 1.3.1 every project shared one browser, so the sites you had signed in to
-   * (Google, Reddit, Workana…) stayed there when each project got its own. This brings them over,
-   * keeping whatever the project's browser already has.
+   * Until 1.3.1 every project shared one browser, so the sites you had signed in to (Google, Reddit,
+   * Workana…) stayed there when each project got its own. Bringing them to a project gives its agents
+   * those sign-ins, so the pane asks, project by project; this finds what there is to offer.
    */
-  private async importSignIns(partition: string): Promise<void> {
+  private async findOffer(project: string): Promise<void> {
+    const partition = partitionFor(project);
+    if (partition === SHARED_PARTITION || this.offers.has(partition)) return;
+    this.offers.set(partition, null);
+    const choices = this.readChoices();
+    if (choices.brought.includes(partition) || choices.skipped.includes(partition)) return;
+    const from = await session.fromPartition(SHARED_PARTITION).cookies.get({}).catch(() => []);
+    if (!from.length) return;
+    const existing = await this.sessionFor(partition).cookies.get({}).catch(() => []);
+    const sites = sitesOf(cookiesToImport(from, existing, Date.now() / 1000));
+    if (!sites.length) return;
+    this.offers.set(partition, sites);
+    this.emit();
+  }
+
+  /** Your answer for the shown project's browser: bring the earlier sign-ins (then reload its page) or not. */
+  async chooseSignIns(bring: boolean): Promise<void> {
+    const partition = partitionFor(this.shown);
     if (partition === SHARED_PARTITION) return;
-    const file = join(app.getPath('userData'), 'browser-imported.json');
-    const done = (): string[] => {
-      try {
-        const list = JSON.parse(readFileSync(file, 'utf8'));
-        return Array.isArray(list) ? list : [];
-      } catch {
-        return [];
-      }
-    };
-    if (done().includes(partition)) return;
-    const target = this.sessionFor(partition);
-    const from = await session.fromPartition(SHARED_PARTITION).cookies.get({});
-    const existing = await target.cookies.get({});
-    for (const c of cookiesToImport(from, existing, Date.now() / 1000)) await target.cookies.set(c).catch(() => {});
-    await target.cookies.flushStore().catch(() => {});
-    writeFileSync(file, JSON.stringify([...new Set([...done(), partition])]));
+    if (bring) {
+      const target = this.sessionFor(partition);
+      const from = await session.fromPartition(SHARED_PARTITION).cookies.get({});
+      const existing = await target.cookies.get({});
+      for (const c of cookiesToImport(from, existing, Date.now() / 1000)) await target.cookies.set(c).catch(() => {});
+      await target.cookies.flushStore().catch(() => {});
+    }
+    const choices = this.readChoices();
+    const list = bring ? choices.brought : choices.skipped;
+    if (!list.includes(partition)) list.push(partition);
+    writeFileSync(this.choicesFile(), JSON.stringify(choices));
+    this.offers.set(partition, null);
+    const wc = this.shownWc();
+    if (bring && wc && wc.getURL() && wc.getURL() !== 'about:blank') wc.reload();
+    this.emit();
   }
 
   stop(): void {
@@ -237,7 +258,7 @@ export class BrowserHost {
   state(): BrowserState {
     const b = this.browsers.get(this.shown);
     const wc = b ? this.front(b)?.view.webContents : undefined;
-    const recent = (x: ProjectBrowser) => !!x.driver && Date.now() - x.driver.at < DRIVING_MS;
+    const recent = (x: ProjectBrowser) => this.driven(x);
     return {
       url: wc?.getURL() ?? '',
       title: wc?.getTitle() ?? '',
@@ -248,6 +269,7 @@ export class BrowserHost {
       driverRunId: b && recent(b) ? b.driver!.runId : null,
       userControl: b?.userControl ?? false,
       project: this.shown,
+      signInsFrom: this.shown ? (this.offers.get(partitionFor(this.shown)) ?? null) : null,
       tabs: (b?.tabs ?? []).map((t) => ({ id: t.id, title: t.view.webContents.getTitle(), url: t.view.webContents.getURL(), loading: t.view.webContents.isLoading(), active: t.id === b!.active })),
       driving: [...this.browsers.values()].filter(recent).map((x) => ({ project: x.project, label: x.driver!.label, runId: x.driver!.runId })),
     };
@@ -255,6 +277,11 @@ export class BrowserHost {
 
   private emit() {
     this.onState(this.state());
+  }
+
+  /** An agent used this browser in the last few seconds. */
+  private driven(b: ProjectBrowser): boolean {
+    return !!b.driver && Date.now() - b.driver.at < DRIVING_MS;
   }
 
   private browserFor(project: string): ProjectBrowser {
@@ -275,16 +302,17 @@ export class BrowserHost {
     if (b.tabs.length >= BROWSER_MAX_TABS) throw new Error(`This browser already has ${BROWSER_MAX_TABS} tabs: close one first.`);
     const partition = partitionFor(b.project);
     this.sessionFor(partition);
-    const ready = this.signInsReady(partition);
+    void this.findOffer(b.project);
     const webPreferences = { partition, sandbox: true, contextIsolation: true, nodeIntegration: false };
     const view = new WebContentsView({ webPreferences });
     const tab: Tab = { id: `tab-${this.nextTab++}`, view };
     const wc = view.webContents;
     // A sign-in popup stays a small window over the app, with the same cookies, so it can hand the
-    // sign-in back through window.opener and close itself. Anything else that would open a window
-    // opens a tab (or here, once the browser is full).
+    // sign-in back through window.opener and close itself: only while you're looking at this page and
+    // no agent is driving it, so a page an agent drives never puts a window over your work. Anything
+    // else that would open a window opens a tab (or here, once the browser is full).
     wc.setWindowOpenHandler(({ url: next, disposition }) => {
-      if (keepsAsPopup(disposition, next)) {
+      if (keepsAsPopup(disposition, next) && this.attachedView === view && (b.userControl || !this.driven(b))) {
         return { action: 'allow', overrideBrowserWindowOptions: { ...POPUP_SIZE, parent: this.window() ?? undefined, autoHideMenuBar: true, webPreferences } };
       }
       const target = normalizeUrl(next);
@@ -318,7 +346,7 @@ export class BrowserHost {
     }
     b.tabs.push(tab);
     b.active = tab.id;
-    if (url) void ready.then(() => wc.loadURL(url)).catch(() => {});
+    if (url) void wc.loadURL(url).catch(() => {});
     this.place();
     this.emit();
     return tab;
@@ -360,6 +388,7 @@ export class BrowserHost {
   setProject(project: string): void {
     if (project === this.shown) return;
     this.shown = project;
+    void this.findOffer(project);
     this.place();
     this.emit();
   }

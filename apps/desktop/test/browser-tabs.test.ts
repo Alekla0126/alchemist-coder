@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { acceptLanguages, activeAfterClose, browserUserAgent, cookiesToImport, keepsAsPopup, partitionFor, SHARED_PARTITION, tabAt, tabsText } from '../src/main/browser-tabs';
+import { acceptLanguages, activeAfterClose, browserUserAgent, cookiesToImport, keepsAsPopup, partitionFor, readSignInChoices, SHARED_PARTITION, sitesOf, tabAt, tabsText } from '../src/main/browser-tabs';
 
 describe('a browser per project', () => {
   it('keeps each project’s cookies apart, and the same project’s across launches', () => {
@@ -93,5 +93,33 @@ describe('bringing the sign-ins of the browser before 1.3.1', () => {
     const [s] = cookiesToImport([{ name: 's', value: 'v', domain: '.workana.com', path: '/', session: true }], [], now);
     expect(s).not.toHaveProperty('expirationDate');
     expect(s!.url).toBe('http://workana.com/');
+  });
+});
+
+describe('offering the sign-ins of the browser before 1.3.1, project by project', () => {
+  it('names the sites as people know them, the ones with most cookies first', () => {
+    const cookies = [
+      { domain: '.google.com' },
+      { domain: 'accounts.google.com' },
+      { domain: '.youtube.com' },
+      { domain: '.reddit.com' },
+      { domain: 'www.reddit.com' },
+      { domain: '.google.com' },
+      { url: 'https://github.com/' },
+      { domain: '.mercadolibre.com.mx' },
+    ];
+    expect(sitesOf(cookies)).toEqual(['google.com', 'reddit.com', 'github.com', 'mercadolibre.com.mx', 'youtube.com']);
+  });
+
+  it('leaves ad and analytics hosts out of the names', () => {
+    expect(sitesOf([{ domain: '.doubleclick.net' }, { domain: 'stats.g.doubleclick.net' }, { domain: '.workana.com' }])).toEqual(['workana.com']);
+    expect(sitesOf([])).toEqual([]);
+  });
+
+  it('reads what was chosen, and nothing from a missing or broken file', () => {
+    expect(readSignInChoices('{"brought":["persist:a"],"skipped":["persist:b",3]}')).toEqual({ brought: ['persist:a'], skipped: ['persist:b'] });
+    expect(readSignInChoices(null)).toEqual({ brought: [], skipped: [] });
+    expect(readSignInChoices('not json')).toEqual({ brought: [], skipped: [] });
+    expect(readSignInChoices('["persist:a"]')).toEqual({ brought: [], skipped: [] });
   });
 });

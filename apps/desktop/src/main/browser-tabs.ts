@@ -56,9 +56,10 @@ export interface StoredCookie {
 }
 
 /**
- * The sign-ins a project's browser brings from the browser the app had before there was one per
+ * The sign-ins a project's browser can bring from the browser the app had before there was one per
  * project (1.3.1): the cookies it doesn't have yet, as `cookies.set` wants them. A cookie the project
  * already has (same site, name and path) is kept, since it's newer. Expired cookies stay behind.
+ * Bringing them is the user's choice, project by project: they give that project's agents those sign-ins.
  */
 export function cookiesToImport(from: StoredCookie[], existing: StoredCookie[], nowSeconds: number) {
   const key = (c: StoredCookie) => `${c.domain ?? ''}|${c.name}|${c.path ?? '/'}`;
@@ -80,6 +81,45 @@ export function cookiesToImport(from: StoredCookie[], existing: StoredCookie[], 
         sameSite: c.sameSite,
       };
     });
+}
+
+/** Ad and analytics hosts: their cookies travel too, but they aren't sign-ins to name. */
+const NOT_A_SIGN_IN = /(^|\.)(doubleclick\.net|google-analytics\.com|googletagmanager\.com|googlesyndication\.com|googleadservices\.com|adservice\.google\.com|facebook\.net|criteo\.com|scorecardresearch\.com|hotjar\.com|clarity\.ms|bing\.com|quantserve\.com|taboola\.com|outbrain\.com|adnxs\.com|rubiconproject\.com|pubmatic\.com|casalemedia\.com)$/i;
+/** Second-level labels under a country code that are part of the site's name (example.com.mx, bbc.co.uk). */
+const SECOND_LEVEL = new Set(['co', 'com', 'org', 'net', 'gob', 'gov', 'ac', 'edu']);
+
+/**
+ * The sites these cookies sign you in to, as people know them ("google.com", "reddit.com"), the ones
+ * with the most cookies first. Ad and analytics hosts are left out of the names, not of the cookies.
+ */
+export function sitesOf(cookies: Array<{ domain?: string; url?: string }>): string[] {
+  const count = new Map<string, number>();
+  for (const c of cookies) {
+    const host = (c.domain ?? c.url?.replace(/^https?:\/\//, '').split('/')[0] ?? '').replace(/^\./, '').toLowerCase();
+    if (!host || NOT_A_SIGN_IN.test(host)) continue;
+    const labels = host.split('.');
+    const keep = labels.length > 2 && labels.at(-1)!.length === 2 && SECOND_LEVEL.has(labels.at(-2)!) ? 3 : 2;
+    const site = labels.slice(-keep).join('.');
+    count.set(site, (count.get(site) ?? 0) + 1);
+  }
+  return [...count].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([site]) => site);
+}
+
+/** What the user chose for each project's browser about the sign-ins of the browser before 1.3.1. */
+export interface SignInChoices {
+  brought: string[];
+  skipped: string[];
+}
+
+/** Reads the choices file: an object, or nothing yet (any other shape counts as nothing chosen). */
+export function readSignInChoices(raw: string | null): SignInChoices {
+  try {
+    const v = raw ? JSON.parse(raw) : null;
+    const list = (x: unknown) => (Array.isArray(x) ? x.filter((p): p is string => typeof p === 'string') : []);
+    return { brought: list(v?.brought), skipped: list(v?.skipped) };
+  } catch {
+    return { brought: [], skipped: [] };
+  }
 }
 
 export interface TabSummary {

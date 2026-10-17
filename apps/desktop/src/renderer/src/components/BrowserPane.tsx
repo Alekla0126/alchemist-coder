@@ -190,6 +190,20 @@ export function BrowserPane({ covered: coveredBy = false, onClose }: { covered?:
           )}
         </div>
       )}
+      {/* Sign-ins from the browser before 1.3.1: this project's agents get them only if you say so. */}
+      {state?.signInsFrom && state.signInsFrom.length > 0 && (
+        <div className="browser-signins" role="note">
+          <span className="bsi-text">
+            {t('browser.signIns', { sites: state.signInsFrom.length > 4 ? `${state.signInsFrom.slice(0, 4).join(', ')} +${state.signInsFrom.length - 4}` : state.signInsFrom.join(', ') })}
+          </span>
+          <span className="bsi-actions">
+            <button onClick={() => void api().browserSignIns(true)}>{t('browser.signInsBring')}</button>
+            <button className="quiet" onClick={() => void api().browserSignIns(false)}>
+              {t('browser.signInsSkip')}
+            </button>
+          </span>
+        </div>
+      )}
       <div className="browser-body" ref={body}>
         {empty && (
           <div className="browser-empty">
