@@ -61,16 +61,30 @@ export function App() {
     void init();
   }, [init]);
 
-  // --browser[=<address>] (captures): the pane open, on that page; a run with it says when to shoot.
+  // The browser pane shows the browser of the project you're on: each has its own tabs and sign-ins.
+  const activeCwd = useStore((s) => s.projects.find((p) => p.id === s.settings.activeProjectId)?.cwd ?? '');
+  useEffect(() => window.alchemist.browserProject(activeCwd), [activeCwd]);
+
+  // --browser[=<address>] (captures): the pane open, on that page (in the --project's browser, once
+  // it's the one you're on); a run with it says when to shoot.
+  const captureBrowsed = useRef(false);
   useEffect(() => {
     const target = info?.capture?.browser;
-    if (!target) return;
+    if (!target || captureBrowsed.current || (info.capture?.project && !activeCwd)) return;
+    captureBrowsed.current = true;
     openBrowser();
     if (target === '1') return;
-    void window.alchemist.browserOpen(target).then(() => {
-      if (!info.capture?.compose) setTimeout(() => useStore.setState({ captureReady: true }), 800);
-    });
-  }, [info]);
+    // "a|b|c": a in the first tab, the others in tabs of their own.
+    const [first, ...more] = target.split('|');
+    void window.alchemist
+      .browserOpen(first!)
+      .then(async () => {
+        for (const url of more) await window.alchemist.browserNewTab(url);
+      })
+      .then(() => {
+        if (!info.capture?.compose) setTimeout(() => useStore.setState({ captureReady: true }), 800);
+      });
+  }, [info, activeCwd]);
 
   useEffect(() => {
     document.documentElement.lang = locale;

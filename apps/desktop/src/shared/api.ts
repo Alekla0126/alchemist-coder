@@ -193,7 +193,7 @@ export interface AppInfo {
     review: boolean;
     /** Open the plans & usage popover. */
     usage: boolean;
-    /** Open the built-in browser's pane, on this address unless it's "1". */
+    /** Open the built-in browser's pane, on this address unless it's "1" ("a|b": a, then b in a new tab). */
     browser?: string | null;
     /** --browser-driver="Claude Code": the title bar as while that agent browses with the pane closed. */
     browserDriver?: string | null;
@@ -318,6 +318,23 @@ export interface BrowserState {
   driverRunId: string | null;
   /** You have it: agents' browser tools wait until you hand it back. */
   userControl: boolean;
+  /** The project whose browser this is (each project has its own tabs and sign-ins; '' outside any). */
+  project: string;
+  /** Its tabs, in order; `active` is the one in front. */
+  tabs: BrowserTab[];
+  /** Every project's browser an agent used in the last few seconds (the title bar says so in words). */
+  driving: Array<{ project: string; label: string; runId: string | null }>;
+}
+
+/** A browser keeps at most this many tabs: past that, opening one asks to close another first. */
+export const BROWSER_MAX_TABS = 12;
+
+export interface BrowserTab {
+  id: string;
+  title: string;
+  url: string;
+  loading: boolean;
+  active: boolean;
 }
 
 /** Where the browser pane's page area is, in window pixels. */
@@ -1052,6 +1069,11 @@ export interface AlchemistApi {
   browserReload(): Promise<void>;
   browserStop(): Promise<void>;
   browserUserControl(on: boolean): Promise<void>;
+  /** The project you're on: the pane shows its browser. */
+  browserProject(project: string): void;
+  browserNewTab(url?: string): Promise<void>;
+  browserSwitchTab(id: string): Promise<void>;
+  browserCloseTab(id: string): Promise<void>;
   /** Agent runs in this project with changes still to review. */
   reviews(projectCwd: string): Promise<AgentReview[]>;
   reviewFile(reviewId: string, path: string): Promise<ReviewFileContent>;
@@ -1237,6 +1259,10 @@ export const Channels = {
   browserReload: 'browser:reload',
   browserStop: 'browser:stop',
   browserUserControl: 'browser:user-control',
+  browserProject: 'browser:project',
+  browserNewTab: 'browser:new-tab',
+  browserSwitchTab: 'browser:switch-tab',
+  browserCloseTab: 'browser:close-tab',
   cliVersions: 'usage:versions',
   showMenu: 'menu:show',
   appCommand: 'app:command',

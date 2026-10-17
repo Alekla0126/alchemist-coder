@@ -1,9 +1,18 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { BrowserState } from '@shared/api';
+import { BROWSER_MAX_TABS, type BrowserState } from '@shared/api';
 import { sessionTitle, useStore, useT } from '../store';
 import { Icon } from './Icon';
 
 const api = () => window.alchemist;
+
+/** example.com, for a tab with no title yet. */
+function hostOf(url: string): string {
+  try {
+    return url && url !== 'about:blank' ? new URL(url).hostname.replace(/^www\./, '') : '';
+  } catch {
+    return '';
+  }
+}
 
 /** Anything modal on screen: a dialog, a sheet, the palette. */
 const MODAL = '[aria-modal="true"], .dialog-backdrop, .settings-backdrop, .palette-backdrop';
@@ -98,8 +107,28 @@ export function BrowserPane({ covered: coveredBy = false, onClose }: { covered?:
   });
   const conversationTitle = useStore((s) => (conversationId ? (sessionTitle(s, conversationId) ?? t('attention.aConversation')) : ''));
 
+  const tabs = state?.tabs ?? [];
+  const tabName = (tab: { title: string; url: string }) => tab.title || hostOf(tab.url) || t('browser.newTab');
+
   return (
     <section className="browser-pane" aria-label={t('browser.title')}>
+      {/* This project's tabs: its own browser, apart from other projects' tabs and sign-ins. */}
+      <div className="browser-tabs" role="tablist" aria-label={t('browser.tabs')}>
+        {tabs.map((tab) => (
+          <div key={tab.id} className={`browser-tab ${tab.active ? 'on' : ''}`} role="presentation">
+            <button role="tab" aria-selected={tab.active} className="bt-name" title={tab.url || tabName(tab)} onClick={() => void api().browserSwitchTab(tab.id)}>
+              {tab.loading && <span className="spin" aria-hidden />}
+              <span className="bt-label">{tabName(tab)}</span>
+            </button>
+            <button className="bt-close" onClick={() => void api().browserCloseTab(tab.id)} title={t('browser.closeTab')} aria-label={`${t('browser.closeTab')}: ${tabName(tab)}`}>
+              <Icon name="close" size={11} />
+            </button>
+          </div>
+        ))}
+        <button className="icon-btn bt-new" disabled={tabs.length >= BROWSER_MAX_TABS} onClick={() => void api().browserNewTab()} title={tabs.length >= BROWSER_MAX_TABS ? t('browser.tabsFull', { n: BROWSER_MAX_TABS }) : t('browser.newTab')} aria-label={t('browser.newTab')}>
+          <Icon name="plus" size={14} />
+        </button>
+      </div>
       <form className="browser-bar" onSubmit={go}>
         <button type="button" className="icon-btn" disabled={!state?.canGoBack} onClick={() => void api().browserBack()} title={t('browser.back')} aria-label={t('browser.back')}>
           <Icon name="chevronLeft" size={15} />

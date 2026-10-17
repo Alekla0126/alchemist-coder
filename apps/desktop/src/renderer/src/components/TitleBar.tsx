@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { keys } from '../keys';
 import { fitModes, modesRoom, type ModeFit } from '../mode-fit';
-import type { Mode } from '@shared/api';
+import type { BrowserState, Mode } from '@shared/api';
 import { nextPlace, waitingPlaces, type Place } from '../needs-you';
 import { sessionTitle, useStore, useT } from '../store';
 import { LogoMark } from './Logo';
@@ -175,19 +175,33 @@ export function TitleBar() {
   const agentLabel = t(splitSideHidden ? 'layout.showAgent' : 'layout.hideAgent');
   const browserOpen = useLayout((l) => l.browserOpen);
   // The globe is in every mode: agents in Marketing or Split use the browser too, and a dot says one is at it.
-  const [liveDriver, setDriver] = useState<string | null>(null);
+  const [browser, setBrowser] = useState<BrowserState | null>(null);
   useEffect(() => {
-    void window.alchemist.browserState().then((b) => setDriver(b.driver));
-    return window.alchemist.onBrowserState((b) => setDriver(b.driver));
+    void window.alchemist.browserState().then(setBrowser);
+    return window.alchemist.onBrowserState(setBrowser);
   }, []);
-  // --browser-driver (captures): as if that agent were browsing.
-  const driver = useStore((s) => s.info?.capture?.browserDriver) ?? liveDriver;
+  const projects = useStore((s) => s.projects);
+  const activeCwd = useStore((s) => s.projects.find((p) => p.id === s.settings.activeProjectId)?.cwd ?? '');
+  const setActiveProject = useStore((s) => s.setActiveProject);
+  // --browser-driver (captures): as if that agent were browsing in this project's browser.
+  const captureDriver = useStore((s) => s.info?.capture?.browserDriver);
   const browserShown = mode === 'agents' && browserOpen;
+  // An agent at a browser you can't see now: the pane is closed, or it shows another project's browser.
+  const elsewhere = captureDriver != null ? { project: activeCwd, label: captureDriver } : (browser?.driving.find((d) => !(browserShown && d.project === browser.project)) ?? null);
+  const driver = browser?.driver ?? elsewhere?.label ?? null;
   const browserLabel = driver !== null ? t('browser.driving', { agent: driver || t('browser.anAgent') }) : t(browserShown ? 'browser.hide' : 'browser.show');
+  const elsewhereProject = elsewhere && elsewhere.project !== activeCwd ? (projects.find((p) => p.cwd === elsewhere.project)?.name ?? elsewhere.project.split(/[\\/]/).pop() ?? '') : '';
   // The browser's panel lives next to the conversation (Agents): from elsewhere the globe takes you there.
   const onGlobe = () => {
     if (mode === 'agents') return toggleBrowser();
     setMode('agents');
+    openBrowser();
+  };
+  // The pill goes where that agent is browsing: its project's browser (your click, so it may switch project).
+  const watchElsewhere = async () => {
+    const target = elsewhereProject ? projects.find((p) => p.cwd === elsewhere?.project) : undefined;
+    if (target) await setActiveProject(target.id);
+    if (mode !== 'agents') setMode('agents');
     openBrowser();
   };
   // What the button would do: open when the sidebar is out of sight, close when it shows.
@@ -251,10 +265,12 @@ export function TitleBar() {
       </button>
       <div className="title-right">
         {/* An agent browsing never opens the pane by itself (you may be elsewhere): it says so here, in words, and waits for your click. */}
-        {driver !== null && !browserShown && (
-          <button className="browsing-pill" onClick={onGlobe} title={`${browserLabel} · ${t('browser.show')}`}>
+        {elsewhere && (
+          <button className="browsing-pill" onClick={() => void watchElsewhere()} title={`${t('browser.driving', { agent: elsewhere.label || t('browser.anAgent') })} · ${t('browser.show')}`}>
             <span className="dot" aria-hidden />
-            <span className="bp-label">{t('browser.browsing', { agent: driver || t('browser.anAgent') })}</span>
+            <span className="bp-label">
+              {elsewhereProject ? t('browser.browsingIn', { agent: elsewhere.label || t('browser.anAgent'), project: elsewhereProject }) : t('browser.browsing', { agent: elsewhere.label || t('browser.anAgent') })}
+            </span>
           </button>
         )}
         <button className={`icon-btn browser-toggle ${browserShown ? 'on' : ''}`} onClick={onGlobe} title={browserLabel} aria-label={browserLabel} aria-expanded={browserShown}>

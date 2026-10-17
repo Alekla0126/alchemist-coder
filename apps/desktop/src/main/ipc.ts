@@ -213,8 +213,8 @@ export function registerIpc(deps: IpcDeps): void {
     // Snapshot the project first, so its review shows exactly what this run changes.
     const r = (request ?? {}) as Record<string, unknown>;
     const prepared = await deps.reviews.prepare(r.cwd).catch(() => null);
-    // Every run can drive the built-in browser (its pane shows which agent is at it).
-    const browserTools = deps.browser.mcpServer(AGENT_LABEL[String(r.harnessId)] ?? String(r.harnessId ?? ''));
+    // Every run can drive its project's built-in browser (its pane shows which agent is at it).
+    const browserTools = deps.browser.mcpServer(AGENT_LABEL[String(r.harnessId)] ?? String(r.harnessId ?? ''), typeof r.cwd === 'string' ? r.cwd : '');
     const started = deps.runner.start(request as never, browserTools ? { mcpServers: [browserTools] } : {});
     if (browserTools) deps.browser.bindRun(browserTools, started.runId);
     if (prepared) deps.reviews.track(started.runId, prepared, r);
@@ -244,6 +244,10 @@ export function registerIpc(deps: IpcDeps): void {
   ipcMain.handle(Channels.browserReload, () => deps.browser.reload());
   ipcMain.handle(Channels.browserStop, () => deps.browser.stopLoading());
   ipcMain.handle(Channels.browserUserControl, (_e, on: unknown) => deps.browser.setUserControl(on === true));
+  ipcMain.on(Channels.browserProject, (_e, project: unknown) => deps.browser.setProject(typeof project === 'string' ? project.slice(0, 4096) : ''));
+  ipcMain.handle(Channels.browserNewTab, (_e, url: unknown) => deps.browser.openTab(typeof url === 'string' && url.trim() ? text(url, 'address', 4096) : undefined));
+  ipcMain.handle(Channels.browserSwitchTab, (_e, id: unknown) => deps.browser.showTab(text(id, 'tab', 40)));
+  ipcMain.handle(Channels.browserCloseTab, (_e, id: unknown) => deps.browser.dropTab(text(id, 'tab', 40)));
   ipcMain.handle(Channels.stopRun, (_e, runId: unknown) => deps.runner.stop(text(runId, 'run id', 100)));
   ipcMain.handle(Channels.interruptRun, (_e, runId: unknown) => deps.runner.interrupt(text(runId, 'run id', 100)));
   ipcMain.handle(Channels.respondToRun, (_e, runId: unknown, requestId: unknown, choiceId: unknown) =>

@@ -2329,6 +2329,20 @@ select.mk-chip { appearance: none; padding-right: 12px; }
 .with-browser-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .browser-col { width: var(--browser-w, 620px); flex: none; min-width: 0; display: flex; border-left: 1px solid var(--line); }
 .browser-pane { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--bg); }
+.browser-tabs { display: flex; align-items: flex-end; gap: 2px; height: 34px; flex: none; padding: 4px 6px 0; background: var(--bg-side); border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.browser-tabs::-webkit-scrollbar { display: none; }
+/* The tab in front reads as the front one in every theme: it joins the bar below (same background,
+   no border between), its text is the strongest and a line marks its top; the others stay dim. */
+.browser-tab { position: relative; display: flex; align-items: center; flex: 0 1 180px; min-width: 64px; height: 30px; border-radius: 7px 7px 0 0; border: 1px solid transparent; border-bottom: none; color: var(--fg-3); }
+.browser-tab:hover { background: var(--bg-hl); color: var(--fg-2); }
+.browser-tab.on { background: var(--bg); color: var(--fg); font-weight: 600; border-color: var(--line); margin-bottom: -1px; height: 31px; box-shadow: inset 0 2px 0 var(--accent); }
+.browser-tab .bt-name { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; height: 100%; padding: 0 4px 0 10px; font-size: 12px; color: inherit; text-align: left; }
+.browser-tab .bt-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.browser-tab .bt-close { width: 20px; height: 20px; margin-right: 4px; border-radius: 5px; display: grid; place-items: center; color: var(--fg-3); flex: none; }
+.browser-tab .bt-close:hover { background: var(--bg-hl); color: var(--fg); }
+.browser-tabs .bt-new { width: 26px; height: 26px; margin: 0 0 3px 2px; border-radius: 6px; color: var(--fg-2); display: grid; place-items: center; flex: none; }
+.browser-tabs .bt-new:not(:disabled):hover { background: var(--bg-hl); color: var(--fg); }
+.browser-tabs .bt-new:disabled { opacity: 0.35; }
 .browser-bar { display: flex; align-items: center; gap: 4px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
 .browser-bar .icon-btn { width: 26px; height: 26px; border-radius: 6px; color: var(--fg-2); font-size: 16px; display: grid; place-items: center; }
 .browser-bar .icon-btn:disabled { opacity: 0.35; }
