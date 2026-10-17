@@ -1,10 +1,10 @@
 import { randomBytes } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { WebContentsView, type BrowserWindow, type Rectangle, type WebContents } from 'electron';
+import { app, session, WebContentsView, type BrowserWindow, type Rectangle, type Session, type WebContents } from 'electron';
 import type { SessionMcpServer } from '@alchemist-coder/core';
 import { BROWSER_MAX_TABS, type BrowserState } from '../shared/api';
 import { clickScript, focusScript, formatSnapshot, KEYS, keyScript, locateScript, normalizeUrl, SNAPSHOT_SCRIPT, type Key, type PageSnapshot } from './browser-page';
-import { activeAfterClose, partitionFor, tabAt, tabsText } from './browser-tabs';
+import { acceptLanguages, activeAfterClose, browserUserAgent, keepsAsPopup, partitionFor, tabAt, tabsText } from './browser-tabs';
 
 export type { BrowserState };
 
@@ -12,6 +12,13 @@ export const SERVER_NAME = 'alchemist_browser';
 /** Its own isolated world: a page's scripts never see ours. */
 const WORLD = 1919;
 const DRIVING_MS = 6000;
+/**
+ * How often sign-ins are written to disk. Chromium keeps recent cookie changes in memory for a while,
+ * and Google rotates its session cookies every few minutes: if the app is force-quit or crashes before
+ * they're written, the next launch sends a stale one and Google signs you out.
+ */
+const FLUSH_MS = 2 * 60_000;
+const POPUP_SIZE = { width: 520, height: 700 };
 
 const TOOLS = [
   {
@@ -86,8 +93,9 @@ interface ProjectBrowser {
 /**
  * The browser inside the app: a browser per project, each with its own cookies and sign-ins and its
  * own tabs, so an agent of one project never sees another's pages or logins. The pane shows the
- * browser of the project you're on: its front tab is a native view laid exactly over the pane (it
- * never opens windows of its own; what would open one opens a tab). Agents use their own project's
+ * browser of the project you're on: its front tab is a native view laid exactly over the pane (what
+ * would open a window opens a tab, except sign-in popups, which stay small windows so they can hand the
+ * sign-in back to the page that opened them). Agents use their own project's
  * browser through `browser-bridge.ts`, whether it's on screen or not. You watch it live and can take
  * it over at any time.
  */
@@ -104,6 +112,9 @@ export class BrowserHost {
   private readonly tokens = new Map<string, Who>();
   private driverTimer: ReturnType<typeof setTimeout> | null = null;
   private nextTab = 1;
+  /** The partitions whose session is set up (user agent, languages), to write their sign-ins to disk. */
+  private readonly sessions = new Set<string>();
+  private flushTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     private readonly window: () => BrowserWindow | null,
@@ -119,9 +130,29 @@ export class BrowserHost {
     await new Promise<void>((resolve) => this.server!.listen(0, '127.0.0.1', resolve));
     const addr = this.server.address();
     this.port = typeof addr === 'object' && addr ? addr.port : 0;
+    this.flushTimer = setInterval(() => void this.flush(), FLUSH_MS);
+    this.flushTimer.unref?.();
+  }
+
+  /** Writes every browser's cookies to disk now, so a crash or a force-quit keeps the sign-ins. */
+  async flush(): Promise<void> {
+    await Promise.all([...this.sessions].map((p) => session.fromPartition(p).cookies.flushStore().catch(() => {})));
+  }
+
+  /** A partition's session, set up once: Chrome's user agent without the embedded-app tokens, the system's languages. */
+  private sessionFor(partition: string): Session {
+    const ses = session.fromPartition(partition);
+    if (!this.sessions.has(partition)) {
+      ses.setUserAgent(browserUserAgent(ses.getUserAgent()), acceptLanguages(app.getPreferredSystemLanguages()));
+      this.sessions.add(partition);
+    }
+    return ses;
   }
 
   stop(): void {
+    if (this.flushTimer) clearInterval(this.flushTimer);
+    this.flushTimer = null;
+    void this.flush();
     this.server?.close();
     this.server = null;
     for (const b of this.browsers.values()) for (const tab of b.tabs) tab.view.webContents.close();
@@ -203,11 +234,19 @@ export class BrowserHost {
   /** A new tab in a project's browser, in front, on `url` if given. */
   private newTab(b: ProjectBrowser, url?: string): Tab {
     if (b.tabs.length >= BROWSER_MAX_TABS) throw new Error(`This browser already has ${BROWSER_MAX_TABS} tabs: close one first.`);
-    const view = new WebContentsView({ webPreferences: { partition: partitionFor(b.project), sandbox: true, contextIsolation: true, nodeIntegration: false } });
+    const partition = partitionFor(b.project);
+    this.sessionFor(partition);
+    const webPreferences = { partition, sandbox: true, contextIsolation: true, nodeIntegration: false };
+    const view = new WebContentsView({ webPreferences });
     const tab: Tab = { id: `tab-${this.nextTab++}`, view };
     const wc = view.webContents;
-    // Never a second window: what would open one opens a tab (or here, once the browser is full).
-    wc.setWindowOpenHandler(({ url: next }) => {
+    // A sign-in popup stays a small window over the app, with the same cookies, so it can hand the
+    // sign-in back through window.opener and close itself. Anything else that would open a window
+    // opens a tab (or here, once the browser is full).
+    wc.setWindowOpenHandler(({ url: next, disposition }) => {
+      if (keepsAsPopup(disposition, next)) {
+        return { action: 'allow', overrideBrowserWindowOptions: { ...POPUP_SIZE, parent: this.window() ?? undefined, autoHideMenuBar: true, webPreferences } };
+      }
       const target = normalizeUrl(next);
       if (target) {
         try {
@@ -221,6 +260,18 @@ export class BrowserHost {
     // Only web pages: no file:, no custom schemes.
     wc.on('will-navigate', (e, to) => {
       if (!/^(https?:|about:blank)/i.test(to)) e.preventDefault();
+    });
+    wc.on('did-create-window', (popup) => {
+      const pwc = popup.webContents;
+      pwc.on('will-navigate', (e, to) => {
+        if (!/^(https?:|about:blank)/i.test(to)) e.preventDefault();
+      });
+      // A popup never opens more windows: it goes there itself.
+      pwc.setWindowOpenHandler(({ url: next }) => {
+        const target = normalizeUrl(next);
+        if (target) void pwc.loadURL(target).catch(() => {});
+        return { action: 'deny' };
+      });
     });
     for (const event of ['did-navigate', 'did-navigate-in-page', 'page-title-updated', 'did-start-loading', 'did-stop-loading'] as const) {
       wc.on(event as 'did-navigate', () => this.emit());

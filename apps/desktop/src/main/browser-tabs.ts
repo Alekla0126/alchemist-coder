@@ -13,6 +13,34 @@ export function partitionFor(project: string): string {
   return project ? `persist:alchemist-browser-${createHash('sha1').update(project).digest('hex').slice(0, 16)}` : SHARED_PARTITION;
 }
 
+/**
+ * The user agent the built-in browser sends: Chromium's own, without the app's and Electron's tokens.
+ * Google refuses "Sign in with Google" from what it takes for an embedded browser (disallowed_useragent),
+ * and those two tokens are how it tells. Nothing else changes: it says the Chrome it really is.
+ */
+export function browserUserAgent(electronUserAgent: string): string {
+  return electronUserAgent.replace(/\s(?:Electron|AlchemistCoder|Alchemist[ -]?Coder)\/\S+/gi, '').replace(/\s{2,}/g, ' ').trim();
+}
+
+/** The Accept-Language a page sees: the system's languages, most preferred first (Chrome's own format). */
+export function acceptLanguages(preferred: string[]): string {
+  const out: string[] = [];
+  for (const tag of preferred) {
+    for (const t of [tag, tag.split('-')[0]!]) if (t && !out.includes(t)) out.push(t);
+  }
+  return out.join(',') || 'en-US,en';
+}
+
+/**
+ * Whether a page's window.open is a popup to keep as a real window. Sign-in popups ("Continue with
+ * Google") open with window features (disposition 'new-window') and hand the result back to the page
+ * that opened them through window.opener, which a tab doesn't keep. Links with target=_blank and
+ * window.open without features still become tabs.
+ */
+export function keepsAsPopup(disposition: string, url: string): boolean {
+  return disposition === 'new-window' && (url === '' || /^(https?:|about:blank)/i.test(url));
+}
+
 export interface TabSummary {
   id: string;
   title: string;
