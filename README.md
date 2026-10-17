@@ -11,6 +11,7 @@ A free, open-source desktop app for Claude Code and Codex. Follow every agent an
 [![Latest release](https://img.shields.io/github/v/release/Alekla0126/alchemist-coder?label=release&color=d97a4a)](https://github.com/Alekla0126/alchemist-coder/releases/latest)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-3b6fb6)](LICENSE)
 ![macOS, Windows, Linux](https://img.shields.io/badge/macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-555)
+[![Listed among Agent Client Protocol clients](https://img.shields.io/badge/ACP-listed%20client-6b5bd2)](https://agentclientprotocol.com/get-started/clients)
 [![GitHub stars](https://img.shields.io/github/stars/Alekla0126/alchemist-coder?style=social)](https://github.com/Alekla0126/alchemist-coder/stargazers)
 
 **[Download](https://coder.alekla.com/#download)** · [Website](https://coder.alekla.com) · [What's new in 1.3.1](https://github.com/Alekla0126/alchemist-coder/releases/tag/v1.3.1) · [Español](#español)
