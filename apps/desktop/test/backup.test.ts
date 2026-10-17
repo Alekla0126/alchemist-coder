@@ -25,7 +25,8 @@ writeFileSync(join(grokSessions, '%2Ftmp%2Fapp', 'g-1', 'updates.jsonl'), '{}\n'
 writeFileSync(join(grokSessions, '%2Ftmp%2Fapp', 'g-1', 'summary.json'), '{}');
 writeFileSync(join(grokSessions, 'session_search.sqlite'), ''); // Grok's own index: skipped
 const sources = () => ({ claudeRoot: join(claudeHome, 'projects'), codexRoot: codexHome, geminiRoot: geminiTmp, grokRoot: grokSessions });
-afterAll(() => rmSync(root, { recursive: true, force: true }));
+// Windows can still hold a file of git's for a moment after the tests: retry instead of failing the run.
+afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }));
 
 describe('BackupService', () => {
   it('turns on, tells the indexer, backs up and reports its status', async () => {
