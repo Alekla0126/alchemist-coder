@@ -41,6 +41,47 @@ export function keepsAsPopup(disposition: string, url: string): boolean {
   return disposition === 'new-window' && (url === '' || /^(https?:|about:blank)/i.test(url));
 }
 
+/** A cookie as Electron reads it (the fields this file needs). */
+export interface StoredCookie {
+  name: string;
+  value: string;
+  domain?: string;
+  hostOnly?: boolean;
+  path?: string;
+  secure?: boolean;
+  httpOnly?: boolean;
+  session?: boolean;
+  expirationDate?: number;
+  sameSite?: 'unspecified' | 'no_restriction' | 'lax' | 'strict';
+}
+
+/**
+ * The sign-ins a project's browser brings from the browser the app had before there was one per
+ * project (1.3.1): the cookies it doesn't have yet, as `cookies.set` wants them. A cookie the project
+ * already has (same site, name and path) is kept, since it's newer. Expired cookies stay behind.
+ */
+export function cookiesToImport(from: StoredCookie[], existing: StoredCookie[], nowSeconds: number) {
+  const key = (c: StoredCookie) => `${c.domain ?? ''}|${c.name}|${c.path ?? '/'}`;
+  const have = new Set(existing.map(key));
+  return from
+    .filter((c) => c.domain && !have.has(key(c)) && (c.session || !c.expirationDate || c.expirationDate > nowSeconds))
+    .map((c) => {
+      const host = c.domain!.replace(/^\./, '');
+      return {
+        url: `${c.secure ? 'https' : 'http'}://${host}${c.path ?? '/'}`,
+        name: c.name,
+        value: c.value,
+        // A host-only cookie (and every __Host- one) is set without a domain, or it would widen to subdomains.
+        ...(c.hostOnly || c.name.startsWith('__Host-') ? {} : { domain: c.domain }),
+        path: c.path ?? '/',
+        secure: c.secure,
+        httpOnly: c.httpOnly,
+        ...(c.session || !c.expirationDate ? {} : { expirationDate: c.expirationDate }),
+        sameSite: c.sameSite,
+      };
+    });
+}
+
 export interface TabSummary {
   id: string;
   title: string;

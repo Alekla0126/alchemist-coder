@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { acceptLanguages, activeAfterClose, browserUserAgent, keepsAsPopup, partitionFor, SHARED_PARTITION, tabAt, tabsText } from '../src/main/browser-tabs';
+import { acceptLanguages, activeAfterClose, browserUserAgent, cookiesToImport, keepsAsPopup, partitionFor, SHARED_PARTITION, tabAt, tabsText } from '../src/main/browser-tabs';
 
 describe('a browser per project', () => {
   it('keeps each project’s cookies apart, and the same project’s across launches', () => {
@@ -67,5 +67,31 @@ describe('signing in with Google', () => {
     expect(keepsAsPopup('background-tab', 'https://example.com/')).toBe(false);
     expect(keepsAsPopup('new-window', 'file:///etc/passwd')).toBe(false);
     expect(keepsAsPopup('new-window', 'javascript:alert(1)')).toBe(false);
+  });
+});
+
+describe('bringing the sign-ins of the browser before 1.3.1', () => {
+  const now = 1_800_000_000;
+  const reddit = { name: 'reddit_session', value: 'r', domain: '.reddit.com', path: '/', secure: true, httpOnly: true, expirationDate: now + 1e6, sameSite: 'no_restriction' as const };
+  const hostGaps = { name: '__Host-GAPS', value: 'g', domain: 'accounts.google.com', hostOnly: true, path: '/', secure: true, httpOnly: true, expirationDate: now + 1e6 };
+  const sid = { name: 'SID', value: 'old', domain: '.google.com', path: '/', secure: false, expirationDate: now + 1e6 };
+
+  it('brings what the project lacks, as cookies.set wants it', () => {
+    const [r, g] = cookiesToImport([reddit, hostGaps], [], now);
+    expect(r).toEqual({ url: 'https://reddit.com/', name: 'reddit_session', value: 'r', domain: '.reddit.com', path: '/', secure: true, httpOnly: true, expirationDate: now + 1e6, sameSite: 'no_restriction' });
+    expect(g!.url).toBe('https://accounts.google.com/');
+    expect(g).not.toHaveProperty('domain');
+  });
+
+  it('keeps the project’s own (newer) sign-in and leaves expired ones behind', () => {
+    const newer = { ...sid, value: 'new' };
+    const expired = { ...reddit, expirationDate: now - 1 };
+    expect(cookiesToImport([sid, expired], [newer], now)).toEqual([]);
+  });
+
+  it('carries session cookies without an expiry', () => {
+    const [s] = cookiesToImport([{ name: 's', value: 'v', domain: '.workana.com', path: '/', session: true }], [], now);
+    expect(s).not.toHaveProperty('expirationDate');
+    expect(s!.url).toBe('http://workana.com/');
   });
 });

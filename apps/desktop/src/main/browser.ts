@@ -1,10 +1,12 @@
 import { randomBytes } from 'node:crypto';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { join } from 'node:path';
 import { app, session, WebContentsView, type BrowserWindow, type Rectangle, type Session, type WebContents } from 'electron';
 import type { SessionMcpServer } from '@alchemist-coder/core';
 import { BROWSER_MAX_TABS, type BrowserState } from '../shared/api';
 import { clickScript, focusScript, formatSnapshot, KEYS, keyScript, locateScript, normalizeUrl, SNAPSHOT_SCRIPT, type Key, type PageSnapshot } from './browser-page';
-import { acceptLanguages, activeAfterClose, browserUserAgent, keepsAsPopup, partitionFor, tabAt, tabsText } from './browser-tabs';
+import { acceptLanguages, activeAfterClose, browserUserAgent, cookiesToImport, keepsAsPopup, partitionFor, SHARED_PARTITION, tabAt, tabsText } from './browser-tabs';
 
 export type { BrowserState };
 
@@ -115,6 +117,8 @@ export class BrowserHost {
   /** The partitions whose session is set up (user agent, languages), to write their sign-ins to disk. */
   private readonly sessions = new Set<string>();
   private flushTimer: ReturnType<typeof setInterval> | null = null;
+  /** Each project's browser, once it has brought the sign-ins of the browser the app had before. */
+  private readonly ready = new Map<string, Promise<void>>();
 
   constructor(
     private readonly window: () => BrowserWindow | null,
@@ -147,6 +151,41 @@ export class BrowserHost {
       this.sessions.add(partition);
     }
     return ses;
+  }
+
+  /** Resolves once a project's browser has its sign-ins (the first time, brought from the app's earlier browser). */
+  private signInsReady(partition: string): Promise<void> {
+    let p = this.ready.get(partition);
+    if (!p) {
+      p = this.importSignIns(partition).catch(() => {});
+      this.ready.set(partition, p);
+    }
+    return p;
+  }
+
+  /**
+   * Once per project: until 1.3.1 every project shared one browser, so the sites you had signed in to
+   * (Google, Reddit, Workana…) stayed there when each project got its own. This brings them over,
+   * keeping whatever the project's browser already has.
+   */
+  private async importSignIns(partition: string): Promise<void> {
+    if (partition === SHARED_PARTITION) return;
+    const file = join(app.getPath('userData'), 'browser-imported.json');
+    const done = (): string[] => {
+      try {
+        const list = JSON.parse(readFileSync(file, 'utf8'));
+        return Array.isArray(list) ? list : [];
+      } catch {
+        return [];
+      }
+    };
+    if (done().includes(partition)) return;
+    const target = this.sessionFor(partition);
+    const from = await session.fromPartition(SHARED_PARTITION).cookies.get({});
+    const existing = await target.cookies.get({});
+    for (const c of cookiesToImport(from, existing, Date.now() / 1000)) await target.cookies.set(c).catch(() => {});
+    await target.cookies.flushStore().catch(() => {});
+    writeFileSync(file, JSON.stringify([...new Set([...done(), partition])]));
   }
 
   stop(): void {
@@ -236,6 +275,7 @@ export class BrowserHost {
     if (b.tabs.length >= BROWSER_MAX_TABS) throw new Error(`This browser already has ${BROWSER_MAX_TABS} tabs: close one first.`);
     const partition = partitionFor(b.project);
     this.sessionFor(partition);
+    const ready = this.signInsReady(partition);
     const webPreferences = { partition, sandbox: true, contextIsolation: true, nodeIntegration: false };
     const view = new WebContentsView({ webPreferences });
     const tab: Tab = { id: `tab-${this.nextTab++}`, view };
@@ -278,7 +318,7 @@ export class BrowserHost {
     }
     b.tabs.push(tab);
     b.active = tab.id;
-    if (url) void wc.loadURL(url).catch(() => {});
+    if (url) void ready.then(() => wc.loadURL(url)).catch(() => {});
     this.place();
     this.emit();
     return tab;
