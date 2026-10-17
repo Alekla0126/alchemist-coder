@@ -2378,3 +2378,47 @@ select.mk-chip { appearance: none; padding-right: 12px; }
 /* A notice shows beside the page, never under it. */
 .app.with-page .toast { left: calc((100vw + 56px + var(--side-w, 300px) - var(--browser-w, 620px)) / 2); max-width: max(240px, calc(100vw - 56px - var(--side-w, 300px) - var(--browser-w, 620px) - 32px)); }
 .app.with-page.side-off .toast { left: calc((100vw + 56px - var(--browser-w, 620px)) / 2); max-width: max(240px, calc(100vw - 56px - var(--browser-w, 620px) - 32px)); }
+
+/* ---------- Motion ----------
+   Quick and quiet (150–250 ms, ease-out), and never moving the layout: things fade, rise a few pixels
+   or press in place. "Reduce motion" turns all of it off (the rule near the top). */
+:root { --ease-out: cubic-bezier(0.22, 1, 0.36, 1); --t-fast: 150ms; --t-med: 220ms; }
+@keyframes m-fade { from { opacity: 0; } }
+@keyframes m-rise { from { opacity: 0; transform: translateY(6px) scale(0.985); } }
+@keyframes m-pop { from { opacity: 0; transform: translateY(-4px) scale(0.98); } }
+@keyframes m-toast { from { opacity: 0; transform: translate(-50%, 8px); } }
+@keyframes m-breathe { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 0%, transparent); } 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--green) 18%, transparent); } }
+@keyframes m-ask { 0%, 100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 16%, transparent); } 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--amber) 26%, transparent); } }
+
+/* Buttons and chips answer the pointer: colours ease, and a click presses them in. */
+.cchip, .btn-send, .btn-ghost, .btn-stop, .icon-btn, .browser-tab, .browsing-pill, .autopilot-btn, .needs-you-btn, .menu-item {
+  transition: background-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), border-color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform 120ms var(--ease-out), opacity var(--t-fast) var(--ease-out);
+}
+.cchip:active:not(:disabled):not(.fixed), .btn-send:active:not(:disabled), .btn-ghost:active:not(:disabled), .btn-stop:active:not(:disabled), .icon-btn:active:not(:disabled), .browsing-pill:active, .autopilot-btn:active, .needs-you-btn:active { transform: scale(0.96); }
+.btn-send:hover:not(:disabled) { box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--accent) 70%, transparent); }
+.cchip:hover:not(:disabled):not(.fixed) { background: color-mix(in srgb, var(--accent) 8%, var(--bg-hl)); }
+
+/* Dialogs, sheets and menus come in: the backdrop fades, the card rises a little, a menu drops. */
+.dialog-backdrop { animation: m-fade var(--t-med) var(--ease-out); }
+.dialog, .settings, .palette { animation: m-rise var(--t-med) var(--ease-out); }
+.menu, .usage-pop { animation: m-pop var(--t-fast) var(--ease-out); transform-origin: top right; }
+.toast { animation: m-toast var(--t-med) var(--ease-out); }
+
+/* A new message slides in once, as it arrives (the history already there doesn't move). */
+.live-turns .entry.live-entry { animation: m-rise var(--t-med) var(--ease-out); }
+
+/* Live states: a working agent's card breathes; one waiting for you calls a little louder. */
+.oc-card.st-working { animation: m-breathe 2.4s ease-in-out infinite; }
+.oc-card.st-waiting { animation: m-ask 1.6s ease-in-out infinite; }
+
+/* Changing theme cross-fades the colours instead of snapping (theme.ts adds the class for a moment). */
+.theme-fading, .theme-fading *, .theme-fading *::before, .theme-fading *::after {
+  transition: background-color 260ms var(--ease-out), color 260ms var(--ease-out), border-color 260ms var(--ease-out), fill 260ms var(--ease-out), stroke 260ms var(--ease-out) !important;
+}
+
+/* ---------- Finish ----------
+   Small things that read as care: selected text in the theme's accent, a hint of depth under
+   messages, and type rendered as crisply as the system allows. */
+::selection { background: color-mix(in srgb, var(--accent) 32%, transparent); color: var(--fg); }
+.entry { box-shadow: 0 1px 0 color-mix(in srgb, var(--fg) 4%, transparent) inset, 0 6px 18px -14px rgba(0, 0, 0, 0.55); }
+body { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }

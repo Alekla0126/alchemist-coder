@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { SessionSummary, SlashCommand } from '@alchemist-coder/core';
 import type { AttachmentInput, MenuItem, PermissionMode } from '@shared/api';
 import type { PromptImage } from '@alchemist-coder/core';
-import { Icon } from './Icon';
+import { Icon, type IconName } from './Icon';
 import { LiveRun } from './LiveRun';
 import { MissingAgent } from './MissingAgent';
 import { Suggest, type SuggestItem } from './Suggest';
@@ -26,6 +26,9 @@ type Attached = AttachmentInput & { size: number };
 /** Codex's own ACP modes, named like the app's. */
 const AGENT_MODE_LABEL: Record<string, 'readOnly' | PermissionMode> = { 'read-only': 'readOnly', auto: 'acceptEdits', 'full-access': 'bypassPermissions' };
 const ALLOW_ALL = new Set(['bypassPermissions', 'full-access']);
+/** The permission chip's shield: what the agent may do, at a glance (read only, asks, edits, everything). */
+const permIcon = (mode: string, plan: boolean): IconName =>
+  plan || mode === 'plan' || mode === 'read-only' ? 'shieldEye' : ALLOW_ALL.has(mode) ? 'shieldBolt' : mode === 'acceptEdits' || mode === 'auto' ? 'shieldCheck' : 'shieldAsk';
 /** "Allow all" asks once per launch. */
 let allowAllConfirmed = false;
 
@@ -715,7 +718,7 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
           {canPlan && <ModeTag plan={plan} onToggle={toggleMode} />}
           {/* Stays in place in plan mode (read only), so the chips don't jump when you switch. */}
           <Chip
-            icon="shield"
+            icon={permIcon(currentMode, plan)}
             label={plan ? t('perm.short.readOnly') : shortMode(currentMode, liveModes?.find((m) => m.id === currentMode)?.label)}
             title={plan ? t('chip.permPlan') : `${t('run.permissions')}: ${modeLabel(currentMode, liveModes?.find((m) => m.id === currentMode)?.label)}`}
             tone={ALLOW_ALL.has(currentMode) ? 'danger' : undefined}

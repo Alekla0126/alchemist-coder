@@ -4,6 +4,9 @@ import type { ReactNode } from 'react';
  * The app's line icons, drawn on a 24 grid with the current text color. One look for every
  * "open", "close", panel and mode button, so the same action always has the same picture.
  */
+/** A heater shield: its top dips toward the middle, like a crest. */
+const SHIELD = 'M12 3.2c2.3 1.5 4.6 2.2 7 2.3v5.6c0 4.5-2.8 7.9-7 9.7-4.2-1.8-7-5.2-7-9.7V5.5c2.4-.1 4.7-.8 7-2.3z';
+
 const PATHS = {
   // Panels
   sidebarClose: (
@@ -74,11 +77,35 @@ const PATHS = {
   ),
   clip: <path d="M20.5 11.3l-8.4 8.4a5.4 5.4 0 0 1-7.7-7.7l8.4-8.4a3.6 3.6 0 0 1 5.1 5.1l-8.4 8.4a1.8 1.8 0 0 1-2.6-2.6l7.8-7.8" />,
   gauge: <path d="M4.5 16.5a7.5 7.5 0 1 1 15 0M12 16.5l3.6-4.6M7.5 16.5h0M16.5 16.5h0" />,
-  shield: <path d="M12 3.5l7 2.8v5c0 4.3-2.9 7.6-7 9.2-4.1-1.6-7-4.9-7-9.2v-5z" />,
+  // Permissions: one shield, a sign per mode (Composer's chip), each still clear at 14 px.
+  shield: <path d={SHIELD} />,
+  // Accepts edits (Codex: auto).
   shieldCheck: (
     <>
-      <path d="M12 3.5l7 2.8v5c0 4.3-2.9 7.6-7 9.2-4.1-1.6-7-4.9-7-9.2v-5z" />
-      <path d="M9 12l2.2 2.2 4-4.4" />
+      <path d={SHIELD} />
+      <path d="M9 11.7l2.1 2.1 3.9-4.2" />
+    </>
+  ),
+  // Reads only (plan mode, Codex: read-only).
+  shieldEye: (
+    <>
+      <path d={SHIELD} />
+      <path d="M8.3 11.6c1.1-1.6 2.3-2.4 3.7-2.4s2.6.8 3.7 2.4c-1.1 1.6-2.3 2.4-3.7 2.4s-2.6-.8-3.7-2.4z" />
+      <circle cx="12" cy="11.6" r="0.9" />
+    </>
+  ),
+  // Asks before acting (default).
+  shieldAsk: (
+    <>
+      <path d={SHIELD} />
+      <path d="M10.3 10.1a1.8 1.8 0 1 1 2.6 1.6c-.6.3-.9.7-.9 1.3v.2M12 15.3v.01" />
+    </>
+  ),
+  // Allows everything (bypassPermissions, Codex: full-access).
+  shieldBolt: (
+    <>
+      <path d={SHIELD} />
+      <path d="M12.9 7.8l-3 4.6h3.2l-2.9 4.4" />
     </>
   ),
   // Modes

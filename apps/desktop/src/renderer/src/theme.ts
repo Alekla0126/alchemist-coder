@@ -244,7 +244,17 @@ export function readableAccent(candidates: Array<string | undefined>, bg: string
   return list.slice(1).find(shows) ?? null;
 }
 
+let fadeTimer = 0;
+
 export function applyWorkbench(theme: VsTheme): void {
+  // After the first theme, a change cross-fades the colours (styles.css, .theme-fading) for a moment.
+  const doc = document.documentElement;
+  if (doc.dataset.themed) {
+    doc.classList.add('theme-fading');
+    window.clearTimeout(fadeTimer);
+    fadeTimer = window.setTimeout(() => doc.classList.remove('theme-fading'), 320);
+  }
+  doc.dataset.themed = '1';
   const colors = theme.colors ?? {};
   const root = document.documentElement.style;
   const picked: Record<string, string | undefined> = {};
