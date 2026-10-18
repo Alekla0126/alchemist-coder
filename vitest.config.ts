@@ -9,5 +9,7 @@ export default defineConfig({
   test: {
     include: ['packages/*/test/**/*.test.ts', 'apps/*/test/**/*.test.{ts,tsx}'],
     environment: 'node',
+    // Tests that run real git commands take well over 5 s on GitHub's Windows runners now and then.
+    testTimeout: process.platform === 'win32' ? 30_000 : 5_000,
   },
 });
