@@ -183,7 +183,7 @@ function AllProjects({ filter, query }: { filter: SessionFilter; query: string }
   const projects = useStore((s) => s.projects);
   const recent = useStore((s) => s.recent);
   const openProject = useStore((s) => s.openProject);
-  const setCompose = useStore((s) => s.setCompose);
+  const newConversation = useStore((s) => s.newConversation);
   const setScope = useStore((s) => s.setAgentsScope);
   const [collapsed, setCollapsed] = useState<number[]>(readCollapsed);
   const toggle = (id: number) => {
@@ -214,7 +214,7 @@ function AllProjects({ filter, query }: { filter: SessionFilter; query: string }
                 className="all-new"
                 title={t('plus.conversation', { name: p.name })}
                 aria-label={t('plus.conversation', { name: p.name })}
-                onClick={() => void openProject(p.id).then(() => setCompose(p.id))}
+                onClick={() => void openProject(p.id).then(() => newConversation(p.id))}
               >
                 +
               </button>
@@ -302,7 +302,7 @@ export function Sidebar() {
   const scope = useStore((s) => s.agentsScope);
   const setScope = useStore((s) => s.setAgentsScope);
   const recent = useStore((s) => s.recent);
-  const setCompose = useStore((s) => s.setCompose);
+  const newConversation = useStore((s) => s.newConversation);
   const tab = useStore((s) => s.sidebarTab);
   const setTab = useStore((s) => s.setSidebarTab);
   const [query, setQuery] = useState('');
@@ -383,7 +383,7 @@ export function Sidebar() {
           {project?.name ?? ''} · {t('side.conversations')}
         </span>
         {activeId != null && (
-          <button className="new-btn" title={t('run.new')} onClick={() => setCompose(activeId)}>
+          <button className="new-btn" title={t('run.new')} onClick={() => newConversation(activeId)}>
             + {t('run.newShort')}
           </button>
         )}

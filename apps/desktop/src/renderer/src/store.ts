@@ -10,7 +10,7 @@ import { toggleSidebar, toggleSplitSide } from './layout';
 import { useCurrentTheme } from './theme-state';
 import { useWelcome } from './welcome-state';
 import { markViewed } from './attention';
-import { bornConversation, provisionalProjects } from './stay-put';
+import { bornConversation, heldConversation, provisionalProjects } from './stay-put';
 
 const api = window.alchemist;
 const CATALOG_KEY = 'alchemist.catalog';
@@ -236,6 +236,8 @@ interface State {
   answerQuestion(runId: string, requestId: string, answer: QuestionAnswer | null, summary: string): Promise<void>;
   configureRun(runId: string, change: { mode?: string; option?: { id: string; value: string } }): Promise<void>;
   setCompose(projectId: number | null): void;
+  /** A new conversation you asked for: an empty «New conversation» screen, never an earlier conversation still held there. */
+  newConversation(projectId: number): void;
   refreshProjects(): Promise<void>;
   loadSessions(projectId: number): Promise<void>;
   loadTree(sessionId: string): Promise<void>;
@@ -972,6 +974,12 @@ export const useStore = create<State>((set, get) => ({
   setCompose(projectId) {
     set({ composeProjectId: projectId, selection: projectId != null ? null : get().selection });
   },
+
+  newConversation(projectId) {
+    const held = heldConversation(get(), projectId);
+    if (held) set((s) => ({ runByTarget: Object.fromEntries(Object.entries(s.runByTarget).filter(([target]) => target !== held)) }));
+    get().setCompose(projectId);
+  },
 }));
 
 const MODES: Mode[] = ['agents', 'arena', 'bots', 'code', 'split', 'terminal', 'history', 'marketing', 'board'];
@@ -1018,7 +1026,7 @@ function runAppCommand(command: string) {
     case 'new-conversation':
       if (projectId != null) {
         if (s.settings.mode !== 'agents' && s.settings.mode !== 'split') s.setMode('agents');
-        s.setCompose(projectId);
+        s.newConversation(projectId);
       }
       return;
     case 'new-terminal':

@@ -15,7 +15,7 @@ async function startIn(projectId: number) {
   await s.refreshProjects();
   await s.openProject(projectId);
   if (s.settings.mode !== 'agents' && s.settings.mode !== 'split') s.setMode('agents');
-  s.setCompose(projectId);
+  s.newConversation(projectId);
 }
 
 /** Any folder on disk becomes a project, before its first conversation. */
@@ -46,7 +46,7 @@ export async function showNewMenu(t: T) {
   ]);
   if (id === 'conversation' && active) {
     if (s.settings.mode !== 'agents' && s.settings.mode !== 'split') s.setMode('agents');
-    s.setCompose(active.id);
+    s.newConversation(active.id);
   } else if (id === 'new-project') openNewProject();
   else if (id === 'open-folder') void openFolderAsProject(t);
   else if (id === 'find') s.setPickerOpen(true);

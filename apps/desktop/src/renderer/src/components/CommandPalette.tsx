@@ -46,7 +46,7 @@ export function CommandPalette() {
   const projectId = s.settings.activeProjectId;
   const commands = useMemo<Command[]>(() => {
     const list: Command[] = [
-      ...(projectId != null ? [{ id: 'new', label: t('palette.newConversation'), hint: '⌘N', run: () => (s.settings.mode !== 'split' && s.setMode('agents'), s.setCompose(projectId)) }] : []),
+      ...(projectId != null ? [{ id: 'new', label: t('palette.newConversation'), hint: '⌘N', run: () => (s.settings.mode !== 'split' && s.setMode('agents'), s.newConversation(projectId)) }] : []),
       ...(projectId != null ? [{ id: 'terminal', label: t('palette.newTerminal'), hint: '⌘T', run: () => void s.openTerminalWith(projectId, '') }] : []),
       ...MODES.map(([m, key]) => ({ id: `mode:${m}`, label: t('palette.goTo', { where: t(`mode.${m}`) }), hint: key, run: () => s.setMode(m) })),
       { id: 'settings', label: t('settings.title'), hint: '⌘,', run: () => useStore.setState({ settingsOpen: true }) },

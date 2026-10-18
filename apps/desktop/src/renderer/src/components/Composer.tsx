@@ -236,6 +236,7 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
   };
 
   const setCompose = useStore((s) => s.setCompose);
+  const newConversation = useStore((s) => s.newConversation);
   /** A new conversation that starts with this one's full context; the original stays as it was. */
   const fork = async (given?: string) => {
     const text = (given ?? prompt).trim();
@@ -457,7 +458,7 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
   }, [harnessId, project?.cwd]);
   const appCommands = (): Pick[] =>
     [
-      session && { id: 'app:new', label: '/new', detail: t('slash.new'), icon: '⚗', badge: 'Alchemist', run: () => setCompose(projectId) },
+      session && { id: 'app:new', label: '/new', detail: t('slash.new'), icon: '⚗', badge: 'Alchemist', run: () => newConversation(projectId) },
       !session && catalog && { id: 'app:agent', label: '/agent', detail: t('slash.agent'), icon: '⚗', badge: 'Alchemist', run: () => void pickAgent() },
       catalog && { id: 'app:model', label: '/model', detail: t('slash.model'), icon: '⚗', badge: 'Alchemist', run: () => void pickModel() },
       { id: 'app:permissions', label: '/permissions', detail: t('slash.permissions'), icon: '⚗', badge: 'Alchemist', run: () => void pickMode(true) },

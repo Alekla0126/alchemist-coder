@@ -41,6 +41,18 @@ export function bornConversation(s: ComposeFollowState, changed: string[]): Born
 }
 
 /**
+ * «New conversation» asked for again: the conversation its screen was holding lets go of it once it
+ * exists (its run knows its session, so it also lives on as `s:<id>` and in the sidebar), and the screen
+ * opens empty, with every agent to pick. Until then (no session yet) the screen keeps it, so a message
+ * just sent is never lost. Returns the binding to drop, or null.
+ */
+export function heldConversation(s: Pick<ComposeFollowState, 'runs' | 'runByTarget'>, projectId: number): string | null {
+  const target = `p:${projectId}`;
+  const runId = s.runByTarget[target];
+  return runId && s.runs[runId]?.sessionId ? target : null;
+}
+
+/**
  * The projects open while you haven't picked any yet (the first index): the most active ones, which
  * change as the index fills. The one you're on stays among them, so the index never switches it.
  */

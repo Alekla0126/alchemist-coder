@@ -21,7 +21,7 @@ export function AgentsHome() {
   const runByTarget = useStore((s) => s.runByTarget);
   const select = useStore((s) => s.select);
   const openProject = useStore((s) => s.openProject);
-  const setCompose = useStore((s) => s.setCompose);
+  const newConversation = useStore((s) => s.newConversation);
   const setScope = useStore((s) => s.setAgentsScope);
   const open = openIds.map((id) => projects.find((p) => p.id === id)).filter((p): p is NonNullable<typeof p> => !!p);
   const byId = new Map(open.map((p) => [p.id, p]));
@@ -35,11 +35,11 @@ export function AgentsHome() {
     .slice(0, 8);
 
   const newIn = async () => {
-    if (open.length === 1) return void openProject(open[0]!.id).then(() => setCompose(open[0]!.id));
+    if (open.length === 1) return void openProject(open[0]!.id).then(() => newConversation(open[0]!.id));
     const id = await openMenu(open.map((p) => ({ id: String(p.id), label: p.name })));
     if (id) {
       await openProject(Number(id));
-      setCompose(Number(id));
+      newConversation(Number(id));
     }
   };
 

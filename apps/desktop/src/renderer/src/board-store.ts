@@ -80,7 +80,7 @@ export async function startTask(task: BoardTask, prompt: string) {
   if (!project) return false;
   await s.openProject(project.id);
   if (s.settings.mode !== 'agents' && s.settings.mode !== 'split') s.setMode('agents');
-  s.setCompose(project.id);
+  s.newConversation(project.id);
   const target = `p:${project.id}`;
   useBoard.setState({ pending: { taskId: task.id, target, before: useStore.getState().runByTarget[target] ?? null, at: Date.now() } });
   s.fillComposer(prompt, false);

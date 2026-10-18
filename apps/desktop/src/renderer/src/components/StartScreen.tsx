@@ -24,7 +24,7 @@ export function StartScreen() {
   const project = useStore((s) => s.projects.find((p) => p.id === s.settings.activeProjectId));
   const sessions = useStore((s) => (s.settings.activeProjectId != null ? s.sessions[s.settings.activeProjectId] : undefined));
   const select = useStore((s) => s.select);
-  const setCompose = useStore((s) => s.setCompose);
+  const newConversation = useStore((s) => s.newConversation);
   const setPickerOpen = useStore((s) => s.setPickerOpen);
   const projects = useStore((s) => s.projects);
   const home = useStore((s) => s.info?.home ?? '');
@@ -74,7 +74,7 @@ export function StartScreen() {
       <p className="start-path" title={project.cwd}>
         {middle(tildify(project.cwd, home), 72)}
       </p>
-      <button className="btn-send start-new" onClick={() => setCompose(project.id)}>
+      <button className="btn-send start-new" onClick={() => newConversation(project.id)}>
         + {t('run.new')} <kbd>{keys('⌘N')}</kbd>
       </button>
       {running.length > 0 && (

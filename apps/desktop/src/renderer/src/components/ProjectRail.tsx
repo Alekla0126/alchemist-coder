@@ -16,7 +16,7 @@ export function ProjectRail() {
   const setActive = useStore((s) => s.setActiveProject);
   const close = useStore((s) => s.closeProject);
   const setPickerOpen = useStore((s) => s.setPickerOpen);
-  const setCompose = useStore((s) => s.setCompose);
+  const newConversation = useStore((s) => s.newConversation);
   const setMode = useStore((s) => s.setMode);
   const setSidebarTab = useStore((s) => s.setSidebarTab);
   const open = openIds.map((id) => projects.find((p) => p.id === id)).filter((p) => p != null);
@@ -42,7 +42,7 @@ export function ProjectRail() {
           if (id === 'copy-path') return window.alchemist.copyText(p.cwd);
           if (id === 'reveal') return window.alchemist.revealPath(p.cwd);
           await setActive(p.id);
-          if (id === 'new') setCompose(p.id);
+          if (id === 'new') newConversation(p.id);
           if (id === 'agents') setMode('agents');
           if (id === 'files') {
             setMode('code');
