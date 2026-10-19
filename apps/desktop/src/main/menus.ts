@@ -1,36 +1,13 @@
 import { BrowserWindow, Menu, type MenuItemConstructorOptions, type WebContents } from 'electron';
-import type { Locale, MenuItem } from '../shared/api';
+import type { Locale } from '../shared/api';
+import { menuTemplate } from './menu-template';
 import { mainWords } from './locales';
-
-const ID = /^[\w:.-]{1,80}$/;
-
-/** Only well-formed items become menu entries (the renderer's input is never trusted). */
-function build(items: unknown, choose: (id: string) => void, depth = 0): MenuItemConstructorOptions[] {
-  if (!Array.isArray(items) || depth > 2) return [];
-  return items.slice(0, 40).flatMap((raw): MenuItemConstructorOptions[] => {
-    const item = raw as Partial<MenuItem & { type: string }>;
-    if (item?.type === 'separator') return [{ type: 'separator' }];
-    const { id, label } = item as { id?: unknown; label?: unknown };
-    if (typeof id !== 'string' || !ID.test(id) || typeof label !== 'string' || !label || label.length > 200) return [];
-    const it = item as Extract<MenuItem, { id: string }>;
-    const submenu = it.submenu ? build(it.submenu, choose, depth + 1) : undefined;
-    return [
-      {
-        label,
-        enabled: it.enabled !== false,
-        ...(typeof it.checked === 'boolean' ? { type: 'checkbox' as const, checked: it.checked } : {}),
-        ...(typeof it.accelerator === 'string' && it.accelerator.length < 40 ? { accelerator: it.accelerator, registerAccelerator: false } : {}),
-        ...(submenu?.length ? { submenu } : { click: () => choose(id) }),
-      },
-    ];
-  });
-}
 
 /** Shows a native context menu for the window that asked; resolves to the chosen id or null. */
 export function showMenu(sender: WebContents, items: unknown): Promise<string | null> {
   return new Promise((resolve) => {
     let chosen: string | null = null;
-    const template = build(items, (id) => (chosen = id));
+    const template = menuTemplate(items, (id) => (chosen = id));
     const window = BrowserWindow.fromWebContents(sender);
     if (!template.length || !window) return resolve(null);
     // The click handler runs before the close callback, so `chosen` is set by then.
