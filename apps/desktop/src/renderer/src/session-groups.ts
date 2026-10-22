@@ -1,4 +1,5 @@
 import { fold } from './fold';
+import { arrangePinned } from './reorder';
 
 export type SessionGroup = 'pinned' | 'today' | 'yesterday' | 'week' | 'month' | 'older';
 
@@ -8,11 +9,12 @@ const DAY = 86_400_000;
  * Conversations under "Pinned", "Today", "Yesterday", "Previous 7 days", "Previous 30 days" and
  * "Older" by last activity, newest first in each; empty groups are left out. Without `pin`
  * (the Recent view, which is about when), a pinned conversation goes by its date like the rest.
+ * With `pinOrder`, the Pinned group keeps the order you arranged (see reorder.ts).
  */
-export function groupSessions<T extends { favorite: boolean; lastTs: number | null }>(
+export function groupSessions<T extends { favorite: boolean; lastTs: number | null; id?: string }>(
   list: T[],
   now = Date.now(),
-  { pin = true }: { pin?: boolean } = {},
+  { pin = true, pinOrder }: { pin?: boolean; pinOrder?: readonly string[] } = {},
 ): Array<{ group: SessionGroup; items: T[] }> {
   const midnight = new Date(now);
   midnight.setHours(0, 0, 0, 0);
@@ -29,6 +31,7 @@ export function groupSessions<T extends { favorite: boolean; lastTs: number | nu
   const order: SessionGroup[] = ['pinned', 'today', 'yesterday', 'week', 'month', 'older'];
   const groups = new Map<SessionGroup, T[]>(order.map((g) => [g, []]));
   for (const s of [...list].sort((a, b) => (b.lastTs ?? 0) - (a.lastTs ?? 0))) groups.get(groupOf(s))!.push(s);
+  if (pin && pinOrder) groups.set('pinned', arrangePinned(groups.get('pinned')! as Array<T & { id: string }>, pinOrder));
   return order.filter((g) => groups.get(g)!.length).map((group) => ({ group, items: groups.get(group)! }));
 }
 

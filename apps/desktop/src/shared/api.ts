@@ -197,6 +197,12 @@ export interface AppInfo {
     browser?: string | null;
     /** --browser-driver="Claude Code": the title bar as while that agent browses with the pane closed. */
     browserDriver?: string | null;
+    /**
+     * --drag="rail:2>0" drags the rail's third logo onto the first (before it; "2>0+" after it);
+     * "pin:3>top" drags the project list's fourth conversation onto «Drop here to pin it», "pin:3>1"
+     * onto its second row. With ":hold" it stops mid-drag, with the drop marks showing.
+     */
+    drag?: string | null;
     /** Open the status bar's activity list. */
     activity?: boolean;
     /** Scroll the open conversation to the first element matching this selector. */

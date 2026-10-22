@@ -11,6 +11,7 @@ import { useCurrentTheme } from './theme-state';
 import { useWelcome } from './welcome-state';
 import { markViewed } from './attention';
 import { bornConversation, heldConversation, provisionalProjects } from './stay-put';
+import { mergeOrder, readOrder } from './reorder';
 
 const api = window.alchemist;
 const CATALOG_KEY = 'alchemist.catalog';
@@ -40,6 +41,7 @@ export type SessionFilter = 'all' | 'running' | 'favorites';
 /** The Agents sidebar: this project, every open project, or the latest conversations of all of them. */
 export type AgentsScope = 'project' | 'all' | 'recent';
 const SCOPES: AgentsScope[] = ['project', 'all', 'recent'];
+const PIN_ORDER_KEY = 'alchemist.pinOrder';
 function savedScope(): AgentsScope {
   const saved = localStorage.getItem('alchemist.agentsScope') as AgentsScope | null;
   return saved && SCOPES.includes(saved) ? saved : 'project';
@@ -116,6 +118,8 @@ interface State {
   filter: SessionFilter;
   /** The Agents sidebar and home: the open project, every open project at once, or the latest conversations of all. */
   agentsScope: AgentsScope;
+  /** The order you gave your pinned conversations (ids; see reorder.ts). Kept on this computer. */
+  pinOrder: string[];
   /** The latest conversations of each open project (all-projects view). */
   recent: Record<number, SessionSummary[]>;
   /** The latest conversations of every project, newest first (Recent view); null until loaded. */
@@ -250,6 +254,12 @@ interface State {
   openReview(reviewId: string): Promise<void>;
   openProject(projectId: number): Promise<void>;
   closeProject(projectId: number): void;
+  /** The rail in the order you dragged it to (the same projects, rearranged). */
+  setProjectOrder(ids: number[]): void;
+  /** A project's pinned conversations in the order you arranged them. */
+  setPinOrder(ids: string[]): void;
+  /** Pins a conversation (if it isn't yet) where you dropped it among the pinned ones. */
+  pinAt(session: SessionSummary, order: string[]): Promise<void>;
   setActiveProject(projectId: number): Promise<void>;
   toggle(key: string): void;
   setFilter(filter: SessionFilter): void;
@@ -292,6 +302,7 @@ export const useStore = create<State>((set, get) => ({
   selection: null,
   filter: 'all',
   agentsScope: savedScope(),
+  pinOrder: readOrder(localStorage.getItem(PIN_ORDER_KEY)),
   recent: {},
   latest: null,
   pickerOpen: false,
@@ -645,6 +656,27 @@ export const useStore = create<State>((set, get) => ({
     void api.setSettings({ openProjectIds: open, activeProjectId: active });
     if (active != null) void get().loadSessions(active);
     if (get().agentsScope === 'all') set((s) => ({ recent: Object.fromEntries(Object.entries(s.recent).filter(([id]) => Number(id) !== projectId)) }));
+  },
+
+  setProjectOrder(ids) {
+    const { settings } = get();
+    // Only a rearrangement of the rail as it is: nothing opens or closes by dragging.
+    const same = ids.length === settings.openProjectIds.length && ids.every((id) => settings.openProjectIds.includes(id));
+    if (!same || ids.join() === settings.openProjectIds.join()) return;
+    set({ settings: { ...settings, openProjectIds: ids } });
+    void api.setSettings({ openProjectIds: ids });
+  },
+
+  setPinOrder(ids) {
+    const pinOrder = mergeOrder(get().pinOrder, ids);
+    set({ pinOrder });
+    localStorage.setItem(PIN_ORDER_KEY, JSON.stringify(pinOrder));
+  },
+
+  async pinAt(session, order) {
+    get().setPinOrder(order);
+    if (!session.favorite) await api.setFavorite(session.id, true);
+    await get().loadSessions(session.projectId);
   },
 
   async setActiveProject(projectId) {

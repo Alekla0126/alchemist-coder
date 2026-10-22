@@ -83,6 +83,13 @@ input { font: inherit; color: inherit; }
 .proj.add { background: transparent; border: 1px dashed #3a4252; color: var(--fg-3); font-size: 18px; font-weight: 400; }
 .proj-close { position: absolute; left: -4px; top: -6px; width: 15px; height: 15px; border-radius: 50%; background: var(--bg-hl); color: var(--fg-2); font-size: 11px; line-height: 13px; display: none; }
 .rail-item:hover .proj-close { display: block; }
+/* Dragging a logo to another place: it fades, and a bar in the theme's text colour (readable in every
+   theme) marks where it lands, in the gap before or after another logo. */
+.rail-item[draggable] { cursor: grab; }
+.rail-item.dragging { opacity: 0.4; }
+.rail-item.drop-before::before, .rail-item.drop-after::after { content: ''; position: absolute; left: -2px; right: -2px; height: 3px; border-radius: 2px; background: var(--fg); pointer-events: none; }
+.rail-item.drop-before::before { top: -8px; }
+.rail-item.drop-after::after { bottom: -8px; }
 
 /* ---------- sidebar ---------- */
 .side { background: var(--bg-side); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
@@ -847,6 +854,14 @@ button.chip.edition { cursor: pointer; }
 .code-head button { color: var(--fg-3); width: 22px; height: 20px; border-radius: 5px; }
 .code-head button:hover { color: var(--fg); background: var(--bg-card); }
 .session-row { position: relative; }
+/* Arranging pinned conversations: a bar where the dragged one lands, in the theme's text colour. */
+.session-row.drop-before::before, .session-row.drop-after::after { content: ''; position: absolute; left: 6px; right: 6px; height: 2px; border-radius: 1px; background: var(--fg); pointer-events: none; z-index: 2; }
+.session-row.drop-before::before { top: -1px; }
+.session-row.drop-after::after { bottom: -1px; }
+/* «Drop here to pin it»: floats over the top of the list while you drag, so nothing below moves. */
+.pin-drop-anchor { position: sticky; top: 0; height: 0; z-index: 4; }
+.pin-drop { position: absolute; top: 4px; left: 0; right: 0; padding: 9px 10px; border-radius: 8px; border: 1.5px dashed color-mix(in srgb, var(--fg) 55%, transparent); background: var(--bg-side); color: var(--fg); font-size: 12px; font-weight: 600; text-align: center; box-shadow: 0 4px 14px rgb(0 0 0 / 0.25); }
+.pin-drop.on { border-style: solid; border-color: var(--fg); background: color-mix(in srgb, var(--fg) 10%, var(--bg-side)); }
 .row-actions { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); display: none; gap: 2px; align-items: center; background: var(--bg-hl); padding-left: 6px; }
 .session-row:hover .row-actions, .row-actions:focus-within { display: inline-flex; }
 .row-actions .star, .row-actions .row-more { opacity: 1; }

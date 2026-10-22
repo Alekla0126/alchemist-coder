@@ -9,6 +9,10 @@ import { useStore, useT, type SessionFilter } from '../store';
 import { isUnread, useViewed } from '../attention';
 import { contextMenu, toast } from '../ui';
 import { collapseRepeats, groupSessions, matchesQuery } from '../session-groups';
+import { dropOn, dropsAfter } from '../reorder';
+
+/** What a dragged conversation carries (the project's list accepts it among the pinned ones). */
+const SESSION_DRAG = 'application/x-alchemist-session';
 import { sourceOf } from '../sources';
 import { AgentTree } from './AgentTree';
 import { ExtensionsHub } from './ExtensionsHub';
@@ -61,7 +65,19 @@ function RepeatedRow({ title, items }: { title: string; items: SessionSummary[] 
  * One conversation. In Recent (`showProject`), each row also says which project it is in and wears
  * a mark of how fresh it is; the time beside it keeps up by itself (clock.ts).
  */
-export function SessionRow({ session, showProject = false }: { session: SessionSummary; showProject?: boolean }) {
+export function SessionRow({
+  session,
+  showProject = false,
+  draggable = false,
+  drop = null,
+}: {
+  session: SessionSummary;
+  showProject?: boolean;
+  /** In a project's list: it can be dragged among (or into) the pinned ones. */
+  draggable?: boolean;
+  /** Where a dragged conversation would land: just before or just after this one. */
+  drop?: 'before' | 'after' | null;
+}) {
   const t = useT();
   const locale = useStore((s) => s.locale);
   const now = useClock();
@@ -83,7 +99,9 @@ export function SessionRow({ session, showProject = false }: { session: SessionS
   return (
     <div className="session">
       <div
-        className={`row session-row ${selected && !open ? 'sel' : ''} ${showProject ? `fresh fresh-${freshness(session.lastTs, now)}` : ''}`}
+        className={`row session-row ${selected && !open ? 'sel' : ''} ${showProject ? `fresh fresh-${freshness(session.lastTs, now)}` : ''} ${drop ? `drop-${drop}` : ''}`}
+        draggable={draggable || undefined}
+        data-session-id={draggable ? session.id : undefined}
         title={session.lastTs ? `${session.title}\n${t('recent.lastActivity')}: ${new Date(session.lastTs).toLocaleDateString(locale)} ${clockTime(session.lastTs, locale)}` : session.title}
         onClick={() => {
           if (!open) toggle(key);
@@ -308,7 +326,24 @@ export function Sidebar() {
   const [query, setQuery] = useState('');
   useEffect(() => setQuery(''), [activeId]);
   const shown = (sessions ?? []).filter((s) => passes(s, filter, query));
-  const groups = groupSessions(shown);
+  const pinOrder = useStore((s) => s.pinOrder);
+  const pinAt = useStore((s) => s.pinAt);
+  const groups = groupSessions(shown, undefined, { pinOrder });
+  const pinnedIds = groups.find((g) => g.group === 'pinned')?.items.map((x) => x.id) ?? [];
+  // Dragging a conversation: among the pinned ones it takes the place you drop it on; anywhere
+  // else it doesn't land, except on «Drop here to pin it», which pins it at the top.
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [mark, setMark] = useState<{ id: string; after: boolean } | 'top' | null>(null);
+  const dragged = dragId ? shown.find((x) => x.id === dragId) : undefined;
+  const endDrag = () => {
+    setDragId(null);
+    setMark(null);
+  };
+  const place = (order: string[]) => {
+    if (dragged) void pinAt(dragged, order);
+    endDrag();
+  };
+  const rowUnder = (e: { target: EventTarget }) => (e.target as HTMLElement).closest<HTMLElement>('[data-session-id]');
   const latest = useStore((s) => s.latest);
   const running =
     scope === 'all' ? Object.values(recent).flat().filter(isLive).length : scope === 'recent' ? (latest ?? []).filter(isLive).length : (sessions ?? []).filter(isLive).length;
@@ -400,12 +435,74 @@ export function Sidebar() {
           />
         </div>
       )}
-      <div className="tree">
+      <div
+        className="tree"
+        onDragStart={(e) => {
+          const id = rowUnder(e)?.dataset.sessionId;
+          if (!id) return;
+          e.dataTransfer.setData(SESSION_DRAG, id);
+          e.dataTransfer.effectAllowed = 'move';
+          setDragId(id);
+        }}
+        onDragOver={(e) => {
+          if (!e.dataTransfer.types.includes(SESSION_DRAG)) return;
+          const row = rowUnder(e);
+          const id = row?.dataset.sessionId;
+          if (!row || !id || !pinnedIds.includes(id)) return setMark(null);
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          const after = dropsAfter(e.clientY, row.getBoundingClientRect());
+          if (mark === 'top' || mark?.id !== id || mark.after !== after) setMark({ id, after });
+        }}
+        onDrop={(e) => {
+          const row = rowUnder(e);
+          const id = row?.dataset.sessionId;
+          if (!row || !id || !dragId || !pinnedIds.includes(id)) return;
+          e.preventDefault();
+          const list = pinnedIds.includes(dragId) ? pinnedIds : [...pinnedIds, dragId];
+          place(dropOn(list, dragId, id, dropsAfter(e.clientY, row.getBoundingClientRect())));
+        }}
+        onDragEnd={endDrag}
+      >
+        {/* While you drag a conversation that isn't pinned: a place to drop it that pins it, at the top.
+            It floats over the list, so nothing below it moves. */}
+        {dragged && !dragged.favorite && (
+          <div className="pin-drop-anchor">
+          <div
+            className={`pin-drop ${mark === 'top' ? 'on' : ''}`}
+            onDragOver={(e) => {
+              if (!e.dataTransfer.types.includes(SESSION_DRAG)) return;
+              e.preventDefault();
+              e.stopPropagation();
+              e.dataTransfer.dropEffect = 'move';
+              if (mark !== 'top') setMark('top');
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (dragId) place([dragId, ...pinnedIds.filter((x) => x !== dragId)]);
+            }}
+          >
+            📌 {t('drag.pinHere')}
+          </div>
+          </div>
+        )}
         {groups.map(({ group, items }) => (
           <div key={group} className="side-group" role="group" aria-label={t(`group.${group}`)}>
             {/* One group only (e.g. everything from today) needs no heading. */}
             {groups.length > 1 && <div className="side-group-title">{t(`group.${group}`)}</div>}
-            {collapseRepeats(items).map((c) => (c.kind === 'one' ? <SessionRow key={c.item.id} session={c.item} /> : <RepeatedRow key={`r:${c.items[0]!.id}`} title={c.title} items={c.items} />))}
+            {collapseRepeats(items).map((c) =>
+              c.kind === 'one' ? (
+                <SessionRow
+                  key={c.item.id}
+                  session={c.item}
+                  draggable
+                  drop={typeof mark === 'object' && mark?.id === c.item.id && dragId !== c.item.id ? (mark.after ? 'after' : 'before') : null}
+                />
+              ) : (
+                <RepeatedRow key={`r:${c.items[0]!.id}`} title={c.title} items={c.items} />
+              ),
+            )}
           </div>
         ))}
         {sessions && shown.length === 0 && <p className="empty">{query ? t('side.noMatches') : t('side.noSessions')}</p>}

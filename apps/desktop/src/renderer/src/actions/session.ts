@@ -3,6 +3,13 @@ import type { ExportFormat, MenuItem } from '@shared/api';
 import { translate, type MessageKey } from '../i18n';
 import { useStore } from '../store';
 import { confirmAction, openMenu, promptText, toast } from '../ui';
+import { arrangePinned, nudge } from '../reorder';
+
+/** A project's pinned conversations, in the order you arranged them (ids). */
+function pinnedOrder(projectId: number): string[] {
+  const { sessions, pinOrder } = useStore.getState();
+  return arrangePinned((sessions[projectId] ?? []).filter((x) => x.favorite), pinOrder).map((x) => x.id);
+}
 
 const t = (key: MessageKey, vars?: Record<string, string | number>) => translate(useStore.getState().locale, key, vars);
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e)).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
@@ -24,6 +31,13 @@ function items(s: SessionSummary): MenuItem[] {
     { id: 'open', label: t('menu.open') },
     { id: 'rename', label: t('menu.rename') },
     { id: 'pin', label: s.favorite ? t('menu.unpin') : t('menu.pin') },
+    // Pinned ones keep the order you give them: one step at a time here, or by dragging.
+    ...(s.favorite
+      ? [
+          { id: 'pin-up', label: t('menu.moveUp'), enabled: pinnedOrder(s.projectId).indexOf(s.id) > 0 },
+          { id: 'pin-down', label: t('menu.moveDown'), enabled: (() => { const o = pinnedOrder(s.projectId); return o.indexOf(s.id) >= 0 && o.indexOf(s.id) < o.length - 1; })() },
+        ]
+      : []),
     { type: 'separator' },
     {
       id: 'copy',
@@ -66,6 +80,10 @@ export async function runSessionAction(s: SessionSummary, id: string): Promise<v
         await window.alchemist.renameSession(s.id, title);
         return store.sessionsChanged(s.projectId, [s.id]);
       }
+      case 'pin-up':
+      case 'pin-down':
+        useStore.getState().setPinOrder(nudge(pinnedOrder(s.projectId), s.id, id === 'pin-up' ? -1 : 1));
+        return;
       case 'pin':
         return store.toggleFavorite(s);
       case 'copy-title':

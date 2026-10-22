@@ -24,6 +24,7 @@ import { useStore } from './store';
 import { PanelBoundary } from './components/PanelBoundary';
 import { Resizer } from './components/Resizer';
 import { closeDrawer, openBrowser, toggleBrowser, toggleSidebar, useLayout, useViewport } from './layout';
+import { playDrag } from './capture-drag';
 import { BrowserPane } from './components/BrowserPane';
 import { useAvatarPicker } from './components/AvatarPicker';
 import { WITH_SIDEBAR } from './components/TitleBar';
@@ -134,9 +135,17 @@ export function App() {
     return whileVisible(() => void refreshProjects(), 15_000);
   }, [anyRunning, refreshProjects]);
 
+  // --drag: once the rail and the lists are there, play the drag, then capture.
+  useEffect(() => {
+    const spec = info?.capture?.drag;
+    if (!spec || !ready || !indexReady) return;
+    const timer = setTimeout(() => void playDrag(spec).finally(() => useStore.setState({ captureReady: true })), 1500);
+    return () => clearTimeout(timer);
+  }, [info, ready, indexReady]);
+
   useEffect(() => {
     if (!info?.capture || !ready || !indexReady) return;
-    if ((info.capture.select || info.capture.compose || info.capture.project || info.capture.openFile || info.capture.settings || info.capture.arena || info.capture.themeSearch || info.capture.usage || info.capture.team || info.capture.orgGoal || info.capture.automationRun || info.capture.automationPrompt || info.capture.mode === 'marketing' || info.capture.mode === 'board' || (info.capture.browser && info.capture.browser !== '1')) && !captureReady) return;
+    if ((info.capture.select || info.capture.compose || info.capture.project || info.capture.openFile || info.capture.settings || info.capture.arena || info.capture.themeSearch || info.capture.usage || info.capture.team || info.capture.orgGoal || info.capture.automationRun || info.capture.automationPrompt || info.capture.mode === 'marketing' || info.capture.mode === 'board' || (info.capture.browser && info.capture.browser !== '1') || info.capture.drag) && !captureReady) return;
     window.alchemist.rendered();
   }, [info, ready, indexReady, captureReady]);
 
