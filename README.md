@@ -14,7 +14,7 @@ A free, open-source desktop app for Claude Code and Codex. Follow every agent an
 [![Listed among Agent Client Protocol clients](https://img.shields.io/badge/ACP-listed%20client-6b5bd2)](https://agentclientprotocol.com/get-started/clients)
 [![GitHub stars](https://img.shields.io/github/stars/Alekla0126/alchemist-coder?style=social)](https://github.com/Alekla0126/alchemist-coder/stargazers)
 
-**[Download](https://coder.alekla.com/#download)** · [Website](https://coder.alekla.com) · [What's new in 1.3.4](https://github.com/Alekla0126/alchemist-coder/releases/tag/v1.3.4) · [Ideas and questions](https://github.com/Alekla0126/alchemist-coder/discussions) · [Español](#español)
+**[Download](https://coder.alekla.com/#download)** · [Website](https://coder.alekla.com) · [What's new in 1.3.5](https://github.com/Alekla0126/alchemist-coder/releases/tag/v1.3.5) · [Ideas and questions](https://github.com/Alekla0126/alchemist-coder/discussions) · [Español](#español)
 
 <img src="https://coder.alekla.com/preview/tour-en.webp" alt="A tour of Alchemist Coder 1.3: a conversation with its subagents, the editor, the built-in browser, the coordinator on Autopilot, the organization chart, the Board and an automation" width="900">
 
@@ -22,7 +22,7 @@ A free, open-source desktop app for Claude Code and Codex. Follow every agent an
 
 </div>
 
-> **Version 1.3.4**, in English, Español, Português, Français, Deutsch, Italiano, Русский, 日本語, 한국어, 简体中文 and हिन्दी. [Download](https://coder.alekla.com/#download) for macOS (Apple Silicon or Intel), Windows or Linux (AppImage or .deb), or from [Releases](https://github.com/Alekla0126/alchemist-coder/releases). The builds aren't signed with an Apple or Microsoft certificate yet. The first time on a Mac, macOS says it can't verify the app: click Done, then open System Settings → Privacy & Security and click Open Anyway. On Windows, if SmartScreen warns you, choose More info → Run anyway. Feedback and issues are welcome.
+> **Version 1.3.5**, in English, Español, Português, Français, Deutsch, Italiano, Русский, 日本語, 한국어, 简体中文 and हिन्दी. [Download](https://coder.alekla.com/#download) for macOS (Apple Silicon or Intel), Windows or Linux (AppImage or .deb), or from [Releases](https://github.com/Alekla0126/alchemist-coder/releases). The builds aren't signed with an Apple or Microsoft certificate yet. The first time on a Mac, macOS says it can't verify the app: click Done, then open System Settings → Privacy & Security and click Open Anyway. On Windows, if SmartScreen warns you, choose More info → Run anyway. Feedback and issues are welcome.
 
 ## What it does
 
