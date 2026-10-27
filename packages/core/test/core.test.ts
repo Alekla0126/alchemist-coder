@@ -46,7 +46,7 @@ describe('ExtensionRegistry', () => {
 
 describe('Autopilot', () => {
   it('lets through everyday commands and refuses what can\'t be undone', () => {
-    for (const ok of ['npm test', 'git push origin main', 'git push -u origin feature/x', 'rm -rf node_modules dist', 'rm -rf ./build', 'pnpm install', 'Edit a.txt', 'git commit -m "fix: rm -rf /tmp/x"', 'npm run publish-docs', 'fastlane test'])
+    for (const ok of ['npm test', 'git push origin main', 'git push -u origin feature/x', 'rm -rf node_modules dist', 'rm -rf ./build', 'pnpm install', 'Edit a.txt', 'git commit -m "fix: rm -rf /tmp/x"', 'npm run publish-docs', 'fastlane test', 'appconsole play upload com.x app.aab', 'mcp__alchemist_play__play_upload', 'mcp__alchemist_play__play_tracks\nconfirm=true'])
       expect([ok, irreversible(ok)]).toEqual([ok, false]);
     for (const bad of [
       'sudo rm x',
@@ -66,6 +66,11 @@ describe('Autopilot', () => {
       'fastlane supply',
       'eas submit -p ios',
       'docker push me/app',
+      'appconsole play upload com.x app.aab --track production --confirm',
+      'appconsole appstore submit MyApp --confirm',
+      'mcp__alchemist_play__play_promote\nconfirm=true',
+      'mcp__alchemist_appstore__appstore_submit\nconfirm=true',
+      'mcp__plugin_google-play_google-play__play_reply\nconfirm=true',
       'diskutil eraseDisk APFS X disk2',
       'dd if=x of=/dev/disk2',
       'sudo shutdown -h now',

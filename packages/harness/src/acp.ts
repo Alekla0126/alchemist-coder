@@ -82,6 +82,8 @@ function commandOf(rawInput: unknown): string | null {
   const c = rawInput && typeof rawInput === 'object' ? (rawInput as Json).command : null;
   if (typeof c === 'string') return c.slice(0, 4000);
   if (Array.isArray(c)) return c.map(String).join(' ').slice(0, 4000);
+  // A tool told to do it for real (the store tools' confirm=true) says so: Autopilot refuses those.
+  if (rawInput && typeof rawInput === 'object' && (rawInput as Json).confirm === true) return 'confirm=true';
   return null;
 }
 

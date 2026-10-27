@@ -23,6 +23,9 @@ const IRREVERSIBLE: RegExp[] = [
   /\bgh\s+release\s+(create|upload|edit|delete)\b/,
   /\bfastlane\s+(\S+\s+)?(deliver|supply|pilot|upload\w*|release|deploy|publish|production)\b/,
   /\beas\s+submit\b/,
+  // The stores through app-console (the store tools): with confirm, the change goes live.
+  /\bappconsole\s+(play|appstore)\s[^;&|\n]*--confirm\b/,
+  /(play_(upload|promote|rollout|update_listing|reply)|appstore_(create_version|update_listing|submit|release|reply))\b[\s\S]*\bconfirm=true\b/,
   /\bdocker\s+push\b/,
   // The disk and the machine.
   /\b(mkfs(\.\w+)?|shutdown|reboot|halt)\b/,

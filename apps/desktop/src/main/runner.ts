@@ -2,6 +2,7 @@ import { statSync } from 'node:fs';
 import { cliStatus } from './cli-status';
 import { installStep } from './install';
 import { cliSearchPath } from './shell-path';
+import { storeMcpServers } from './store-tools';
 import { detectBinary, stageData, stageFile } from '@alchemist-coder/harness';
 import { isLocalEndpoint, type Autopilot, type ExtensionRegistry, type PromptFile, type QuestionAnswer, type RunHandle, type RunnerEvent, type SessionMcpServer, validImages } from '@alchemist-coder/core';
 import type { PermissionMode, RunnerCatalog, RunnerEventMessage, StartRunRequest } from '../shared/api';
@@ -117,7 +118,15 @@ export class RunnerManager {
     const permissionMode = PERMISSION_MODES.includes(request.permissionMode as PermissionMode) ? request.permissionMode : 'acceptEdits';
 
     const effort = typeof request.effort === 'string' && /^[\w-]{1,24}$/.test(request.effort) ? request.effort : undefined;
-    const handle = harness.run({ cwd, prompt, images: validImages(request.images), files: stageAttachments(cwd, request.files), provider, model, resumeSessionId: resume, fork: !!resume && request.fork === true, permissionMode, effort, mcpServers: internal.mcpServers, autopilot: internal.autopilot ?? this.autopilot });
+    // Google Play, App Store Connect and AdMob, for the services you've set up (store-tools.ts).
+    let storeTools: SessionMcpServer[] = [];
+    try {
+      storeTools = storeMcpServers(harness.id, cwd);
+    } catch {
+      // never in the way of a run
+    }
+    const mcpServers = [...(internal.mcpServers ?? []), ...storeTools];
+    const handle = harness.run({ cwd, prompt, images: validImages(request.images), files: stageAttachments(cwd, request.files), provider, model, resumeSessionId: resume, fork: !!resume && request.fork === true, permissionMode, effort, mcpServers: mcpServers.length ? mcpServers : undefined, autopilot: internal.autopilot ?? this.autopilot });
     this.runs.set(handle.id, handle);
     const pilot = internal.autopilot ?? this.autopilot;
     if (pilot) this.pilots.set(handle.id, pilot);
