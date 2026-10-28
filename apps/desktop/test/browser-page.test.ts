@@ -45,6 +45,29 @@ describe('what an agent reads', () => {
     expect(text.endsWith('Your cart\nTotal: $20')).toBe(true);
   });
 
+  it('with find, keeps only what mentions it, with the same numbers', () => {
+    const page = {
+      url: 'https://play.google.com/console/app/1/publishing',
+      title: 'Publishing overview',
+      text: ['Publishing overview', 'Managed publishing is on', '3 changes ready to publish', 'Store listing', 'Pricing', 'Countries', 'Send changes for review', 'Help'].join('\n'),
+      elements: [
+        { ref: 1, tag: 'a', role: null, name: 'Dashboard', href: 'https://play.google.com/console/app/1', type: null },
+        { ref: 7, tag: 'button', role: null, name: 'Publish changes', href: null, type: null },
+        { ref: 9, tag: 'button', role: null, name: 'Send changes for review', href: null, type: null },
+      ],
+    };
+    const text = formatSnapshot(page, 'publish|send changes');
+    expect(text).toContain('2 of 3 things to act on');
+    expect(text).toContain('[7] button "Publish changes"');
+    expect(text).toContain('[9] button "Send changes for review"');
+    expect(text).not.toContain('Dashboard');
+    // matching lines come with one line around them; gaps are marked
+    expect(text).toContain('Publishing overview\nManaged publishing is on\n3 changes ready to publish\nStore listing\n…\nCountries\nSend changes for review\nHelp');
+    expect(text).not.toContain('Pricing');
+    expect(formatSnapshot(page, 'refund')).toContain('Nothing on this page mentions "refund"');
+    expect(formatSnapshot(page, '  ')).toBe(formatSnapshot(page));
+  });
+
   it('says when there is nothing to act on', () => {
     expect(formatSnapshot({ url: 'about:blank', title: '', text: '', elements: [] })).toContain('Nothing to click or type into on screen.');
   });

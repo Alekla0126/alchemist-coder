@@ -29,15 +29,15 @@ const TOOLS = [
       "Opens a web address (or searches for words) in Alchemist Coder's built-in browser for this project (its own tabs and sign-ins), which the user can watch next to the conversation. With new_tab, in a new tab, leaving the current one as it is. Then read the page with browser_read.",
     inputSchema: {
       type: 'object',
-      properties: { url: { type: 'string', description: 'A web address, a domain, or words to search for' }, new_tab: { type: 'boolean', description: 'Open it in a new tab' } },
+      properties: { url: { type: 'string', description: 'A web address, a domain, or words to search for' }, new_tab: { type: 'boolean', description: 'Open it in a new tab' }, find: { type: 'string', description: 'Only what mentions these words, alternatives separated by | (e.g. "Publish|Send for review"): a few lines instead of the whole page. Numbers stay the same.' } },
       required: ['url'],
     },
   },
   {
     name: 'browser_read',
     description:
-      'Reads the page in the built-in browser: its address, its visible text, and everything you can click or type into, each with a number to use with browser_click and browser_type. Read again after the page changes; numbers change with it.',
-    inputSchema: { type: 'object', properties: {} },
+      'Reads the page in the built-in browser: its address, its visible text, and everything you can click or type into, each with a number to use with browser_click and browser_type. With find, only the parts that mention it (much cheaper on long pages). Read again after the page changes; numbers change with it.',
+    inputSchema: { type: 'object', properties: { find: { type: 'string', description: 'Only what mentions these words, alternatives separated by | (e.g. "Publish|Send for review"): a few lines instead of the whole page. Numbers stay the same.' } } },
   },
   {
     name: 'browser_click',
@@ -519,7 +519,7 @@ export class BrowserHost {
         const tab = args.new_tab === true || !this.front(b) ? this.newTab(b) : this.front(b)!;
         await tab.view.webContents.loadURL(url).catch(() => {});
         this.emit();
-        return { text: formatSnapshot(await this.read(tab)) };
+        return { text: formatSnapshot(await this.read(tab), typeof args.find === 'string' ? args.find : '') };
       }
       case 'browser_tabs':
         return { text: tabsText(b.tabs.map((t) => ({ id: t.id, title: t.view.webContents.getTitle(), url: t.view.webContents.getURL() })), b.active) };
@@ -540,7 +540,7 @@ export class BrowserHost {
     switch (name) {
       case 'browser_read':
         if (!wc.getURL()) return { text: 'The browser is empty: open a page with browser_open first.' };
-        return { text: formatSnapshot(await this.read(tab)) };
+        return { text: formatSnapshot(await this.read(tab), typeof args.find === 'string' ? args.find : '') };
       case 'browser_click': {
         const ref = Number(args.ref);
         if (this.onScreen(tab)) {

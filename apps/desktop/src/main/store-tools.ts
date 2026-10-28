@@ -6,18 +6,19 @@ import { readMcp, type AgentId } from '@alchemist-coder/extensions';
 
 /**
  * Google Play Console, App Store Connect and AdMob tools for every run, through their official APIs
- * (app-console-mcp: listings, releases, rollouts, reviews, vitals, App Review, sales, ad earnings),
+ * (app-console-mcp: listings and screenshots, releases, rollouts, reviews, vitals, permissions, App Review,
+ * sales, ad earnings),
  * so agents never drive those consoles in a browser. Only the services you have set up are added: a
  * run gets no extra tools (and no extra tokens) until you do. uv runs the pinned release; no git needed.
  */
-export const APP_CONSOLE_VERSION = '0.1.0';
+export const APP_CONSOLE_VERSION = '0.3.0';
 export const APP_CONSOLE_SOURCE = `app-console-mcp @ https://github.com/Alekla0126/app-console-mcp/archive/refs/tags/v${APP_CONSOLE_VERSION}.zip`;
 
 export type StoreService = 'play' | 'appstore' | 'admob';
 export const STORE_SERVER: Record<StoreService, string> = { play: 'alchemist_play', appstore: 'alchemist_appstore', admob: 'alchemist_admob' };
 
 /** What app-console reads, from the environment first and then its config file. */
-const SETTINGS = ['GOOGLE_PLAY_SERVICE_ACCOUNT', 'ASC_KEY_ID', 'ASC_ISSUER_ID', 'ASC_PRIVATE_KEY_PATH', 'ASC_PRIVATE_KEY', 'ASC_API_KEY_JSON', 'ASC_VENDOR_NUMBER', 'ADMOB_PUBLISHER_ID', 'ADMOB_TOKEN_FILE', 'APPCONSOLE_HOME'];
+const SETTINGS = ['GOOGLE_PLAY_SERVICE_ACCOUNT', 'GOOGLE_PLAY_DEVELOPER_ID', 'ASC_KEY_ID', 'ASC_ISSUER_ID', 'ASC_PRIVATE_KEY_PATH', 'ASC_PRIVATE_KEY', 'ASC_API_KEY_JSON', 'ASC_VENDOR_NUMBER', 'ADMOB_PUBLISHER_ID', 'ADMOB_TOKEN_FILE', 'APPCONSOLE_HOME'];
 /** What uv and Google's auth need: an agent may start the server with only the env it's given. */
 const PASS = ['PATH', 'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'SystemRoot', 'TMPDIR', 'TEMP', 'TMP', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'XDG_DATA_HOME', 'UV_CACHE_DIR', 'UV_PYTHON_INSTALL_DIR', 'GOOGLE_APPLICATION_CREDENTIALS', 'CLOUDSDK_CONFIG'];
 

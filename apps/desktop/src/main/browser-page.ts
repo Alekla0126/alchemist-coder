@@ -106,15 +106,48 @@ export function focusScript(ref: number, clear: boolean): string {
   })()`;
 }
 
-/** What the agent reads: where it is, what it can act on (by number), and the page's text. */
-export function formatSnapshot(s: PageSnapshot): string {
+/** Lines of the page's text that `find` keeps: the ones that mention it, with one line around each. */
+export const MAX_FOUND_LINES = 60;
+
+function elementLine(e: PageElement): string {
+  const kind = e.role ?? (e.tag === 'a' ? 'link' : e.tag === 'input' ? `input${e.type ? `:${e.type}` : ''}` : e.tag);
+  return `[${e.ref}] ${kind} "${e.name}"${e.href ? ` → ${e.href}` : ''}`;
+}
+
+/**
+ * What the agent reads: where it is, what it can act on (by number), and the page's text. With `find`
+ * (alternatives separated by |), only what mentions it: a long console page costs a few lines instead of
+ * thousands of tokens. Numbers stay the same either way, so a click after a filtered read still works.
+ */
+export function formatSnapshot(s: PageSnapshot, find = ''): string {
   const lines = [`URL: ${s.url}`, `Title: ${s.title || '(none)'}`, ''];
-  if (s.elements.length) {
-    lines.push('Things to click or type into (use their number):');
-    for (const e of s.elements) {
-      const kind = e.role ?? (e.tag === 'a' ? 'link' : e.tag === 'input' ? `input${e.type ? `:${e.type}` : ''}` : e.tag);
-      lines.push(`[${e.ref}] ${kind} "${e.name}"${e.href ? ` → ${e.href}` : ''}`);
+  const wanted = find.split('|').map((w) => w.trim().toLowerCase()).filter(Boolean);
+  if (wanted.length) {
+    const hit = (x: string | null) => !!x && wanted.some((w) => x.toLowerCase().includes(w));
+    const elements = s.elements.filter((e) => hit(e.name) || hit(e.href));
+    const text = (s.text || '').split('\n');
+    const keep = new Set<number>();
+    text.forEach((line, i) => {
+      if (hit(line)) for (const j of [i - 1, i, i + 1]) if (j >= 0 && j < text.length) keep.add(j);
+    });
+    const kept = [...keep].sort((x, y) => x - y).slice(0, MAX_FOUND_LINES);
+    if (!elements.length && !kept.length) {
+      lines.push(`Nothing on this page mentions "${find}". Read it without find, or try other words.`);
+      return lines.join('\n');
     }
+    lines.push(`Only what mentions "${find}": ${elements.length} of ${s.elements.length} things to act on, ${kept.length} of ${text.length} lines of text. Read without find for the whole page.`, '');
+    if (elements.length) lines.push('Things to click or type into (use their number):', ...elements.map(elementLine), '');
+    if (kept.length) {
+      lines.push('Page text:');
+      kept.forEach((n, i) => {
+        if (i && n !== kept[i - 1]! + 1) lines.push('…');
+        lines.push(text[n]!);
+      });
+    }
+    return lines.join('\n');
+  }
+  if (s.elements.length) {
+    lines.push('Things to click or type into (use their number):', ...s.elements.map(elementLine));
   } else {
     lines.push('Nothing to click or type into on screen.');
   }
