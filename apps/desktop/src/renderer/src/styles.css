@@ -2100,12 +2100,19 @@ select.mk-chip { appearance: none; padding-right: 12px; }
 :root[data-theme-type='light'] .oc-line.st-waiting { color: #8a4b00; }
 @media (prefers-reduced-motion: reduce) { .oc-card { transition: none; } .oc-card.drop-over { transform: none; } }
 
+/* Read by screen readers, not shown. */
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
 /* ---------- organization live: an assignment's departments, their messages, what just happened ---------- */
 .lv { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 14px; }
 .lv-board { position: relative; flex: 3 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+/* The cards above the lines between them. */
+.lv-top, .lv-depts, .lv-solo, .lv-board > .lv-extras { position: relative; z-index: 1; }
+/* Agents without a team stand side by side, with no department of their own. */
+.lv-solo { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
 .lv-top { align-self: center; width: min(320px, 100%); }
 .lv-depts { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
-.lv-dept { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 8px; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--bg-card) 50%, transparent); }
+.lv-dept { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 8px; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--bg-card) 50%, var(--bg)); }
 .lv-dept.lv-extras { border-style: dashed; }
 .lv-dept h4 { font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lv-crew { display: flex; flex-direction: column; gap: 6px; padding-left: 10px; border-left: 1.5px solid color-mix(in srgb, var(--fg) 22%, transparent); }
@@ -2124,10 +2131,15 @@ select.mk-chip { appearance: none; padding-right: 12px; }
 .lv-state.st-planned { border-style: dashed; border-color: var(--accent-2); }
 .lv-state.st-out, .lv-state.st-stopped { color: var(--fg-2); }
 /* A new exchange: its two cards, the line between them and its row light up for a few seconds. */
-.lv-card.lv-flash { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); animation: lv-pulse 1s ease-out 2; }
+.lv-card.lv-flash { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--bg-card)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); animation: lv-pulse 1s ease-out 2; }
+/* Its side of the exchange in a word, since a gold ring can look like a gold border. */
+.lv-flash-word { align-self: flex-start; padding: 0 6px; border-radius: 4px; font-size: 10.5px; font-weight: 650; color: var(--fg); background: var(--bg-input); box-shadow: inset 0 0 0 1px var(--accent); }
 @keyframes lv-pulse { from { box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 40%, transparent); } to { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); } }
-.lv-wires { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
-.lv-wires line { stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-dasharray: 6 5; animation: lv-flow 0.8s linear infinite; }
+.lv-wires { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+/* Who wrote to whom in the assignment: faint and still, with how many messages. */
+.lv-link line { stroke: color-mix(in srgb, var(--fg) 28%, transparent); stroke-width: 1.5; }
+.lv-link text { font-size: 10px; font-weight: 650; fill: var(--fg-2); stroke: var(--bg-card); stroke-width: 4px; paint-order: stroke; }
+.lv-spark { stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 6 5; animation: lv-flow 0.8s linear infinite; }
 @keyframes lv-flow { to { stroke-dashoffset: -11; } }
 .lv-side { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .lv-side h4 { font-size: 12px; }
@@ -2140,13 +2152,23 @@ select.mk-chip { appearance: none; padding-right: 12px; }
 .lv-kind { font-size: 11px; color: var(--fg-2); }
 .lv-msg.k-waiting .lv-kind, .lv-msg.k-failed .lv-kind { font-weight: 650; color: var(--fg); }
 .lv-text { display: block; margin-top: 2px; font-size: 12px; line-height: 1.4; color: var(--fg); white-space: pre-wrap; overflow-wrap: anywhere; }
-.lv-text .link { margin-left: 6px; }
+/* The theme's own text color, underlined: it reads on every theme, unlike an accent. */
+.lv-more { margin-left: 6px; font-size: 11.5px; font-weight: 600; color: var(--fg); text-decoration: underline; text-underline-offset: 2px; }
+.lv-more:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 3px; }
+.lv-time { flex: none; color: var(--fg-2); font-variant-numeric: tabular-nums; }
+.lv-msg.lv-marked { background: var(--bg-hl); box-shadow: inset 2px 0 0 var(--fg-2); }
+.lv-since { font-weight: 400; color: var(--fg-2); }
+/* Chart | Live: the chosen one has its own background, an accent edge, bold text and a ✓. */
+.lv-view { display: flex; gap: 2px; padding: 2px; border: 1px solid var(--line-2); border-radius: 999px; }
+.lv-view button { padding: 2px 10px; border-radius: 999px; font-size: 11px; color: var(--fg-2); }
+.lv-view button:hover { color: var(--fg); }
+.lv-view button.on { color: var(--fg); font-weight: 650; background: var(--bg-input); box-shadow: inset 0 0 0 1px var(--accent); }
 .lv-msg.lv-new { background: color-mix(in srgb, var(--accent) 12%, transparent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 .lv-unread { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); padding: 3px 12px; border-radius: 999px; font-size: 11.5px; font-weight: 650; color: var(--on-accent, #1a0d05); background: var(--accent); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); }
 .lv-pick ul { list-style: none; display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
 .lv-empty { padding: 8px 0; }
 /* Without motion the highlight still shows, standing still. */
-@media (prefers-reduced-motion: reduce) { .lv-card.lv-flash, .lv-wires line { animation: none; } .lv-wires line { stroke-dasharray: none; } .lv-msg { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .lv-card.lv-flash, .lv-spark { animation: none; } .lv-spark { stroke-dasharray: none; } .lv-msg { transition: none; } }
 
 /* ---------- chat by agent: tabs, who speaks, subagent cards, loading ---------- */
 .chat-agents { display: flex; align-items: center; gap: 6px; padding: 7px 18px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; flex: none; }

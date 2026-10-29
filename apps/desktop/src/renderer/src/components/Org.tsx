@@ -819,6 +819,7 @@ function ChartFocus({ teams, focus }: { teams: BotTeam[]; focus: BotTeam | undef
   const locale = useStore((s) => s.locale);
   const watching = teams.filter((x) => WATCH.includes(teamState(x)) || x.id === focus?.id).slice(0, 8);
   if (!watching.length) return null;
+  const live = useStore((s) => s.orgLive);
   const state = focus ? teamState(focus) : null;
   const plan = focus?.plan?.status === 'pending' ? focus.plan : null;
   const summary = (focus?.finished?.summary ?? '').replace(/\s+/g, ' ').trim();
@@ -839,7 +840,11 @@ function ChartFocus({ teams, focus }: { teams: BotTeam[]; focus: BotTeam | undef
         <div className={`oc-focus-card ${plan ? 'needs' : ''}`}>
           <div className="oc-focus-head">
             <span className={`team-state ts-${state}`}>{t(`bots.team.${state}`)}</span>
-            <b title={focus.goal}>{focus.title || focus.goal}</b>
+            <b title={focus.goal}>
+              {focus.title || focus.goal}
+              {/* Live, an assignment not in progress says since when nothing happens in it. */}
+              {live && !['working', 'waiting'].includes(state) && <span className="lv-since"> · {t('org.live.lastActivity', { when: relativeTime(focus.updatedAt, locale) })}</span>}
+            </b>
             <span className="ah-stats">
               {[t('bots.count', { n: plan ? plan.bots.length : focus.bots.length }), plan?.estimateUsd != null ? `≈ ${money(plan.estimateUsd, locale)}` : teamCost(focus) > 0 ? money(teamCost(focus), locale) : ''].filter(Boolean).join(' · ')}
             </span>
@@ -919,13 +924,14 @@ function OrgHome() {
           <h3>{live ? t('org.live.title') : t('org.chart')}</h3>
           <span className="composer-note">{live ? t('org.live.hint') : t('org.chartHint')}</span>
           <span className="composer-sp" />
-          <div className="lang" role="radiogroup" aria-label={t('org.live.view')}>
-            <button role="radio" aria-checked={!live} className={live ? '' : 'on'} onClick={() => view(false)}>
-              {t('org.live.chart')}
-            </button>
-            <button role="radio" aria-checked={live} className={live ? 'on' : ''} onClick={() => view(true)}>
-              {t('org.live.title')}
-            </button>
+          <div className="lv-view" role="group" aria-label={t('org.live.view')}>
+            {[false, true].map((on) => (
+              <button key={String(on)} aria-pressed={live === on} className={live === on ? 'on' : ''} onClick={() => view(on)}>
+                {/* Chosen says so with a mark too, not only with a color. */}
+                {live === on && <span aria-hidden>✓ </span>}
+                {on ? t('org.live.title') : t('org.live.chart')}
+              </button>
+            ))}
           </div>
           {coordinator && (
             <button className="btn-ghost small" onClick={() => useStore.setState({ botConfigDialog: true })}>
@@ -934,7 +940,7 @@ function OrgHome() {
           )}
         </div>
         <ChartFocus teams={teams} focus={focus} />
-        {!live ? <OrgChart cwd={orgProject} focus={focus} /> : focus ? <OrgLive team={focus} cwd={orgProject} /> : <LivePick teams={teams} />}
+        {!live ? <OrgChart cwd={orgProject} focus={focus} /> : focus ? <OrgLive team={focus} cwd={orgProject} /> : <LivePick teams={teams} tabs={teams.some((x) => WATCH.includes(teamState(x)))} />}
       </section>
       {urgent === 0 && <Inbox items={inbox} />}
       <OrgInstructions />
