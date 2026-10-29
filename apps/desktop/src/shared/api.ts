@@ -226,7 +226,7 @@ export interface AppInfo {
     /** Starts a real agent run and captures once it asks for permission or finishes. */
     run: { harnessId: string; providerId: string; model: string; permissionMode: PermissionMode; prompt: string; cwd: string | null } | null;
     /** Bots mode: open the most recent team, the new-configuration dialog, or the chart with a plan to review on it. */
-    botsView: 'team' | 'config' | 'member' | 'agent' | 'chart' | null;
+    botsView: 'team' | 'config' | 'member' | 'agent' | 'chart' | 'live' | null;
     /** Starts a real bot team (coordinator agent from `agent`) and captures once it settles. */
     team: { goal: string; harnessId: string; providerId: string; model: string; cwd: string; approvePlan: boolean; org: boolean } | null;
     /** Runs a real Arena task and captures it at plan review or once the agents finish. */

@@ -99,7 +99,7 @@ function appInfo(): AppInfo {
           automationAnswer: process.argv.includes('--automation-answer'),
           orgApprove: process.argv.includes('--org-approve'),
           settings: (['general', 'agents', 'automations', 'usage', 'backup', 'shortcuts', 'about'] as const).find((x) => x === arg('settings')) ?? null,
-          botsView: ['team', 'config', 'member', 'agent', 'chart'].includes(arg('bots-view') ?? '') ? (arg('bots-view') as 'team' | 'config' | 'member' | 'agent' | 'chart') : null,
+          botsView: ['team', 'config', 'member', 'agent', 'chart', 'live'].includes(arg('bots-view') ?? '') ? (arg('bots-view') as 'team' | 'config' | 'member' | 'agent' | 'chart' | 'live') : null,
           team: (() => {
             const [h, p, m] = (arg('team-agent') ?? '').split(',');
             const goal = arg('team');

@@ -42,6 +42,8 @@ export type SessionFilter = 'all' | 'running' | 'favorites';
 export type AgentsScope = 'project' | 'all' | 'recent';
 const SCOPES: AgentsScope[] = ['project', 'all', 'recent'];
 const PIN_ORDER_KEY = 'alchemist.pinOrder';
+/** Whether the organization chart shows the chosen assignment live. */
+export const ORG_LIVE_KEY = 'alchemist.orgLive';
 function savedScope(): AgentsScope {
   const saved = localStorage.getItem('alchemist.agentsScope') as AgentsScope | null;
   return saved && SCOPES.includes(saved) ? saved : 'project';
@@ -151,6 +153,8 @@ interface State {
   orgProject: string;
   /** The assignment showing on the organization chart (who does what in it); null = the organization as a whole. */
   orgFocusTeamId: string | null;
+  /** The chart shows the chosen assignment live (departments and messages) instead of the organization; kept between visits. */
+  orgLive: boolean;
   /** What you're writing as the next assignment: kept while you look at an agent or an assignment. */
   orgGoal: string;
   /** The organization's automations, with their latest runs. */
@@ -324,6 +328,7 @@ export const useStore = create<State>((set, get) => ({
   orgSettings: null,
   orgProject: '',
   orgFocusTeamId: null,
+  orgLive: localStorage.getItem(ORG_LIVE_KEY) === '1',
   orgGoal: '',
   automations: [],
   activeAutomationId: null,
@@ -529,7 +534,7 @@ export const useStore = create<State>((set, get) => ({
           set({ captureReady: true });
         }
       }
-      if (info.capture.botsView === 'chart') set({ orgFocusTeamId: (get().botTeams.find((x) => x.plan?.status === 'pending') ?? latest)?.id ?? null });
+      if (info.capture.botsView === 'chart' || info.capture.botsView === 'live') set({ orgFocusTeamId: (get().botTeams.find((x) => x.plan?.status === 'pending') ?? latest)?.id ?? null, orgLive: info.capture.botsView === 'live' });
       // The organization is set up on first open: wait for its coordinator before picking a profile.
       if (info.capture.botsView === 'member' || info.capture.botsView === 'agent') {
         const pick = () => get().botConfigs.find((c) => (info.capture!.botsView === 'member' ? c.kind === 'coordinator' : c.kind !== 'coordinator' && !c.proposed));

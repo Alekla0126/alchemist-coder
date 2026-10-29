@@ -157,7 +157,7 @@ export interface Exchange {
   /** Stable while the activity grows (its index isn't: the oldest lines drop off). */
   key: string;
   at: number;
-  kind: TeamEventKind;
+  kind: ExchangeKind;
   /** A bot's id, 'you' or 'autopilot'. */
   from: string;
   /** A bot's id or 'you'; null when it's for the whole organization (a lesson). */
@@ -169,7 +169,8 @@ export interface Exchange {
 }
 
 /** The kinds that are someone telling someone something; a stop isn't. */
-const EXCHANGES: TeamEventKind[] = ['created', 'message', 'finished', 'failed', 'applied', 'waiting', 'plan', 'approved', 'changes', 'done', 'learned', 'nudged'];
+export type ExchangeKind = Exclude<TeamEventKind, 'stopped'>;
+const EXCHANGES: ExchangeKind[] = ['created', 'message', 'finished', 'failed', 'applied', 'waiting', 'plan', 'approved', 'changes', 'done', 'learned', 'nudged'];
 
 /** An assignment's activity as exchanges between its agents, you and Autopilot, oldest first. */
 export function exchangesOf(team: BotTeam): Exchange[] {
@@ -182,7 +183,8 @@ export function exchangesOf(team: BotTeam): Exchange[] {
   const seen = new Map<string, number>();
   const out: Exchange[] = [];
   events.forEach((e, i) => {
-    if (!EXCHANGES.includes(e.kind)) return;
+    const kind = e.kind as ExchangeKind;
+    if (!EXCHANGES.includes(kind)) return;
     const cut = e.detail.indexOf('|');
     const [other, rest] = cut >= 0 ? [e.detail.slice(0, cut), e.detail.slice(cut + 1)] : ['', e.detail];
     const count = Number.parseInt(rest, 10);
@@ -190,8 +192,8 @@ export function exchangesOf(team: BotTeam): Exchange[] {
     const base = `${e.at}|${e.botId}|${e.kind}`;
     const nth = seen.get(base) ?? 0;
     seen.set(base, nth + 1);
-    const x: Exchange = { key: `${base}|${nth}`, at: e.at, kind: e.kind, from: e.botId, to: null, text: '', n };
-    switch (e.kind) {
+    const x: Exchange = { key: `${base}|${nth}`, at: e.at, kind, from: e.botId, to: null, text: '', n };
+    switch (kind) {
       case 'created':
       case 'message':
         x.to = other || null;

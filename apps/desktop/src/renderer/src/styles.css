@@ -2100,6 +2100,51 @@ select.mk-chip { appearance: none; padding-right: 12px; }
 :root[data-theme-type='light'] .oc-line.st-waiting { color: #8a4b00; }
 @media (prefers-reduced-motion: reduce) { .oc-card { transition: none; } .oc-card.drop-over { transform: none; } }
 
+/* ---------- organization live: an assignment's departments, their messages, what just happened ---------- */
+.lv { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 14px; }
+.lv-board { position: relative; flex: 3 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.lv-top { align-self: center; width: min(320px, 100%); }
+.lv-depts { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.lv-dept { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 8px; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--bg-card) 50%, transparent); }
+.lv-dept.lv-extras { border-style: dashed; }
+.lv-dept h4 { font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lv-crew { display: flex; flex-direction: column; gap: 6px; padding-left: 10px; border-left: 1.5px solid color-mix(in srgb, var(--fg) 22%, transparent); }
+/* Not in the assignment: quieter, but its name and state stay readable. */
+.lv-card.st-out { opacity: 1; border-style: dashed; }
+.lv-card.st-out .oc-name { color: var(--fg-2); }
+/* The state as a word on a tinted pill; the text keeps the theme's own color. */
+.lv-state { flex: none; padding: 1px 7px; border: 1px solid var(--line-2); border-radius: 999px; font-size: 10px; font-weight: 650; white-space: nowrap; color: var(--fg); background: var(--bg-input); }
+.lv-state.st-working { border-color: var(--green); background: color-mix(in srgb, var(--green) 14%, var(--bg-input)); }
+.lv-state.st-waiting { border-color: var(--amber); background: color-mix(in srgb, var(--amber) 20%, var(--bg-input)); }
+.lv-state.st-error { border-color: var(--red); background: color-mix(in srgb, var(--red) 14%, var(--bg-input)); }
+.lv-state.st-done { border-color: color-mix(in srgb, var(--green) 50%, var(--line-2)); }
+.lv-state.st-planned { border-style: dashed; border-color: var(--accent-2); }
+.lv-state.st-out, .lv-state.st-stopped { color: var(--fg-2); }
+/* A new exchange: its two cards, the line between them and its row light up for a few seconds. */
+.lv-card.lv-flash { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); animation: lv-pulse 1s ease-out 2; }
+@keyframes lv-pulse { from { box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 40%, transparent); } to { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); } }
+.lv-wires { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.lv-wires line { stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-dasharray: 6 5; animation: lv-flow 0.8s linear infinite; }
+@keyframes lv-flow { to { stroke-dashoffset: -11; } }
+.lv-side { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.lv-side h4 { font-size: 12px; }
+.lv-feed-wrap { position: relative; }
+.lv-feed { list-style: none; display: flex; flex-direction: column; gap: 2px; max-height: 440px; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; }
+.lv-msg { padding: 6px 8px; border: 1px solid transparent; border-radius: 8px; font-size: 12px; transition: background 0.4s, border-color 0.4s; }
+.lv-msg-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px; }
+.lv-msg-head b { font-weight: 650; }
+.lv-arrow { color: var(--fg-2); }
+.lv-kind { font-size: 11px; color: var(--fg-2); }
+.lv-msg.k-waiting .lv-kind, .lv-msg.k-failed .lv-kind { font-weight: 650; color: var(--fg); }
+.lv-text { display: block; margin-top: 2px; font-size: 12px; line-height: 1.4; color: var(--fg); white-space: pre-wrap; overflow-wrap: anywhere; }
+.lv-text .link { margin-left: 6px; }
+.lv-msg.lv-new { background: color-mix(in srgb, var(--accent) 12%, transparent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.lv-unread { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); padding: 3px 12px; border-radius: 999px; font-size: 11.5px; font-weight: 650; color: var(--on-accent, #1a0d05); background: var(--accent); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); }
+.lv-pick ul { list-style: none; display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+.lv-empty { padding: 8px 0; }
+/* Without motion the highlight still shows, standing still. */
+@media (prefers-reduced-motion: reduce) { .lv-card.lv-flash, .lv-wires line { animation: none; } .lv-wires line { stroke-dasharray: none; } .lv-msg { transition: none; } }
+
 /* ---------- chat by agent: tabs, who speaks, subagent cards, loading ---------- */
 .chat-agents { display: flex; align-items: center; gap: 6px; padding: 7px 18px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; flex: none; }
 .chat-agents::-webkit-scrollbar { display: none; }

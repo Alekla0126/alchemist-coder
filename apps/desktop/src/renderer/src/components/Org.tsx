@@ -3,7 +3,7 @@ import type { AgentChoice, BotConfig, BotMember, BotTeam, OrgSettings, Permissio
 import type { LiveQuestion } from '../live-turns';
 import { money, modelLabel as rawModelLabel, relativeTime } from '../format';
 import { sourceOf } from '../sources';
-import { useOpenProjects, useStore, useT, type PendingPermission } from '../store';
+import { ORG_LIVE_KEY, useOpenProjects, useStore, useT, type PendingPermission } from '../store';
 import { contextMenu, toast } from '../ui';
 import { Icon } from './Icon';
 import { baseName } from '../paths';
@@ -13,6 +13,7 @@ import { activityOf, inFolder, inProject, resultIn, type Focus, type Need } from
 import { AgentAvatar } from './AgentAvatar';
 import { addToTeam, approvePlan, askPlanChanges, changeAvatar, dismissMember, giveTask, keepMember, openAssignment, removeMember, renameMember, setLead, showOnChart } from '../actions/org';
 import { OrgChart } from './OrgChart';
+import { LivePick, OrgLive } from './OrgLive';
 import { OrgComposer } from './OrgComposer';
 import { AutomationList, AutomationView, NewAutomationDialog } from './Automations';
 import { PermissionCard } from './LiveRun';
@@ -894,6 +895,12 @@ function OrgHome() {
   ).filter((x) => !(x.kind === 'plan' && x.team.id === focus?.id));
   const agents = configs.filter((c) => c.kind !== 'coordinator' && !c.proposed && (!orgProject || inProject(c, orgProject))).length;
   const { urgent } = inboxGroups(inbox);
+  // The chart, or the chosen assignment live (its departments and their messages); only your click switches.
+  const live = useStore((s) => s.orgLive);
+  const view = (on: boolean) => {
+    useStore.setState({ orgLive: on });
+    localStorage.setItem(ORG_LIVE_KEY, on ? '1' : '0');
+  };
   return (
     <div className="org-home">
       <header className="org-home-head">
@@ -909,9 +916,17 @@ function OrgHome() {
       {urgent > 0 && <Inbox items={inbox} />}
       <section className="oc-wrap" aria-label={t('org.chart')}>
         <div className="oc-top">
-          <h3>{t('org.chart')}</h3>
-          <span className="composer-note">{t('org.chartHint')}</span>
+          <h3>{live ? t('org.live.title') : t('org.chart')}</h3>
+          <span className="composer-note">{live ? t('org.live.hint') : t('org.chartHint')}</span>
           <span className="composer-sp" />
+          <div className="lang" role="radiogroup" aria-label={t('org.live.view')}>
+            <button role="radio" aria-checked={!live} className={live ? '' : 'on'} onClick={() => view(false)}>
+              {t('org.live.chart')}
+            </button>
+            <button role="radio" aria-checked={live} className={live ? 'on' : ''} onClick={() => view(true)}>
+              {t('org.live.title')}
+            </button>
+          </div>
           {coordinator && (
             <button className="btn-ghost small" onClick={() => useStore.setState({ botConfigDialog: true })}>
               + {t('org.addAgent')}
@@ -919,7 +934,7 @@ function OrgHome() {
           )}
         </div>
         <ChartFocus teams={teams} focus={focus} />
-        <OrgChart cwd={orgProject} focus={focus} />
+        {!live ? <OrgChart cwd={orgProject} focus={focus} /> : focus ? <OrgLive team={focus} cwd={orgProject} /> : <LivePick teams={teams} />}
       </section>
       {urgent === 0 && <Inbox items={inbox} />}
       <OrgInstructions />
