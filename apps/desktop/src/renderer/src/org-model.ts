@@ -280,3 +280,11 @@ export function linksOf(team: BotTeam, exchanges: Exchange[], configs: BotConfig
   }
   return [...links.values()];
 }
+
+/** Who a card talked with in an assignment, most messages first (ties: in the order they first spoke). */
+export function partnersOf(links: Link[], card: string): Array<{ id: string; n: number }> {
+  return links
+    .filter((l) => l.a === card || l.b === card)
+    .map((l) => ({ id: l.a === card ? l.b : l.a, n: l.n }))
+    .sort((x, y) => y.n - x.n);
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BotConfig, BotMember, BotTeam, TeamEvent } from '../src/shared/api';
-import { exchangesOf, linksOf, newExchanges } from '../src/renderer/src/org-model';
+import { exchangesOf, linksOf, newExchanges, partnersOf } from '../src/renderer/src/org-model';
 
 const agent = { harnessId: 'claude-code', providerId: 'anthropic', model: 'sonnet' };
 const bot = (id: string, extra: Partial<BotMember> = {}): BotMember => ({ id, name: id, configId: null, role: '', agent, permissionMode: 'acceptEdits', canSpawn: false, parentId: 'b1', depth: 1, runId: null, status: 'working', task: `task of ${id}`, lastReply: '', costUsd: null, createdAt: 1000, ...extra });
@@ -214,5 +214,22 @@ describe('who wrote to whom', () => {
       { a: 'coder', b: 'coord', n: 2 },
       { a: 'bot:b3', b: 'coder', n: 1 },
     ]);
+  });
+
+  it("lists each card's partners, most messages first", () => {
+    const links = [
+      { a: 'coder', b: 'coord', n: 2 },
+      { a: 'bot:b3', b: 'coder', n: 5 },
+      { a: 'coord', b: 'reviewer', n: 1 },
+    ];
+    expect(partnersOf(links, 'coder')).toEqual([
+      { id: 'bot:b3', n: 5 },
+      { id: 'coord', n: 2 },
+    ]);
+    expect(partnersOf(links, 'coord')).toEqual([
+      { id: 'coder', n: 2 },
+      { id: 'reviewer', n: 1 },
+    ]);
+    expect(partnersOf(links, 'ui')).toEqual([]);
   });
 });
