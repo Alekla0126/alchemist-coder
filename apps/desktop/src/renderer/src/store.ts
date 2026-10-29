@@ -535,6 +535,14 @@ export const useStore = create<State>((set, get) => ({
         }
       }
       if (info.capture.botsView === 'chart' || info.capture.botsView === 'live') set({ orgFocusTeamId: (get().botTeams.find((x) => x.plan?.status === 'pending') ?? latest)?.id ?? null, orgLive: info.capture.botsView === 'live' });
+      // --bots-view=live (screenshots): a message comes in a moment later, so the capture shows it lighting up.
+      if (info.capture.botsView === 'live')
+        setTimeout(() => {
+          const team = get().botTeams.find((x) => x.id === get().orgFocusTeamId);
+          const [from, to] = team?.bots ?? [];
+          if (team && from && to) get().upsertTeam({ ...team, activity: [...(team.activity ?? []), { at: Date.now(), botId: from.id, kind: 'message', detail: `${to.id}|${to.task}` }] });
+          set({ captureReady: true });
+        }, 1200);
       // The organization is set up on first open: wait for its coordinator before picking a profile.
       if (info.capture.botsView === 'member' || info.capture.botsView === 'agent') {
         const pick = () => get().botConfigs.find((c) => (info.capture!.botsView === 'member' ? c.kind === 'coordinator' : c.kind !== 'coordinator' && !c.proposed));

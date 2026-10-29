@@ -145,7 +145,7 @@ export function App() {
 
   useEffect(() => {
     if (!info?.capture || !ready || !indexReady) return;
-    if ((info.capture.select || info.capture.compose || info.capture.project || info.capture.openFile || info.capture.settings || info.capture.arena || info.capture.themeSearch || info.capture.usage || info.capture.team || info.capture.orgGoal || info.capture.automationRun || info.capture.automationPrompt || info.capture.mode === 'marketing' || info.capture.mode === 'board' || (info.capture.browser && info.capture.browser !== '1') || info.capture.drag) && !captureReady) return;
+    if ((info.capture.select || info.capture.compose || info.capture.project || info.capture.openFile || info.capture.settings || info.capture.arena || info.capture.themeSearch || info.capture.usage || info.capture.team || info.capture.orgGoal || info.capture.automationRun || info.capture.automationPrompt || info.capture.mode === 'marketing' || info.capture.mode === 'board' || info.capture.botsView === 'live' || (info.capture.browser && info.capture.browser !== '1') || info.capture.drag) && !captureReady) return;
     window.alchemist.rendered();
   }, [info, ready, indexReady, captureReady]);
 
