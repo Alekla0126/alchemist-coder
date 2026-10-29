@@ -2109,6 +2109,9 @@ select.mk-chip { appearance: none; padding-right: 12px; }
 .lv-dept.lv-extras { border-style: dashed; }
 .lv-dept h4 { font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lv-crew { display: flex; flex-direction: column; gap: 6px; padding-left: 10px; border-left: 1.5px solid color-mix(in srgb, var(--fg) 22%, transparent); }
+/* A narrow card puts its state under the name rather than cutting the name. */
+.lv-card .oc-head { flex-wrap: wrap; }
+.lv-card .oc-name { flex: 1 1 90px; }
 /* Not in the assignment: quieter, but its name and state stay readable. */
 .lv-card.st-out { opacity: 1; border-style: dashed; }
 .lv-card.st-out .oc-name { color: var(--fg-2); }
