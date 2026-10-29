@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { BotMember, BotTeam, TeamEvent } from '../src/shared/api';
-import { exchangesOf } from '../src/renderer/src/org-model';
+import type { BotConfig, BotMember, BotTeam, TeamEvent } from '../src/shared/api';
+import { exchangesOf, linksOf, newExchanges } from '../src/renderer/src/org-model';
 
 const agent = { harnessId: 'claude-code', providerId: 'anthropic', model: 'sonnet' };
 const bot = (id: string, extra: Partial<BotMember> = {}): BotMember => ({ id, name: id, configId: null, role: '', agent, permissionMode: 'acceptEdits', canSpawn: false, parentId: 'b1', depth: 1, runId: null, status: 'working', task: `task of ${id}`, lastReply: '', costUsd: null, createdAt: 1000, ...extra });
@@ -135,6 +135,84 @@ describe('exchanges of an assignment', () => {
       ['applied', 'b1', 'b2', '', 4],
       ['learned', 'b1', null, 'Run the tests first', null],
       ['done', 'b1', 'you', 'CSV export shipped', null],
+    ]);
+  });
+});
+
+describe('free text in the activity', () => {
+  it('keeps a "|" in questions, changes and lessons: only created, message and applied name the other one', () => {
+    const t = team({
+      bots: [lead(), bot('b2')],
+      activity: [
+        ev(1, 'b2', 'waiting', 'Bash: ls | grep foo'),
+        ev(2, 'you', 'changes', 'Fewer agents | cheaper models'),
+        ev(3, 'b1', 'learned', 'Pipe | carefully'),
+        ev(4, 'b1', 'message', 'b2|a | b'),
+      ],
+    });
+    expect(exchangesOf(t).map((x) => [x.kind, x.to, x.text])).toEqual([
+      ['waiting', 'you', 'Bash: ls | grep foo'],
+      ['changes', 'b1', 'Fewer agents | cheaper models'],
+      ['learned', null, 'Pipe | carefully'],
+      ['message', 'b2', 'a | b'],
+    ]);
+  });
+});
+
+describe('keys', () => {
+  it('keep two lines of the same millisecond, bot and kind when the cap drops the first of them', () => {
+    const filler = Array.from({ length: 198 }, (_, i) => ev(i, 'b1', 'message', `b2|filler ${i}`));
+    const activity = [ev(500, 'b2', 'waiting', 'first?'), ev(500, 'b2', 'waiting', 'second?'), ...filler];
+    const before = exchangesOf(team({ bots: [lead(), bot('b2')], activity }));
+    const after = exchangesOf(team({ bots: [lead(), bot('b2')], activity: [...activity.slice(1), ev(900, 'b1', 'message', 'b2|new')] }));
+    expect(after[0]!.key).toBe(before[1]!.key);
+    // Only the line that came in is new.
+    expect(newExchanges(new Set(before.map((x) => x.key)), after)).toEqual([after.at(-1)!.key]);
+  });
+
+  it('tell apart lines identical in every way, and keep them as the oldest drop off', () => {
+    const same = [ev(5, 'b2', 'finished'), ev(5, 'b2', 'finished'), ev(6, 'b1', 'message', 'b2|x')];
+    const before = exchangesOf(team({ bots: [lead(), bot('b2')], activity: same }));
+    expect(new Set(before.map((x) => x.key)).size).toBe(3);
+    const after = exchangesOf(team({ bots: [lead(), bot('b2')], activity: same.slice(1) }));
+    expect(after.map((x) => x.key)).toEqual(before.slice(1).map((x) => x.key));
+  });
+});
+
+describe('what just came in', () => {
+  const t = team({ bots: [lead(), bot('b2')], activity: [ev(1, 'b1', 'created', 'b2|go'), ev(2, 'b2', 'finished')] });
+  const xs = exchangesOf(t);
+
+  it('is nothing when an assignment just opened, or nothing changed', () => {
+    expect(newExchanges(null, xs)).toEqual([]);
+    expect(newExchanges(new Set(xs.map((x) => x.key)), xs)).toEqual([]);
+  });
+
+  it('is each exchange not seen before, in order', () => {
+    const more = exchangesOf({ ...t, activity: [...t.activity!, ev(3, 'you', 'message', 'b2|thanks'), ev(4, 'b2', 'finished')] });
+    expect(newExchanges(new Set(xs.map((x) => x.key)), more)).toEqual(more.slice(2).map((x) => x.key));
+  });
+});
+
+describe('who wrote to whom', () => {
+  const config = (id: string, extra: Partial<BotConfig> = {}): BotConfig => ({ id, name: id, role: '', agent, permissionMode: 'acceptEdits', canSpawn: false, kind: 'member', ...extra });
+  const configs = [config('coord', { kind: 'coordinator' }), config('coder')];
+
+  it('counts the messages between two cards either way, and leaves out you and lessons', () => {
+    const t = team({
+      bots: [lead({ configId: 'coord' }), bot('b2', { configId: 'coder' }), bot('b3', { parentId: 'b2', depth: 2 })],
+      activity: [
+        ev(1, 'b1', 'created', 'b2|go'),
+        ev(2, 'b2', 'finished'),
+        ev(3, 'b2', 'created', 'b3|test'),
+        ev(4, 'you', 'message', 'b2|hi'),
+        ev(5, 'b1', 'learned', 'x'),
+        ev(6, 'b2', 'waiting', 'ok?'),
+      ],
+    });
+    expect(linksOf(t, exchangesOf(t), configs)).toEqual([
+      { a: 'coder', b: 'coord', n: 2 },
+      { a: 'bot:b3', b: 'coder', n: 1 },
     ]);
   });
 });

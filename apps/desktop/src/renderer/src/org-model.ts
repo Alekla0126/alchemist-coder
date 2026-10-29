@@ -180,19 +180,25 @@ export function exchangesOf(team: BotTeam): Exchange[] {
   // A bot reports to the one that created it; the coordinator reports to you.
   const parentOf = (id: string) => botOf(id)?.parentId ?? 'you';
   const lastOf = (i: number, kinds: TeamEventKind[], botId: string) => !events.slice(i + 1).some((x) => kinds.includes(x.kind) && x.botId === botId);
-  const seen = new Map<string, number>();
+  // Lines the same in every way are told apart by how many like them come after: the oldest ones
+  // dropping off (past 200) then change no key.
+  const after = new Map<string, number>();
+  const keys = events.map((e) => `${e.at}|${e.botId}|${e.kind}|${e.detail}`);
+  const nth = new Array<number>(events.length);
+  for (let i = events.length - 1; i >= 0; i--) {
+    nth[i] = after.get(keys[i]!) ?? 0;
+    after.set(keys[i]!, nth[i]! + 1);
+  }
   const out: Exchange[] = [];
   events.forEach((e, i) => {
     const kind = e.kind as ExchangeKind;
     if (!EXCHANGES.includes(kind)) return;
-    const cut = e.detail.indexOf('|');
+    // Only these say who the other one is (`<botId>|<text>`); the rest is free text that may hold a '|'.
+    const cut = ['created', 'message', 'applied'].includes(kind) ? e.detail.indexOf('|') : -1;
     const [other, rest] = cut >= 0 ? [e.detail.slice(0, cut), e.detail.slice(cut + 1)] : ['', e.detail];
     const count = Number.parseInt(rest, 10);
-    const n = ['plan', 'approved', 'applied'].includes(e.kind) && Number.isFinite(count) ? count : null;
-    const base = `${e.at}|${e.botId}|${e.kind}`;
-    const nth = seen.get(base) ?? 0;
-    seen.set(base, nth + 1);
-    const x: Exchange = { key: `${base}|${nth}`, at: e.at, kind, from: e.botId, to: null, text: '', n };
+    const n = ['plan', 'approved', 'applied'].includes(kind) && Number.isFinite(count) ? count : null;
+    const x: Exchange = { key: nth[i] ? `${keys[i]}#${nth[i]}` : keys[i]!, at: e.at, kind, from: e.botId, to: null, text: '', n };
     switch (kind) {
       case 'created':
       case 'message':
@@ -244,4 +250,33 @@ export function cardOf(team: BotTeam, id: string, configs: BotConfig[]): string 
   if (bot.configId && configs.some((c) => c.id === bot.configId)) return bot.configId;
   if (bot.depth === 0) return configs.find((c) => c.kind === 'coordinator')?.id ?? null;
   return `bot:${bot.id}`;
+}
+
+/** The exchanges in `next` that weren't there before; none the first time (an assignment just opened). */
+export function newExchanges(prev: ReadonlySet<string> | null, next: Exchange[]): string[] {
+  if (!prev) return [];
+  return next.filter((x) => !prev.has(x.key)).map((x) => x.key);
+}
+
+/** Two cards that wrote to each other in an assignment, and how many times (either way). */
+export interface Link {
+  a: string;
+  b: string;
+  n: number;
+}
+
+/** Who wrote to whom in an assignment, card to card: you, Autopilot and lessons to everyone have no card. */
+export function linksOf(team: BotTeam, exchanges: Exchange[], configs: BotConfig[]): Link[] {
+  const links = new Map<string, Link>();
+  for (const x of exchanges) {
+    const a = cardOf(team, x.from, configs);
+    const b = x.to ? cardOf(team, x.to, configs) : null;
+    if (!a || !b || a === b) continue;
+    const [p, q] = a < b ? [a, b] : [b, a];
+    const key = `${p}>${q}`;
+    const link = links.get(key) ?? { a: p, b: q, n: 0 };
+    link.n++;
+    links.set(key, link);
+  }
+  return [...links.values()];
 }
