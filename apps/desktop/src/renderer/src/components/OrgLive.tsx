@@ -3,7 +3,7 @@ import type { BotConfig, BotTeam, Locale } from '@shared/api';
 import { openAssignment, showOnChart } from '../actions/org';
 import { AgentAvatar } from './AgentAvatar';
 import { clockTime, relativeTime } from '../format';
-import { cardOf, chartOf, exchangesOf, extrasIn, linksOf, newExchanges, teamState, workIn, type CardWork, type Exchange, type ExchangeKind } from '../org-model';
+import { cardOf, chartOf, exchangesOf, extrasIn, linksOf, newExchanges, partnersOf, teamState, workIn, type CardWork, type Exchange, type ExchangeKind } from '../org-model';
 import { useStore, useT } from '../store';
 import { doingText } from './Bots';
 
@@ -15,6 +15,8 @@ const FLASH_MS = 4000;
 const CLIP = 160;
 /** How much of a failed agent's error its card shows. */
 const ERROR_CLIP = 120;
+/** How many partners a card names; the rest are counted. */
+const PARTNERS = 3;
 /** How close to the bottom the feed counts as "at the end" (it then follows new messages). */
 const NEAR_END = 24;
 
@@ -27,8 +29,6 @@ interface Wire {
   y1: number;
   x2: number;
   y2: number;
-  /** Messages between them in the assignment (the faint lines say it). */
-  n: number;
 }
 
 /** What a highlighted card is doing in the exchange, in a word: its side of it. */
@@ -37,8 +37,8 @@ const SAYS: Partial<Record<ExchangeKind, FlashWord>> = { finished: 'replies', fa
 
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max).trimEnd()}…` : text);
 
-/** One agent on the live board: its state in words, its task, and what it's doing (or why it failed). */
-function LiveCard({ id, name, avatar, work, team, coordinator, flash, onHover }: { id: string; name: string; avatar?: string | null; work: CardWork | null; team: BotTeam; coordinator?: boolean; flash: FlashWord | null; onHover: (id: string | null) => void }) {
+/** One agent on the live board: its state in words, its task, what it's doing (or why it failed) and who it talked with. */
+function LiveCard({ id, name, avatar, work, team, coordinator, flash, talk, onHover }: { id: string; name: string; avatar?: string | null; work: CardWork | null; team: BotTeam; coordinator?: boolean; flash: FlashWord | null; talk: string; onHover: (id: string | null) => void }) {
   const t = useT();
   const state: LiveState = work ? work.state : 'out';
   const status = t(`org.live.st.${state}`);
@@ -50,7 +50,7 @@ function LiveCard({ id, name, avatar, work, team, coordinator, flash, onHover }:
       role="button"
       tabIndex={0}
       data-live={id}
-      aria-label={[name, status, doing, error, work?.task ?? ''].filter(Boolean).join(' · ')}
+      aria-label={[name, status, doing, error, work?.task ?? '', talk ? `${t('org.live.talkedWith')} ${talk}` : ''].filter(Boolean).join(' · ')}
       className={`oc-card lv-card st-${state} ${coordinator ? 'oc-lead' : ''} ${flash ? 'lv-flash' : ''}`}
       onClick={open}
       onKeyDown={(e) => {
@@ -72,6 +72,12 @@ function LiveCard({ id, name, avatar, work, team, coordinator, flash, onHover }:
       {flash && <span className="lv-flash-word">{t(`org.live.flash.${flash}`)}</span>}
       {work && <p className="oc-task">{work.task}</p>}
       {error ? <small className="oc-line st-error">{error}</small> : doing && <small className="oc-line st-working">{doing}</small>}
+      {talk && (
+        <small className="lv-talk" title={`${t('org.live.talkedWith')} ${talk}`}>
+          <span aria-hidden>↔ </span>
+          {talk}
+        </small>
+      )}
     </div>
   );
 }
@@ -110,6 +116,7 @@ const FeedRow = memo(
           <time className="lv-time" dateTime={new Date(x.at).toISOString()}>
             {clockTime(x.at, locale)}
           </time>
+          {fresh && <span className="lv-new-word">{t('org.live.new')}</span>}
           <b>{from}</b>
           {to !== null && x.to !== x.from && (
             <>
@@ -189,8 +196,8 @@ function LiveFeed({ team, exchanges, fresh, marked }: { team: BotTeam; exchanges
   );
 }
 
-/** Measures the lines between cards on the board: the faint ones that stay, and the ones lighting up. */
-function measure(el: HTMLElement, pairs: Array<{ key: string; a: string; b: string; n: number }>): Wire[] {
+/** Measures the lines between the cards of the exchanges lighting up. */
+function measure(el: HTMLElement, pairs: Array<{ key: string; a: string; b: string }>): Wire[] {
   const base = el.getBoundingClientRect();
   const box = (id: string) => {
     const card = el.querySelector<HTMLElement>(`[data-live="${CSS.escape(id)}"]`);
@@ -210,16 +217,16 @@ function measure(el: HTMLElement, pairs: Array<{ key: string; a: string; b: stri
     const from = edge(a, dx, dy);
     const to = 1 - edge(b, dx, dy);
     if (from >= to) continue;
-    out.push({ key: p.key, x1: a.x + dx * from, y1: a.y + dy * from, x2: a.x + dx * to, y2: a.y + dy * to, n: p.n });
+    out.push({ key: p.key, x1: a.x + dx * from, y1: a.y + dy * from, x2: a.x + dx * to, y2: a.y + dy * to });
   }
   return out;
 }
 
 /**
  * An assignment live: the coordinator on top, each agent with a team heading its department, the
- * rest side by side, and the exchanges between them as they come in. Faint lines say who wrote to
- * whom; a new exchange lights up its two cards (with a word for their side of it), the line between
- * them and its row for a few seconds. Nothing moves or scrolls the page on its own.
+ * rest side by side, and the exchanges between them as they come in. Each card names who it talked
+ * with and how often; a new exchange lights up its two cards (with a word for their side of it), the
+ * line between them and its row for a few seconds. Nothing moves or scrolls the page on its own.
  */
 export function OrgLive({ team, cwd }: { team: BotTeam; cwd: string }) {
   const t = useT();
@@ -253,19 +260,19 @@ export function OrgLive({ team, cwd }: { team: BotTeam; cwd: string }) {
   }, [exchanges, team.id]);
   // Each lit card's side of its latest new exchange.
   const flashes = new Map<string, FlashWord>();
-  const flashPairs: Array<{ key: string; a: string; b: string; n: number }> = [];
+  const flashPairs: Array<{ key: string; a: string; b: string }> = [];
   for (const x of exchanges) {
     if (!fresh.has(x.key)) continue;
     const [a, b] = ends.get(x.key) ?? [null, null];
     if (a) flashes.set(a, SAYS[x.kind] ?? 'writes');
     if (b && b !== a) flashes.set(b, 'gets');
-    if (a && b && a !== b) flashPairs.push({ key: x.key, a, b, n: 0 });
+    if (a && b && a !== b) flashPairs.push({ key: x.key, a, b });
   }
   // The card under the pointer (or focus) marks its rows in the feed.
   const [hover, setHover] = useState<string | null>(null);
   const marked = useMemo(() => new Set(hover ? exchanges.filter((x) => ends.get(x.key)?.includes(hover)).map((x) => x.key) : []), [hover, exchanges, ends]);
   const board = useRef<HTMLDivElement>(null);
-  const [wires, setWires] = useState<{ links: Wire[]; flashes: Wire[] }>({ links: [], flashes: [] });
+  const [wires, setWires] = useState<Wire[]>([]);
   const [size, setSize] = useState(0);
   useEffect(() => {
     const el = board.current;
@@ -274,14 +281,21 @@ export function OrgLive({ team, cwd }: { team: BotTeam; cwd: string }) {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const linkKey = links.map((l) => `${l.a}>${l.b}:${l.n}`).join(',');
   const flashKey = flashPairs.map((p) => p.key).join(',');
   useLayoutEffect(() => {
     const el = board.current;
     if (!el) return;
-    setWires({ links: measure(el, links.map((l) => ({ key: `${l.a}>${l.b}`, ...l }))), flashes: measure(el, flashPairs) });
-  }, [linkKey, flashKey, size]);
-  const card = (m: BotConfig, lead = false) => <LiveCard key={m.id} id={m.id} name={m.name} avatar={m.avatar} work={workIn(team, m)} team={team} coordinator={lead} flash={flashes.get(m.id) ?? null} onHover={setHover} />;
+    setWires(measure(el, flashPairs));
+  }, [flashKey, size]);
+  // Who each card talked with, in words ("Coordinator · 6, Tester · 1"): a line between two cards can
+  // seem to reach a third one, a name can't.
+  const cardName = (id: string) => configs.find((c) => c.id === id)?.name ?? extras.find((x) => x.key === id)?.name ?? t('org.live.unknown');
+  const talkOf = (id: string) => {
+    const partners = partnersOf(links, id);
+    const named = partners.slice(0, PARTNERS).map((p) => `${cardName(p.id)} · ${p.n}`).join(', ');
+    return partners.length > PARTNERS ? `${named} ${t('org.moreN', { n: partners.length - PARTNERS })}` : named;
+  };
+  const card = (m: BotConfig, lead = false) => <LiveCard key={m.id} id={m.id} name={m.name} avatar={m.avatar} work={workIn(team, m)} team={team} coordinator={lead} flash={flashes.get(m.id) ?? null} talk={talkOf(m.id)} onHover={setHover} />;
   if (!coordinator) return <p className="empty">{t('org.setup')}</p>;
   // An agent without a team isn't a department of its own: those stand side by side.
   const depts = leads.filter((l) => l.team.length > 0);
@@ -289,17 +303,9 @@ export function OrgLive({ team, cwd }: { team: BotTeam; cwd: string }) {
   return (
     <div className="lv">
       <div className="lv-board" ref={board} role="group" aria-label={t('org.live.departments')}>
-        {(wires.links.length > 0 || wires.flashes.length > 0) && (
+        {wires.length > 0 && (
           <svg className="lv-wires" aria-hidden>
-            {wires.links.map((w) => (
-              <g key={w.key} className="lv-link">
-                <line x1={w.x1} y1={w.y1} x2={w.x2} y2={w.y2} />
-                <text x={(w.x1 + w.x2) / 2} y={(w.y1 + w.y2) / 2} dy="0.35em" textAnchor="middle">
-                  {w.n}
-                </text>
-              </g>
-            ))}
-            {wires.flashes.map((w) => (
+            {wires.map((w) => (
               <line key={w.key} className="lv-spark" x1={w.x1} y1={w.y1} x2={w.x2} y2={w.y2} />
             ))}
           </svg>
@@ -322,7 +328,7 @@ export function OrgLive({ team, cwd }: { team: BotTeam; cwd: string }) {
             <h4>{t('org.live.extras')}</h4>
             <div className="lv-solo">
               {extras.map((x) => (
-                <LiveCard key={x.key} id={x.key} name={x.name} work={x.work} team={team} flash={flashes.get(x.key) ?? null} onHover={setHover} />
+                <LiveCard key={x.key} id={x.key} name={x.name} work={x.work} team={team} flash={flashes.get(x.key) ?? null} talk={talkOf(x.key)} onHover={setHover} />
               ))}
             </div>
           </section>

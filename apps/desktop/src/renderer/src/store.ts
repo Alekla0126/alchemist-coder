@@ -540,7 +540,7 @@ export const useStore = create<State>((set, get) => ({
         setTimeout(() => {
           const team = get().botTeams.find((x) => x.id === get().orgFocusTeamId);
           const [from, to] = team?.bots ?? [];
-          if (team && from && to) get().upsertTeam({ ...team, activity: [...(team.activity ?? []), { at: Date.now(), botId: from.id, kind: 'message', detail: `${to.id}|${to.task}` }] });
+          if (team && from && to) get().upsertTeam({ ...team, activity: [...(team.activity ?? []), { at: Date.now(), botId: from.id, kind: 'message', detail: `${to.id}|${translate(get().locale, 'org.live.captureMessage')}` }] });
           set({ captureReady: true });
         }, 1200);
       // The organization is set up on first open: wait for its coordinator before picking a profile.
