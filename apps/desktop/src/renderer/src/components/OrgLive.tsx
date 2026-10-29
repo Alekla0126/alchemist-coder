@@ -31,6 +31,12 @@ interface Wire {
   y2: number;
 }
 
+/** Who a card talked with: the first few by name and count, and how many more. */
+interface Talk {
+  named: string;
+  more: string;
+}
+
 /** What a highlighted card is doing in the exchange, in a word: its side of it. */
 type FlashWord = 'writes' | 'replies' | 'asks' | 'gets';
 const SAYS: Partial<Record<ExchangeKind, FlashWord>> = { finished: 'replies', failed: 'replies', done: 'replies', plan: 'replies', waiting: 'asks' };
@@ -38,19 +44,20 @@ const SAYS: Partial<Record<ExchangeKind, FlashWord>> = { finished: 'replies', fa
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max).trimEnd()}…` : text);
 
 /** One agent on the live board: its state in words, its task, what it's doing (or why it failed) and who it talked with. */
-function LiveCard({ id, name, avatar, work, team, coordinator, flash, talk, onHover }: { id: string; name: string; avatar?: string | null; work: CardWork | null; team: BotTeam; coordinator?: boolean; flash: FlashWord | null; talk: string; onHover: (id: string | null) => void }) {
+function LiveCard({ id, name, avatar, work, team, coordinator, flash, talk, onHover }: { id: string; name: string; avatar?: string | null; work: CardWork | null; team: BotTeam; coordinator?: boolean; flash: FlashWord | null; talk: Talk; onHover: (id: string | null) => void }) {
   const t = useT();
   const state: LiveState = work ? work.state : 'out';
   const status = t(`org.live.st.${state}`);
   const doing = work?.doing ? doingText(work.doing, t).text : '';
   const error = state === 'error' ? clip((team.bots.find((b) => b.id === work?.botId)?.error ?? '').replace(/\s+/g, ' ').trim(), ERROR_CLIP) : '';
   const open = () => openAssignment(team, work?.botId ?? null);
+  const talked = [talk.named, talk.more].filter(Boolean).join(' ');
   return (
     <div
       role="button"
       tabIndex={0}
       data-live={id}
-      aria-label={[name, status, doing, error, work?.task ?? '', talk ? `${t('org.live.talkedWith')} ${talk}` : ''].filter(Boolean).join(' · ')}
+      aria-label={[name, status, doing, error, work?.task ?? '', talked ? `${t('org.live.talkedWith')} ${talked}` : ''].filter(Boolean).join(' · ')}
       className={`oc-card lv-card st-${state} ${coordinator ? 'oc-lead' : ''} ${flash ? 'lv-flash' : ''}`}
       onClick={open}
       onKeyDown={(e) => {
@@ -72,10 +79,12 @@ function LiveCard({ id, name, avatar, work, team, coordinator, flash, talk, onHo
       {flash && <span className="lv-flash-word">{t(`org.live.flash.${flash}`)}</span>}
       {work && <p className="oc-task">{work.task}</p>}
       {error ? <small className="oc-line st-error">{error}</small> : doing && <small className="oc-line st-working">{doing}</small>}
-      {talk && (
-        <small className="lv-talk" title={`${t('org.live.talkedWith')} ${talk}`}>
+      {talked && (
+        <small className="lv-talk" title={`${t('org.live.talkedWith')} ${talked}`}>
           <span aria-hidden>↔ </span>
-          {talk}
+          {talk.named}
+          {/* "+2 more" stays on one line. */}
+          {talk.more && <span className="lv-talk-more"> {talk.more}</span>}
         </small>
       )}
     </div>
@@ -293,7 +302,7 @@ export function OrgLive({ team, cwd }: { team: BotTeam; cwd: string }) {
   const talkOf = (id: string) => {
     const partners = partnersOf(links, id);
     const named = partners.slice(0, PARTNERS).map((p) => `${cardName(p.id)} · ${p.n}`).join(', ');
-    return partners.length > PARTNERS ? `${named} ${t('org.moreN', { n: partners.length - PARTNERS })}` : named;
+    return { named, more: partners.length > PARTNERS ? t('org.moreN', { n: partners.length - PARTNERS }) : '' };
   };
   const card = (m: BotConfig, lead = false) => <LiveCard key={m.id} id={m.id} name={m.name} avatar={m.avatar} work={workIn(team, m)} team={team} coordinator={lead} flash={flashes.get(m.id) ?? null} talk={talkOf(m.id)} onHover={setHover} />;
   if (!coordinator) return <p className="empty">{t('org.setup')}</p>;

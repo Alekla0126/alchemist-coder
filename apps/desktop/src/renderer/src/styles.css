@@ -2165,6 +2165,9 @@ select.mk-chip { appearance: none; padding-right: 12px; }
 .lv-new-word { padding: 0 5px; border-radius: 4px; font-size: 10.5px; font-weight: 650; color: var(--fg); box-shadow: inset 0 0 0 1px var(--accent); }
 /* Who a card talked with, and how often: the names say it, not a line. */
 .lv-talk { font-size: 10.5px; color: var(--fg-2); overflow-wrap: anywhere; }
+.lv-talk-more { white-space: nowrap; }
+/* On a lit card's tinted background the muted gray drops below 4.5:1 (3.86 in light): full text color. */
+.lv-card.lv-flash .lv-talk { color: var(--fg); }
 .lv-unread { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); padding: 3px 12px; border-radius: 999px; font-size: 11.5px; font-weight: 650; color: var(--on-accent, #1a0d05); background: var(--accent); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); }
 .lv-pick ul { list-style: none; display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
 .lv-empty { padding: 8px 0; }
