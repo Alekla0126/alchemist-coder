@@ -1,4 +1,4 @@
-import type { BotConfig, BotMember, BotStatus, BotTeam } from '@shared/api';
+import type { BotConfig, BotMember, BotStatus, BotTeam, TeamEventKind } from '@shared/api';
 import { isInside } from './paths';
 
 export const ACTIVE: BotStatus[] = ['starting', 'working', 'waiting'];
@@ -150,4 +150,96 @@ export function extrasIn(team: BotTeam, configs: BotConfig[]): Array<{ key: stri
     extras.push({ key: `plan:${i}`, name: p.name, role: p.role, work: { state: 'planned', task: p.task, doing: null, botId: null, more: 0, costUsd: null } });
   });
   return extras;
+}
+
+/** One exchange of an assignment, as the live view shows it: who to whom, about what, and when. */
+export interface Exchange {
+  /** Stable while the activity grows (its index isn't: the oldest lines drop off). */
+  key: string;
+  at: number;
+  kind: TeamEventKind;
+  /** A bot's id, 'you' or 'autopilot'. */
+  from: string;
+  /** A bot's id or 'you'; null when it's for the whole organization (a lesson). */
+  to: string | null;
+  /** What was said: a task, a message, a reply, a question, a lesson. */
+  text: string;
+  /** A count, for those that carry one (agents in a plan, files applied). */
+  n: number | null;
+}
+
+/** The kinds that are someone telling someone something; a stop isn't. */
+const EXCHANGES: TeamEventKind[] = ['created', 'message', 'finished', 'failed', 'applied', 'waiting', 'plan', 'approved', 'changes', 'done', 'learned', 'nudged'];
+
+/** An assignment's activity as exchanges between its agents, you and Autopilot, oldest first. */
+export function exchangesOf(team: BotTeam): Exchange[] {
+  const events = team.activity ?? [];
+  const coordinator = team.bots[0]?.id ?? 'you';
+  const botOf = (id: string) => team.bots.find((b) => b.id === id);
+  // A bot reports to the one that created it; the coordinator reports to you.
+  const parentOf = (id: string) => botOf(id)?.parentId ?? 'you';
+  const lastOf = (i: number, kinds: TeamEventKind[], botId: string) => !events.slice(i + 1).some((x) => kinds.includes(x.kind) && x.botId === botId);
+  const seen = new Map<string, number>();
+  const out: Exchange[] = [];
+  events.forEach((e, i) => {
+    if (!EXCHANGES.includes(e.kind)) return;
+    const cut = e.detail.indexOf('|');
+    const [other, rest] = cut >= 0 ? [e.detail.slice(0, cut), e.detail.slice(cut + 1)] : ['', e.detail];
+    const count = Number.parseInt(rest, 10);
+    const n = ['plan', 'approved', 'applied'].includes(e.kind) && Number.isFinite(count) ? count : null;
+    const base = `${e.at}|${e.botId}|${e.kind}`;
+    const nth = seen.get(base) ?? 0;
+    seen.set(base, nth + 1);
+    const x: Exchange = { key: `${base}|${nth}`, at: e.at, kind: e.kind, from: e.botId, to: null, text: '', n };
+    switch (e.kind) {
+      case 'created':
+      case 'message':
+        x.to = other || null;
+        x.text = rest;
+        break;
+      case 'applied':
+        x.to = other || null;
+        break;
+      case 'finished':
+      case 'failed': {
+        x.to = parentOf(e.botId);
+        // Its reply is kept for its latest turn only.
+        const bot = botOf(e.botId);
+        if (bot && lastOf(i, ['finished', 'failed'], e.botId)) x.text = (e.kind === 'failed' && bot.error) || bot.lastReply;
+        break;
+      }
+      case 'waiting':
+        x.to = 'you';
+        x.text = rest;
+        break;
+      case 'plan':
+        x.to = 'you';
+        if (lastOf(i, ['plan'], e.botId)) x.text = team.plan?.summary ?? '';
+        break;
+      case 'done':
+        x.to = 'you';
+        if (lastOf(i, ['done'], e.botId)) x.text = team.finished?.summary ?? '';
+        break;
+      case 'approved':
+      case 'changes':
+      case 'nudged':
+        x.to = coordinator;
+        x.text = e.kind === 'changes' ? rest : '';
+        break;
+      case 'learned':
+        x.text = rest;
+        break;
+    }
+    out.push(x);
+  });
+  return out;
+}
+
+/** The card a bot shows on in the chart: its organization agent's, or its own (extrasIn's key) when defined on the spot. */
+export function cardOf(team: BotTeam, id: string, configs: BotConfig[]): string | null {
+  const bot = team.bots.find((b) => b.id === id);
+  if (!bot) return null;
+  if (bot.configId && configs.some((c) => c.id === bot.configId)) return bot.configId;
+  if (bot.depth === 0) return configs.find((c) => c.kind === 'coordinator')?.id ?? null;
+  return `bot:${bot.id}`;
 }

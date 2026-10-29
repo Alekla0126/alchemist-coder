@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ProjectSummary, SessionSummary } from '@alchemist-coder/core';
 import type { BotConfig, BotMember, BotTeam } from '../src/shared/api';
 import { activityTotals, buildActivity, doingOf, type ActivityRun } from '../src/renderer/src/activity-model';
-import { canMove, chartOf, extrasIn, workIn } from '../src/renderer/src/org-model';
+import { canMove, cardOf, chartOf, exchangesOf, extrasIn, workIn } from '../src/renderer/src/org-model';
 
 const agent = { harnessId: 'claude-code', providerId: 'anthropic', model: 'sonnet' };
 const config = (id: string, extra: Partial<BotConfig> = {}): BotConfig => ({ id, name: id, role: '', agent, permissionMode: 'acceptEdits', canSpawn: false, kind: 'member', ...extra });
@@ -133,5 +133,72 @@ describe('activity bar', () => {
 
   it('is empty when nobody works', () => {
     expect(buildActivity({ ...base, sessions: [session('a', 1)] })).toEqual([]);
+  });
+});
+
+describe('live exchanges', () => {
+  const coordBot = lead({ status: 'working' });
+  const coderBot = bot('b2', { name: 'Coder', configId: 'coder', lastReply: 'Exporter written', status: 'idle' });
+  const helper = bot('b3', { name: 'Helper', parentId: 'b2', depth: 2, error: 'Tests broke', status: 'error' });
+  const ev = (at: number, botId: string, kind: NonNullable<BotTeam['activity']>[number]['kind'], detail = '') => ({ at, botId, kind, detail });
+  const t = team({
+    bots: [coordBot, coderBot, helper],
+    plan: { summary: 'Two agents', estimateUsd: null, status: 'approved', feedback: '', revision: 1, bots: [] },
+    finished: { summary: 'All done', at: 9 },
+    activity: [
+      ev(1, 'b1', 'plan', '2'),
+      ev(2, 'you', 'approved', '2'),
+      ev(3, 'b1', 'created', 'b2|Write the exporter'),
+      ev(3, 'b1', 'created', 'b2|Write | the docs'),
+      ev(4, 'b2', 'finished'),
+      ev(5, 'you', 'message', 'b2|Add a header row'),
+      ev(6, 'b2', 'created', 'b3|Run the tests'),
+      ev(7, 'b3', 'failed'),
+      ev(7, 'b2', 'waiting', 'Which delimiter?'),
+      ev(8, 'b2', 'finished'),
+      ev(8, 'b1', 'applied', 'b2|3'),
+      ev(8, 'b2', 'stopped'),
+      ev(9, 'b1', 'learned', 'Ask before deleting'),
+      ev(9, 'b1', 'done'),
+    ],
+  });
+
+  it('says who told whom what, oldest first, and leaves stops out', () => {
+    const x = exchangesOf(t);
+    expect(x.map((e) => [e.kind, e.from, e.to, e.text, e.n])).toEqual([
+      ['plan', 'b1', 'you', 'Two agents', 2],
+      ['approved', 'you', 'b1', '', 2],
+      ['created', 'b1', 'b2', 'Write the exporter', null],
+      ['created', 'b1', 'b2', 'Write | the docs', null],
+      // An earlier turn's reply is gone: only the latest one is kept.
+      ['finished', 'b2', 'b1', '', null],
+      ['message', 'you', 'b2', 'Add a header row', null],
+      ['created', 'b2', 'b3', 'Run the tests', null],
+      // A failure tells its error to the agent that created it.
+      ['failed', 'b3', 'b2', 'Tests broke', null],
+      ['waiting', 'b2', 'you', 'Which delimiter?', null],
+      ['finished', 'b2', 'b1', 'Exporter written', null],
+      ['applied', 'b1', 'b2', '', 3],
+      ['learned', 'b1', null, 'Ask before deleting', null],
+      ['done', 'b1', 'you', 'All done', null],
+    ]);
+  });
+
+  it('keys each exchange the same however many old lines dropped off', () => {
+    const keys = exchangesOf(t).map((e) => e.key);
+    expect(new Set(keys).size).toBe(keys.length);
+    const later = exchangesOf({ ...t, activity: t.activity!.slice(2) }).map((e) => e.key);
+    expect(later).toEqual(keys.slice(2));
+  });
+
+  it('has nothing to show without activity', () => {
+    expect(exchangesOf(team())).toEqual([]);
+  });
+
+  it('puts each bot on its agent card, or its own when defined on the spot', () => {
+    expect(cardOf(t, 'b1', configs)).toBe('coord');
+    expect(cardOf(t, 'b2', configs)).toBe('coder');
+    expect(cardOf(t, 'b3', configs)).toBe('bot:b3');
+    expect(cardOf(t, 'you', configs)).toBeNull();
   });
 });
