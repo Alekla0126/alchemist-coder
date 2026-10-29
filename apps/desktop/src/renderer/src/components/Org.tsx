@@ -817,9 +817,9 @@ const WATCH = ['waiting', 'working', 'yourTurn'];
 function ChartFocus({ teams, focus }: { teams: BotTeam[]; focus: BotTeam | undefined }) {
   const t = useT();
   const locale = useStore((s) => s.locale);
+  const live = useStore((s) => s.orgLive);
   const watching = teams.filter((x) => WATCH.includes(teamState(x)) || x.id === focus?.id).slice(0, 8);
   if (!watching.length) return null;
-  const live = useStore((s) => s.orgLive);
   const state = focus ? teamState(focus) : null;
   const plan = focus?.plan?.status === 'pending' ? focus.plan : null;
   const summary = (focus?.finished?.summary ?? '').replace(/\s+/g, ' ').trim();
