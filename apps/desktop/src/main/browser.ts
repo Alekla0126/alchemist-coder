@@ -1,12 +1,12 @@
 import { randomBytes } from 'node:crypto';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { join } from 'node:path';
 import { app, session, WebContentsView, type BrowserWindow, type Rectangle, type Session, type WebContents } from 'electron';
 import type { SessionMcpServer } from '@alchemist-coder/core';
 import { BROWSER_MAX_TABS, type BrowserState } from '../shared/api';
 import { clickScript, focusScript, formatSnapshot, KEYS, keyScript, locateScript, normalizeUrl, SNAPSHOT_SCRIPT, type Key, type PageSnapshot } from './browser-page';
-import { acceptLanguages, activeAfterClose, browserUserAgent, cookiesToImport, keepsAsPopup, partitionFor, readSignInChoices, SHARED_PARTITION, sitesOf, tabAt, tabsText } from './browser-tabs';
+import { acceptLanguages, activeAfterClose, browserUserAgent, keepsAsPopup, partitionFor, projectPartitions, readSignInChoices, SHARED_PARTITION, signInPlan, tabAt, tabsText } from './browser-tabs';
 
 export type { BrowserState };
 
@@ -118,10 +118,10 @@ export class BrowserHost {
   private readonly sessions = new Set<string>();
   private flushTimer: ReturnType<typeof setInterval> | null = null;
   /**
-   * Per project's partition, the sites whose sign-ins it could bring from the browser the app had
-   * before 1.3.1 (the pane offers them), or null: none to bring, or you already chose.
+   * Per project's partition, the sites whose sign-ins it could bring from the other projects' browsers
+   * (or the one the app had before 1.3.1), which the pane offers, or null: none to bring, or you chose.
    */
-  private readonly offers = new Map<string, string[] | null>();
+  private readonly offers = new Map<string, { sites: string[]; earlierOnly: boolean } | null>();
 
   constructor(
     private readonly window: () => BrowserWindow | null,
@@ -169,41 +169,69 @@ export class BrowserHost {
   }
 
   /**
-   * Until 1.3.1 every project shared one browser, so the sites you had signed in to (Google, Reddit,
-   * Workana…) stayed there when each project got its own. Bringing them to a project gives its agents
-   * those sign-ins, so the pane asks, project by project; this finds what there is to offer.
+   * The other browsers a project's browser could bring sign-ins from: every project's kept on disk, and
+   * the one shared by all projects until 1.3.1 (unless you already answered about it for this project).
+   */
+  private async signInSources(partition: string, withEarlier: boolean) {
+    let dirs: string[] = [];
+    try {
+      dirs = readdirSync(join(app.getPath('userData'), 'Partitions'));
+    } catch {}
+    const names = new Set([...projectPartitions(dirs), ...this.sessions]);
+    names.delete(partition);
+    names.delete(SHARED_PARTITION);
+    const list = [...(withEarlier ? [SHARED_PARTITION] : []), ...names];
+    return Promise.all(list.map(async (p) => ({ partition: p, cookies: await session.fromPartition(p).cookies.get({}).catch(() => []) })));
+  }
+
+  /**
+   * Each project has a browser of its own, so signing in to Google or your Apple ID in one project
+   * doesn't sign its other projects in. Bringing sign-ins gives that project's agents those accounts, so
+   * the pane asks, project by project: this finds the sites another browser of the app is signed in to
+   * and this one isn't, leaving out the ones it already offered here (a new sign-in elsewhere is offered).
    */
   private async findOffer(project: string): Promise<void> {
     const partition = partitionFor(project);
     if (partition === SHARED_PARTITION || this.offers.has(partition)) return;
     this.offers.set(partition, null);
     const choices = this.readChoices();
-    if (choices.brought.includes(partition) || choices.skipped.includes(partition)) return;
-    const from = await session.fromPartition(SHARED_PARTITION).cookies.get({}).catch(() => []);
-    if (!from.length) return;
+    const answeredEarlier = choices.brought.includes(partition) || choices.skipped.includes(partition);
+    const offered = new Set(choices.offered[partition] ?? []);
+    const sources = await this.signInSources(partition, !answeredEarlier);
     const existing = await this.sessionFor(partition).cookies.get({}).catch(() => []);
-    const sites = sitesOf(cookiesToImport(from, existing, Date.now() / 1000));
+    const plan = signInPlan(sources, existing, Date.now() / 1000);
+    const sites = [...plan.keys()].filter((site) => !offered.has(site));
     if (!sites.length) return;
-    this.offers.set(partition, sites);
+    this.offers.set(partition, { sites, earlierOnly: sites.every((site) => plan.get(site)!.partition === SHARED_PARTITION) });
     this.emit();
   }
 
-  /** Your answer for the shown project's browser: bring the earlier sign-ins (then reload its page) or not. */
-  async chooseSignIns(bring: boolean): Promise<void> {
+  /**
+   * Your answer for the shown project's browser: bring the offered sign-ins, all of them or only one
+   * site's (then reload its page), or none. One site at a time keeps the rest of that project's
+   * sign-ins away from this project's agents.
+   */
+  async chooseSignIns(bring: boolean, site?: string): Promise<void> {
     const partition = partitionFor(this.shown);
     if (partition === SHARED_PARTITION) return;
-    if (bring) {
+    const offer = this.offers.get(partition) ?? null;
+    if (site && !offer?.sites.includes(site)) return;
+    const sites = site ? [site] : (offer?.sites ?? []);
+    if (bring && sites.length) {
       const target = this.sessionFor(partition);
-      const from = await session.fromPartition(SHARED_PARTITION).cookies.get({});
-      const existing = await target.cookies.get({});
-      for (const c of cookiesToImport(from, existing, Date.now() / 1000)) await target.cookies.set(c).catch(() => {});
+      const plan = signInPlan(await this.signInSources(partition, true), await target.cookies.get({}), Date.now() / 1000);
+      for (const s of sites) for (const c of plan.get(s)?.cookies ?? []) await target.cookies.set(c).catch(() => {});
       await target.cookies.flushStore().catch(() => {});
     }
     const choices = this.readChoices();
-    const list = bring ? choices.brought : choices.skipped;
-    if (!list.includes(partition)) list.push(partition);
+    if (!site) {
+      const list = bring ? choices.brought : choices.skipped;
+      if (!list.includes(partition)) list.push(partition);
+    }
+    choices.offered[partition] = [...new Set([...(choices.offered[partition] ?? []), ...sites])];
     writeFileSync(this.choicesFile(), JSON.stringify(choices));
-    this.offers.set(partition, null);
+    const rest = site && offer ? offer.sites.filter((s) => s !== site) : [];
+    this.offers.set(partition, rest.length && offer ? { ...offer, sites: rest } : null);
     const wc = this.shownWc();
     if (bring && wc && wc.getURL() && wc.getURL() !== 'about:blank') wc.reload();
     this.emit();
@@ -269,7 +297,8 @@ export class BrowserHost {
       driverRunId: b && recent(b) ? b.driver!.runId : null,
       userControl: b?.userControl ?? false,
       project: this.shown,
-      signInsFrom: this.shown ? (this.offers.get(partitionFor(this.shown)) ?? null) : null,
+      signInsFrom: this.shown ? (this.offers.get(partitionFor(this.shown))?.sites ?? null) : null,
+      signInsEarlier: this.shown ? (this.offers.get(partitionFor(this.shown))?.earlierOnly ?? false) : false,
       tabs: (b?.tabs ?? []).map((t) => ({ id: t.id, title: t.view.webContents.getTitle(), url: t.view.webContents.getURL(), loading: t.view.webContents.isLoading(), active: t.id === b!.active })),
       driving: [...this.browsers.values()].filter(recent).map((x) => ({ project: x.project, label: x.driver!.label, runId: x.driver!.runId })),
     };

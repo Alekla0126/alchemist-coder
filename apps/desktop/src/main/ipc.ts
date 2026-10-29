@@ -248,7 +248,9 @@ export function registerIpc(deps: IpcDeps): void {
   ipcMain.handle(Channels.browserNewTab, (_e, url: unknown) => deps.browser.openTab(typeof url === 'string' && url.trim() ? text(url, 'address', 4096) : undefined));
   ipcMain.handle(Channels.browserSwitchTab, (_e, id: unknown) => deps.browser.showTab(text(id, 'tab', 40)));
   ipcMain.handle(Channels.browserCloseTab, (_e, id: unknown) => deps.browser.dropTab(text(id, 'tab', 40)));
-  ipcMain.handle(Channels.browserSignIns, (_e, bring: unknown) => deps.browser.chooseSignIns(bring === true));
+  ipcMain.handle(Channels.browserSignIns, (_e, bring: unknown, site: unknown) =>
+    deps.browser.chooseSignIns(bring === true, typeof site === 'string' && /^[a-z0-9.-]{1,253}$/i.test(site) ? site : undefined),
+  );
   ipcMain.handle(Channels.stopRun, (_e, runId: unknown) => deps.runner.stop(text(runId, 'run id', 100)));
   ipcMain.handle(Channels.interruptRun, (_e, runId: unknown) => deps.runner.interrupt(text(runId, 'run id', 100)));
   ipcMain.handle(Channels.respondToRun, (_e, runId: unknown, requestId: unknown, choiceId: unknown) =>

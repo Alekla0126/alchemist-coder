@@ -331,6 +331,8 @@ export interface BrowserState {
    * 1.3.1 (most cookies first), while you haven't chosen; null when there's nothing to offer.
    */
   signInsFrom: string[] | null;
+  /** Those sign-ins are all from the browser shared by every project before 1.3.1 (else from other projects). */
+  signInsEarlier: boolean;
   /** Its tabs, in order; `active` is the one in front. */
   tabs: BrowserTab[];
   /** Every project's browser an agent used in the last few seconds (the title bar says so in words). */
@@ -1086,7 +1088,8 @@ export interface AlchemistApi {
   browserSwitchTab(id: string): Promise<void>;
   browserCloseTab(id: string): Promise<void>;
   /** Brings the earlier sign-ins to the shown project's browser (true) or keeps it apart (false). */
-  browserSignIns(bring: boolean): Promise<void>;
+  /** Bring the offered sign-ins (all, or only `site`'s) to the shown project's browser, or say no to them. */
+  browserSignIns(bring: boolean, site?: string): Promise<void>;
   /** Agent runs in this project with changes still to review. */
   reviews(projectCwd: string): Promise<AgentReview[]>;
   reviewFile(reviewId: string, path: string): Promise<ReviewFileContent>;

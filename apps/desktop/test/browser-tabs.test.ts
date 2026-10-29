@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { acceptLanguages, activeAfterClose, browserUserAgent, cookiesToImport, keepsAsPopup, partitionFor, readSignInChoices, SHARED_PARTITION, sitesOf, tabAt, tabsText } from '../src/main/browser-tabs';
+import { acceptLanguages, activeAfterClose, browserUserAgent, cookiesToImport, keepsAsPopup, partitionFor, projectPartitions, readSignInChoices, SHARED_PARTITION, signInPlan, siteOf, sitesOf, tabAt, tabsText } from '../src/main/browser-tabs';
 
 describe('a browser per project', () => {
   it('keeps each project’s cookies apart, and the same project’s across launches', () => {
@@ -117,9 +117,34 @@ describe('offering the sign-ins of the browser before 1.3.1, project by project'
   });
 
   it('reads what was chosen, and nothing from a missing or broken file', () => {
-    expect(readSignInChoices('{"brought":["persist:a"],"skipped":["persist:b",3]}')).toEqual({ brought: ['persist:a'], skipped: ['persist:b'] });
-    expect(readSignInChoices(null)).toEqual({ brought: [], skipped: [] });
-    expect(readSignInChoices('not json')).toEqual({ brought: [], skipped: [] });
-    expect(readSignInChoices('["persist:a"]')).toEqual({ brought: [], skipped: [] });
+    expect(readSignInChoices('{"brought":["persist:a"],"skipped":["persist:b",3]}')).toEqual({ brought: ['persist:a'], skipped: ['persist:b'], offered: {} });
+    expect(readSignInChoices('{"offered":{"persist:a":["google.com",1]}}')).toEqual({ brought: [], skipped: [], offered: { 'persist:a': ['google.com'] } });
+    expect(readSignInChoices(null)).toEqual({ brought: [], skipped: [], offered: {} });
+    expect(readSignInChoices('not json')).toEqual({ brought: [], skipped: [], offered: {} });
+    expect(readSignInChoices('["persist:a"]')).toEqual({ brought: [], skipped: [], offered: {} });
+  });
+});
+
+describe("other projects' sign-ins", () => {
+  const now = 1_000_000;
+  const cookie = (domain: string, name: string, expires: number) => ({ domain, name, value: `${name}@${expires}`, path: '/', secure: true, expirationDate: expires });
+
+  it('finds the project browsers kept on disk, not the shared one or anything else', () => {
+    expect(projectPartitions(['alchemist-browser', 'alchemist-browser-0e4d5600868bd6dc', 'Other', 'alchemist-browser-xyz'])).toEqual(['persist:alchemist-browser-0e4d5600868bd6dc']);
+    expect(siteOf('.accounts.google.com')).toBe('google.com');
+    expect(siteOf('www.bbc.co.uk')).toBe('bbc.co.uk');
+    expect(siteOf('stats.g.doubleclick.net')).toBeNull();
+  });
+
+  it('brings each site from one browser, the most recent sign-in, and only what this one lacks', () => {
+    const a = { partition: 'persist:a', cookies: [cookie('.google.com', 'SID', now + 100), cookie('.google.com', 'HSID', now + 100), cookie('.apple.com', 'myacinfo', now + 500)] };
+    const b = { partition: 'persist:b', cookies: [cookie('.google.com', 'SID', now + 900), cookie('.doubleclick.net', 'IDE', now + 900), cookie('.old.com', 'x', now - 1)] };
+    const plan = signInPlan([a, b], [cookie('.apple.com', 'myacinfo', now + 50)], now);
+    expect([...plan.keys()]).toEqual(['google.com']);
+    // google.com comes whole from b (its sign-in lasts longer), never mixed with a's cookies
+    expect(plan.get('google.com')!.partition).toBe('persist:b');
+    expect(plan.get('google.com')!.cookies.map((c) => c.value)).toEqual([`SID@${now + 900}`]);
+    expect(signInPlan([a], [], now).get('apple.com')!.partition).toBe('persist:a');
+    expect(signInPlan([], [], now).size).toBe(0);
   });
 });

@@ -190,20 +190,8 @@ export function BrowserPane({ covered: coveredBy = false, onClose }: { covered?:
           )}
         </div>
       )}
-      {/* Sign-ins from the browser before 1.3.1: this project's agents get them only if you say so. */}
-      {state?.signInsFrom && state.signInsFrom.length > 0 && (
-        <div className="browser-signins" role="note">
-          <span className="bsi-text">
-            {t('browser.signIns', { sites: state.signInsFrom.length > 4 ? `${state.signInsFrom.slice(0, 4).join(', ')} +${state.signInsFrom.length - 4}` : state.signInsFrom.join(', ') })}
-          </span>
-          <span className="bsi-actions">
-            <button onClick={() => void api().browserSignIns(true)}>{t('browser.signInsBring')}</button>
-            <button className="quiet" onClick={() => void api().browserSignIns(false)}>
-              {t('browser.signInsSkip')}
-            </button>
-          </span>
-        </div>
-      )}
+      {/* Sign-ins from other projects' browsers (or the one before 1.3.1): this project's agents get them only if you say so. */}
+      {state?.signInsFrom && state.signInsFrom.length > 0 && <SignInsOffer sites={state.signInsFrom} earlier={state.signInsEarlier} />}
       <div className="browser-body" ref={body}>
         {empty && (
           <div className="browser-empty">
@@ -213,5 +201,36 @@ export function BrowserPane({ covered: coveredBy = false, onClose }: { covered?:
         )}
       </div>
     </section>
+  );
+}
+
+/**
+ * The offer to bring sign-ins this project's browser doesn't have: from other projects, one site at a
+ * time (a click on its name) or all, so only the accounts you pick reach this project's agents; from
+ * the browser before 1.3.1, all of them at once, as before.
+ */
+export function SignInsOffer({ sites, earlier }: { sites: string[]; earlier: boolean }) {
+  const t = useT();
+  const listed = sites.length > 4 ? `${sites.slice(0, 4).join(', ')} +${sites.length - 4}` : sites.join(', ');
+  return (
+    <div className="browser-signins" role="note">
+      <span className="bsi-text">{earlier ? t('browser.signIns', { sites: listed }) : t('browser.signInsOther')}</span>
+      {!earlier && (
+        <span className="bsi-sites">
+          {sites.slice(0, 8).map((site) => (
+            <button key={site} className="bsi-site" title={t('browser.signInsOne', { site })} onClick={() => void api().browserSignIns(true, site)}>
+              {site}
+            </button>
+          ))}
+          {sites.length > 8 && <span className="bsi-more">+{sites.length - 8}</span>}
+        </span>
+      )}
+      <span className="bsi-actions">
+        <button onClick={() => void api().browserSignIns(true)}>{earlier ? t('browser.signInsBring') : t('browser.signInsAll')}</button>
+        <button className="quiet" onClick={() => void api().browserSignIns(false)}>
+          {t('browser.signInsSkip')}
+        </button>
+      </span>
+    </div>
   );
 }

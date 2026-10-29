@@ -92,23 +92,65 @@ const SECOND_LEVEL = new Set(['co', 'com', 'org', 'net', 'gob', 'gov', 'ac', 'ed
  * The sites these cookies sign you in to, as people know them ("google.com", "reddit.com"), the ones
  * with the most cookies first. Ad and analytics hosts are left out of the names, not of the cookies.
  */
+/** The site a host belongs to, as people know it ("google.com", "bbc.co.uk"); null for ad and analytics hosts. */
+export function siteOf(domainOrHost: string): string | null {
+  const host = domainOrHost.replace(/^\./, '').toLowerCase();
+  if (!host || NOT_A_SIGN_IN.test(host)) return null;
+  const labels = host.split('.');
+  const keep = labels.length > 2 && labels.at(-1)!.length === 2 && SECOND_LEVEL.has(labels.at(-2)!) ? 3 : 2;
+  return labels.slice(-keep).join('.');
+}
+
 export function sitesOf(cookies: Array<{ domain?: string; url?: string }>): string[] {
   const count = new Map<string, number>();
   for (const c of cookies) {
-    const host = (c.domain ?? c.url?.replace(/^https?:\/\//, '').split('/')[0] ?? '').replace(/^\./, '').toLowerCase();
-    if (!host || NOT_A_SIGN_IN.test(host)) continue;
-    const labels = host.split('.');
-    const keep = labels.length > 2 && labels.at(-1)!.length === 2 && SECOND_LEVEL.has(labels.at(-2)!) ? 3 : 2;
-    const site = labels.slice(-keep).join('.');
-    count.set(site, (count.get(site) ?? 0) + 1);
+    const site = siteOf(c.domain ?? c.url?.replace(/^https?:\/\//, '').split('/')[0] ?? '');
+    if (site) count.set(site, (count.get(site) ?? 0) + 1);
   }
   return [...count].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([site]) => site);
 }
 
-/** What the user chose for each project's browser about the sign-ins of the browser before 1.3.1. */
+/** The project browsers kept on disk: Electron stores `persist:x` in Partitions/x. The shared one is left out. */
+export function projectPartitions(dirs: string[]): string[] {
+  return dirs.filter((d) => /^alchemist-browser-[0-9a-f]{16}$/.test(d)).map((d) => `persist:${d}`);
+}
+
+export type SignInPlan = Map<string, { partition: string; cookies: ReturnType<typeof cookiesToImport> }>;
+
+/**
+ * What other browsers of the app can give this one, site by site: the sites they're signed in to whose
+ * cookies this one lacks, each from a single browser (the one whose cookies for it last the longest, so the
+ * most recent sign-in), never mixing two sign-ins of one site. The most used sites come first.
+ */
+export function signInPlan(sources: Array<{ partition: string; cookies: StoredCookie[] }>, existing: StoredCookie[], nowSeconds: number): SignInPlan {
+  const best = new Map<string, { partition: string; score: number; count: number; cookies: StoredCookie[] }>();
+  for (const src of sources) {
+    const bySite = new Map<string, StoredCookie[]>();
+    for (const c of src.cookies) {
+      const site = c.domain ? siteOf(c.domain) : null;
+      if (!site) continue;
+      if (!bySite.has(site)) bySite.set(site, []);
+      bySite.get(site)!.push(c);
+    }
+    for (const [site, list] of bySite) {
+      if (!cookiesToImport(list, existing, nowSeconds).length) continue;
+      const score = Math.max(...list.map((c) => c.expirationDate ?? nowSeconds));
+      const prev = best.get(site);
+      if (!prev || score > prev.score) best.set(site, { partition: src.partition, score, count: list.length, cookies: list });
+    }
+  }
+  const order = [...best].sort((a, b) => b[1].count - a[1].count || a[0].localeCompare(b[0]));
+  return new Map(order.map(([site, b]) => [site, { partition: b.partition, cookies: cookiesToImport(b.cookies, existing, nowSeconds) }]));
+}
+
+/**
+ * What the user chose for each project's browser: about the sign-ins of the browser before 1.3.1 (brought,
+ * skipped), and which sites from other projects it was already offered (so only new ones are offered again).
+ */
 export interface SignInChoices {
   brought: string[];
   skipped: string[];
+  offered: Record<string, string[]>;
 }
 
 /** Reads the choices file: an object, or nothing yet (any other shape counts as nothing chosen). */
@@ -116,9 +158,13 @@ export function readSignInChoices(raw: string | null): SignInChoices {
   try {
     const v = raw ? JSON.parse(raw) : null;
     const list = (x: unknown) => (Array.isArray(x) ? x.filter((p): p is string => typeof p === 'string') : []);
-    return { brought: list(v?.brought), skipped: list(v?.skipped) };
+    const offered: Record<string, string[]> = {};
+    if (v?.offered && typeof v.offered === 'object' && !Array.isArray(v.offered)) {
+      for (const [k, sites] of Object.entries(v.offered as Record<string, unknown>)) offered[k] = list(sites);
+    }
+    return { brought: list(v?.brought), skipped: list(v?.skipped), offered };
   } catch {
-    return { brought: [], skipped: [] };
+    return { brought: [], skipped: [], offered: {} };
   }
 }
 
