@@ -4,7 +4,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, 
 import { dirname, join, relative } from 'node:path';
 import { commitAll, createWorktree, git, headCommit, listChanges, repoRoot } from '@alchemist-coder/arena';
 import type { Autopilot, SessionMcpServer } from '@alchemist-coder/core';
-import type { AgentChoice, BotConfig, BotMember, BotStatus, BotTeam, OrgLesson, OrgSettings, PermissionMode, PlannedBot, RunnerEventMessage, StartTeamRequest, TeamEventKind, TeamOrigin, TeamPlan } from '../shared/api';
+import { ABOUT_MAX, type AgentChoice, type BotConfig, type BotMember, type BotStatus, type BotTeam, type OrgLesson, type OrgSettings, type PermissionMode, type PlannedBot, type RunnerEventMessage, type StartTeamRequest, type TeamEventKind, type TeamOrigin, type TeamPlan } from '../shared/api';
 import type { RunnerManager } from './runner';
 
 /** Coordinator (0), the bots it creates (1), and theirs (2). */
@@ -50,6 +50,7 @@ const TOOLS: Record<string, ToolDef> = {
         task: { type: 'string', description: 'What it should do, with everything it needs to know.' },
         config: { type: 'string', description: 'A saved configuration to use (name or id).' },
         role: { type: 'string', description: 'Its role and standing instructions, when not using a configuration.' },
+        about: { type: 'string', description: "When not using a configuration: what it does in one short sentence, for the user's office card, in the language the user writes in (at most 160 characters)." },
         model: { type: 'string', description: 'A model id of your own provider, when not using a configuration.' },
         can_create_bots: { type: 'boolean', description: 'Let it create bots itself (only if you may, and within the depth limit).' },
         own_worktree: { type: 'boolean', description: 'Give it its own copy of the project (a git worktree) so it cannot clash with other bots. Then use bot_changes and apply_bot_work.' },
@@ -500,10 +501,13 @@ export class BotManager {
     if (!name) throw new Error('Give the bot a name');
     const agent = c.agent as AgentChoice | undefined;
     if (!agent?.harnessId || !agent.providerId || !agent.model) throw new Error('Choose an agent and a model');
+    // Written by you or by the coordinator; none shows the opening of its role.
+    const about = str(c.about, ABOUT_MAX).replace(/\s+/g, ' ');
     const config: BotConfig = {
       id: typeof c.id === 'string' && this.configs.some((x) => x.id === c.id) ? c.id : `cfg-${randomBytes(4).toString('hex')}`,
       name,
       role: str(c.role, 8000),
+      ...(about ? { about } : {}),
       agent: { harnessId: String(agent.harnessId), providerId: String(agent.providerId), model: String(agent.model) },
       permissionMode: PERMISSION_MODES.includes(c.permissionMode as PermissionMode) ? (c.permissionMode as PermissionMode) : 'acceptEdits',
       canSpawn: c.canSpawn === true,
@@ -1214,7 +1218,7 @@ export class BotManager {
         // Defined on the spot: it joins the organization as a proposed agent you can keep or dismiss.
         if (!config && this.coordinator() && !this.configs.some((c) => c.name.toLowerCase() === childName.toLowerCase())) {
           const root = (await repoRoot(team.cwd).catch(() => null)) ?? team.cwd;
-          const kept = this.saveConfig({ name: childName, role: child.role, agent: child.agent, permissionMode: child.permissionMode, canSpawn: child.canSpawn, ownWorktree: wantsCopy, kind: 'member', projects: [root], proposed: true });
+          const kept = this.saveConfig({ name: childName, role: child.role, about: str(args.about, ABOUT_MAX), agent: child.agent, permissionMode: child.permissionMode, canSpawn: child.canSpawn, ownWorktree: wantsCopy, kind: 'member', projects: [root], proposed: true });
           child.configId = kept.id;
         }
         team.bots.push(child);

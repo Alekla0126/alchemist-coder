@@ -205,6 +205,8 @@ export interface AppInfo {
     drag?: string | null;
     /** Open the status bar's activity list. */
     activity?: boolean;
+    /** With --bots-view=live: open the coordinator's card in the office. */
+    officeCard?: boolean;
     /** Scroll the open conversation to the first element matching this selector. */
     scrollTo?: string | null;
     /** With `run`: capture while the agent's first subagent works, instead of once the run settles. */
@@ -367,11 +369,16 @@ export type TaskPhase = 'draft' | 'planning' | 'review' | 'running' | 'compare' 
 
 /** One agent + provider + model, as picked in the composer. */
 /** A saved bot: who it is and how it runs. Any configuration can coordinate a team or be created by one. */
+/** The longest an agent's description can be: it has to fit on its card. */
+export const ABOUT_MAX = 180;
+
 export interface BotConfig {
   id: string;
   name: string;
   /** Its role and standing instructions. */
   role: string;
+  /** What it does in a line, for you (its card in the office); none: the opening of its role. At most ABOUT_MAX. */
+  about?: string;
   agent: AgentChoice;
   permissionMode: PermissionMode;
   /** It may create other bots (within the team's limits). */

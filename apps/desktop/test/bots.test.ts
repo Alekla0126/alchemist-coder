@@ -260,6 +260,16 @@ describe('bot teams', () => {
     expect(bots.saveConfig({ ...saved, name: 'Pic 2' }).avatar).toBe(png);
   });
 
+  it('keeps a description on one line and within its card, and drops an empty one', () => {
+    const { bots } = setup();
+    const saved = bots.saveConfig({ name: 'Stores', role: 'Watch the stores.', agent, permissionMode: 'default', about: '  Keeps the apps\n published. ' });
+    expect(saved.about).toBe('Keeps the apps published.');
+    expect(bots.saveConfig({ ...saved, about: 'x'.repeat(500) }).about).toHaveLength(180);
+    expect('about' in bots.saveConfig({ ...saved, about: '   ' })).toBe(false);
+    // Renaming keeps it.
+    expect(bots.saveConfig({ ...saved, name: 'Stores 2' }).about).toBe('Keeps the apps published.');
+  });
+
   it('keeps saying what a bot does when a call\'s updates come without its name', async () => {
     const { bots } = setup();
     const team = bots.startTeam({ goal: 'g', cwd: '/p', coordinator: { name: 'Lead', role: '', agent, permissionMode: 'acceptEdits' } });

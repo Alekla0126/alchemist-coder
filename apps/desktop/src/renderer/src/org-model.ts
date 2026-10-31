@@ -1,4 +1,4 @@
-import type { BotConfig, BotMember, BotStatus, BotTeam, TeamEventKind } from '@shared/api';
+import { ABOUT_MAX, type BotConfig, type BotMember, type BotStatus, type BotTeam, type TeamEventKind } from '@shared/api';
 import { isInside } from './paths';
 
 export const ACTIVE: BotStatus[] = ['starting', 'working', 'waiting'];
@@ -287,4 +287,43 @@ export function partnersOf(links: Link[], card: string): Array<{ id: string; n: 
     .filter((l) => l.a === card || l.b === card)
     .map((l) => ({ id: l.a === card ? l.b : l.a, n: l.n }))
     .sort((x, y) => y.n - x.n);
+}
+
+/** A first sentence shorter than this takes the next one too ("You are the release manager." says little). */
+const ABOUT_SHORT = 40;
+
+/** `text` cut at a word to fit in `max`, with "…". */
+function fit(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max - 1);
+  const space = cut.lastIndexOf(' ');
+  return `${(space > max * 0.6 ? cut.slice(0, space) : cut).replace(/[\s,;:.\u2014-]+$/, '')}…`;
+}
+
+/**
+ * What an agent does, in a line or two for its card: the description you (or the coordinator) gave it,
+ * or else the opening of its instructions, so every agent has one from the moment the app opens.
+ */
+export function aboutOf(c: { about?: string | null; role: string }): string {
+  const own = c.about?.replace(/\s+/g, ' ').trim();
+  if (own) return fit(own, ABOUT_MAX);
+  const text = c.role
+    .replace(/^\s*#+\s*/gm, '')
+    .replace(/^\s*(?:[-*•]|\d+[.)])\s+/gm, '')
+    .replace(/[*_`]+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!text) return '';
+  // Sentences end at . ! ? before a space (so "v1.2" stays whole), or right after 。！？.
+  const sentences = text.split(/(?<=[.!?])\s+|(?<=[。！？])/).filter(Boolean);
+  let first = sentences[0]!;
+  const next = sentences[1];
+  if (first.length > ABOUT_MAX) {
+    // "Judge the interface like a senior designer: open the app…" keeps what comes before the colon.
+    const colon = first.search(/[:;：；]\s?/);
+    return colon >= 24 && colon < ABOUT_MAX ? `${first.slice(0, colon)}.` : fit(first, ABOUT_MAX);
+  }
+  // CJK sentences follow each other without a space.
+  if (first.length < ABOUT_SHORT && next && first.length + 1 + next.length <= ABOUT_MAX) first = /[。！？]$/.test(first) ? first + next : `${first} ${next}`;
+  return first;
 }

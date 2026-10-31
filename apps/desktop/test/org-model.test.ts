@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ProjectSummary, SessionSummary } from '@alchemist-coder/core';
 import type { BotConfig, BotMember, BotTeam } from '../src/shared/api';
 import { activityTotals, buildActivity, doingOf, type ActivityRun } from '../src/renderer/src/activity-model';
-import { canMove, cardOf, chartOf, exchangesOf, extrasIn, workIn } from '../src/renderer/src/org-model';
+import { aboutOf, canMove, cardOf, chartOf, exchangesOf, extrasIn, workIn } from '../src/renderer/src/org-model';
 
 const agent = { harnessId: 'claude-code', providerId: 'anthropic', model: 'sonnet' };
 const config = (id: string, extra: Partial<BotConfig> = {}): BotConfig => ({ id, name: id, role: '', agent, permissionMode: 'acceptEdits', canSpawn: false, kind: 'member', ...extra });
@@ -200,5 +200,42 @@ describe('live exchanges', () => {
     expect(cardOf(t, 'b2', configs)).toBe('coder');
     expect(cardOf(t, 'b3', configs)).toBe('bot:b3');
     expect(cardOf(t, 'you', configs)).toBeNull();
+  });
+});
+
+describe('aboutOf', () => {
+  it('uses the description it was given, on one line', () => {
+    expect(aboutOf({ about: '  Keeps the apps\n published. ', role: 'Watch the stores.' })).toBe('Keeps the apps published.');
+  });
+
+  it('otherwise opens with the first sentence of its role', () => {
+    expect(aboutOf({ role: 'Implementa la tarea con cambios pequeños y enfocados, al estilo del proyecto. Corre el build antes de responder.' })).toBe('Implementa la tarea con cambios pequeños y enfocados, al estilo del proyecto.');
+  });
+
+  it('takes the next sentence too when the first says little', () => {
+    expect(aboutOf({ role: 'Mide el dinero. Cada lunes reporta los ingresos netos por app. Propón precios.' })).toBe('Mide el dinero. Cada lunes reporta los ingresos netos por app.');
+  });
+
+  it('keeps what comes before the colon of a long first sentence', () => {
+    const role = `Juzga la interfaz como un diseñador de UX sénior: abre la app (o lee sus pantallas y componentes) y revisa ${'claridad, consistencia, accesibilidad, '.repeat(4)}y todos los idiomas.`;
+    expect(aboutOf({ role })).toBe('Juzga la interfaz como un diseñador de UX sénior.');
+  });
+
+  it('cuts a long sentence without a colon at a word, within the limit', () => {
+    const role = `Review ${'every changed file carefully '.repeat(12)}today.`;
+    const about = aboutOf({ role });
+    expect(about.length).toBeLessThanOrEqual(180);
+    expect(about.endsWith('…')).toBe(true);
+    // A whole word before the "…".
+    expect(role.startsWith(`${about.slice(0, -1)} `)).toBe(true);
+  });
+
+  it('reads past markdown, keeps version numbers whole and splits CJK sentences', () => {
+    expect(aboutOf({ role: '# Release manager\n- Ship **v1.2** builds to the stores every Friday. Then rest.' })).toBe('Release manager Ship v1.2 builds to the stores every Friday.');
+    expect(aboutOf({ role: 'コードを読んで質問に答える担当です。ファイルは編集しません。' })).toBe('コードを読んで質問に答える担当です。ファイルは編集しません。');
+  });
+
+  it('is empty without a description or a role', () => {
+    expect(aboutOf({ about: ' ', role: '  ' })).toBe('');
   });
 });

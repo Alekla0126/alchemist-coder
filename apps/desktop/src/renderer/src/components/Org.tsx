@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { AgentChoice, BotConfig, BotMember, BotTeam, OrgSettings, PermissionMode } from '@shared/api';
+import { ABOUT_MAX, type AgentChoice, type BotConfig, type BotMember, type BotTeam, type OrgSettings, type PermissionMode } from '@shared/api';
 import type { LiveQuestion } from '../live-turns';
 import { money, modelLabel as rawModelLabel, relativeTime } from '../format';
 import { sourceOf } from '../sources';
@@ -9,7 +9,7 @@ import { Icon } from './Icon';
 import { baseName } from '../paths';
 import { AgentPicker, defaultChoice } from './AgentPicker';
 import { confirmDeleteTeam, doingText, errorText, teamActive, teamCost, teamState, TeamView } from './Bots';
-import { activityOf, inFolder, inProject, resultIn, type Focus, type Need } from '../org-model';
+import { aboutOf, activityOf, inFolder, inProject, resultIn, type Focus, type Need } from '../org-model';
 import { AgentAvatar } from './AgentAvatar';
 import { addToTeam, approvePlan, askPlanChanges, changeAvatar, dismissMember, giveTask, keepMember, openAssignment, removeMember, renameMember, setLead, showOnChart } from '../actions/org';
 import { OrgChart } from './OrgChart';
@@ -149,6 +149,8 @@ const orgNameOf = (name: string | undefined, t: T) => (!name || name === DEFAULT
 interface Draft {
   name: string;
   role: string;
+  /** Empty: the opening of its role shows instead. */
+  about: string;
   agent: AgentChoice | null;
   permissionMode: PermissionMode;
   canSpawn: boolean;
@@ -159,6 +161,7 @@ interface Draft {
 const draftOf = (c: Partial<BotConfig>, fallback: AgentChoice | null): Draft => ({
   name: c.name ?? '',
   role: c.role ?? '',
+  about: c.about ?? '',
   agent: c.agent ?? fallback,
   permissionMode: c.permissionMode ?? 'acceptEdits',
   canSpawn: c.canSpawn ?? false,
@@ -208,6 +211,12 @@ function MemberForm({ draft, set, coordinator, autoFocus = false }: { draft: Dra
       <label className="bot-field">
         <span>{t('bots.role')}</span>
         <textarea value={draft.role} rows={6} onChange={(e) => set({ role: e.target.value })} placeholder={coordinator ? t('bots.coordinatorRolePlaceholder') : t('bots.rolePlaceholder')} />
+      </label>
+      <label className="bot-field">
+        <span>{t('bots.about')}</span>
+        {/* Empty, it shows the one written from its role, so you see what the office will say. */}
+        <textarea value={draft.about} rows={2} maxLength={ABOUT_MAX} onChange={(e) => set({ about: e.target.value })} placeholder={aboutOf({ role: draft.role })} />
+        <small className="composer-note">{t('bots.aboutHint')}</small>
       </label>
       <div className="bot-field">
         <span>{t('bots.agent')}</span>
@@ -371,7 +380,7 @@ function MemberRow({ member, depth, teams, compact, focus }: { member: BotConfig
   const doing = a.doing ? doingText(a.doing, t) : null;
   const lead = member.kind === 'coordinator';
   const orgAutopilot = useStore((s) => s.orgSettings?.autopilot === true);
-  const role = member.role.replace(/\s+/g, ' ').split(/(?<=[.!?])\s/)[0]?.slice(0, 90) ?? '';
+  const role = aboutOf(member).slice(0, 90);
   const scope = member.projects?.length ? `${folderName(member.projects[0]!)}${member.projects.length > 1 ? ` +${member.projects.length - 1}` : ''}` : '';
   const select = () => useStore.setState({ activeMemberId: member.id, activeTeamId: null, activeBotId: null });
   const need = a.needs[0];

@@ -90,6 +90,7 @@ function appInfo(): AppInfo {
           browserDriver: arg('browser-driver') ?? null,
           drag: arg('drag') ?? null,
           activity: process.argv.includes('--activity'),
+          officeCard: process.argv.includes('--office-card'),
           scrollTo: arg('scroll-to') ?? null,
           runUntil: arg('run-until') === 'subagent' ? 'subagent' : null,
           orgGoal: arg('org-goal') ?? null,
