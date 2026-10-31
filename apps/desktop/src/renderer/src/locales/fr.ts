@@ -1071,6 +1071,8 @@ export const fr: Messages = {
   'bots.tpl.security.role': 'Créez un Chercheur pour repérer où le code traite les entrées, les fichiers, les secrets et les appels réseau ; puis un Relecteur par zone à risque. Personne ne modifie de fichiers. Terminez par une liste des constats, du plus grave au moins grave, avec fichier et ligne.',
   'bots.tpl.research.name': 'Rechercher et résumer',
   'bots.tpl.research.role': 'Découpez la question en deux ou trois parties et confiez chacune à un Chercheur. Personne ne modifie de fichiers. Combinez leurs réponses en un court résumé avec des références de fichiers et indiquez votre degré de certitude.',
+  'bots.tpl.slides.name': 'Présentation d’entreprise',
+  'bots.tpl.slides.role': 'Transformez ce que sait le projet (ses documents, notes et mémoire) en une présentation.\nUn Chercheur rassemble les faits nécessaires, chaque chiffre avec sa date et sa source, en ne lisant que les fichiers utiles.\nEnsuite un agent écrit la présentation sous forme de plan Markdown court : une idée par diapositive, un titre qui donne la conclusion, six puces au maximum.\nSi le projet a un skill ou un script de présentations, utilisez-le ; sinon créez un .pptx avec python-pptx.\nExportez-la en PDF et en images, et faites vérifier toutes les diapositives par le Juge UI sur une seule planche contact.\nRien d’inventé. N’envoyez ni ne téléversez jamais la présentation sans me demander.\nÀ la fin, donnez les chemins des fichiers et une ligne par diapositive.',
   'bots.you': 'Vous',
   'bots.activity': 'Activité',
   'bots.ev.created': '{who} a mis {other} au travail',

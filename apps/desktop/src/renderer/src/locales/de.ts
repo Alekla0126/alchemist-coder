@@ -1071,6 +1071,8 @@ export const de: Messages = {
   'bots.tpl.security.role': 'Erstelle einen Rechercheur, der herausfindet, wo der Code Eingaben, Dateien, Secrets und Netzwerkaufrufe verarbeitet; dann einen Reviewer pro riskantem Bereich. Niemand bearbeitet Dateien. Schließ mit einer Liste der Befunde ab, die schwersten zuerst, mit Datei und Zeile.',
   'bots.tpl.research.name': 'Recherchieren und zusammenfassen',
   'bots.tpl.research.role': 'Teile die Frage in zwei oder drei Teile und gib jeden einem Rechercheur. Niemand bearbeitet Dateien. Fass ihre Antworten in einer kurzen Zusammenfassung mit Dateiverweisen zusammen und sag, wie sicher du dir bist.',
+  'bots.tpl.slides.name': 'Geschäftspräsentation',
+  'bots.tpl.slides.role': 'Mach aus dem, was das Projekt weiß (Dokumente, Notizen und Gedächtnis), eine Präsentation.\nEin Rechercheur sammelt die Fakten, die sie braucht, jede Zahl mit Datum und Quelle, und liest nur die nötigen Dateien.\nDann schreibt ein Agent die Präsentation als kurze Markdown-Gliederung: eine Idee pro Folie, ein Titel, der die Schlussfolgerung nennt, höchstens sechs Punkte.\nHat das Projekt einen Skill oder ein Skript für Präsentationen, nutze es; sonst erstelle eine .pptx mit python-pptx.\nExportiere sie als PDF und Bilder und lass den UI-Gutachter alle Folien auf einem Kontaktbogen prüfen.\nNichts erfinden. Verschicke die Präsentation nie und lade sie nie hoch, ohne mich zu fragen.\nNenne am Ende die Dateipfade und eine Zeile pro Folie.',
   'bots.you': 'Du',
   'bots.activity': 'Aktivität',
   'bots.ev.created': '{who} hat {other} eingesetzt',

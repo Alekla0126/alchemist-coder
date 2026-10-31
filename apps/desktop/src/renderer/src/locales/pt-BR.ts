@@ -1071,6 +1071,8 @@ export const ptBR: Messages = {
   'bots.tpl.security.role': 'Crie um Pesquisador para mapear onde o código lida com entradas, arquivos, segredos e chamadas de rede; depois, um Revisor por área de risco. Ninguém edita arquivos. Termine com uma lista de achados, dos mais graves para os menos graves, com arquivo e linha.',
   'bots.tpl.research.name': 'Pesquisar e resumir',
   'bots.tpl.research.role': 'Divida a pergunta em duas ou três partes e dê cada uma a um Pesquisador. Ninguém edita arquivos. Junte as respostas deles em um resumo curto, com referências de arquivos, e diga o quanto você tem certeza.',
+  'bots.tpl.slides.name': 'Apresentação de negócios',
+  'bots.tpl.slides.role': 'Transforme o que o projeto sabe (documentos, notas e memória) em uma apresentação.\nUm Pesquisador reúne os dados necessários, cada número com data e fonte, lendo só os arquivos que importam.\nDepois um agente escreve a apresentação como um roteiro curto em Markdown: uma ideia por slide, um título que já diga a conclusão, no máximo seis tópicos.\nSe o projeto tiver uma skill ou um script de apresentações, use; senão, monte um .pptx com python-pptx.\nExporte para PDF e imagens e peça ao Juiz de UI que confira todos os slides em uma única folha de contato.\nNada inventado. Nunca envie nem publique a apresentação sem me perguntar.\nNo fim, informe os caminhos dos arquivos e uma linha por slide.',
   'bots.you': 'Você',
   'bots.activity': 'Atividade',
   'bots.ev.created': '{who} pôs {other} para trabalhar',

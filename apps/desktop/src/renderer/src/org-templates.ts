@@ -15,7 +15,7 @@ const DEFAULT_KEY = 'alchemist.defaultTemplate';
 
 /** The Alchemist Code's way of working: what every assignment starts with, until you make another template the default. */
 export const HOUSE_TEMPLATE = 'starter:alchemist';
-const STARTERS = ['alchemist', 'build', 'security', 'research'] as const;
+const STARTERS = ['alchemist', 'build', 'security', 'research', 'slides'] as const;
 
 /** The templates that come with the app, the house one first. Its name is the company's, the same in every language. */
 export function starterTemplates(t: (key: MessageKey) => string): Template[] {

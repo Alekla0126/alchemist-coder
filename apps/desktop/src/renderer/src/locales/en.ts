@@ -1070,6 +1070,8 @@ export const en = {
   'bots.tpl.security.role': 'Create a Researcher to map where the code handles input, files, secrets and network calls; then one Reviewer per risky area. Nobody edits files. Finish with a list of findings, most serious first, with file and line.',
   'bots.tpl.research.name': 'Research and summarize',
   'bots.tpl.research.role': 'Split the question into two or three parts and give each to a Researcher. Nobody edits files. Combine their answers into one short summary with file references and say how sure you are.',
+  'bots.tpl.slides.name': 'Business presentation',
+  'bots.tpl.slides.role': 'Turn what the project knows (its docs, notes and memory) into a slide deck.\nA Researcher gathers the facts the deck needs, each number with its date and source, reading only the files that matter.\nThen one agent writes the deck as a short Markdown outline: one idea per slide, a title that states the conclusion, at most six bullets.\nIf the project has a skill or script for presentations, use it; otherwise build a .pptx with python-pptx.\nRender it to PDF and images, and have the UI Judge check every slide on one contact sheet.\nNothing invented. Never send or upload the deck without asking me.\nAt the end, give the file paths and one line per slide.',
   'bots.you': 'You',
   'bots.activity': 'Activity',
   'bots.ev.created': '{who} put {other} to work',

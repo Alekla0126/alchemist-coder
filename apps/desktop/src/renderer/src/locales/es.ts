@@ -1071,6 +1071,8 @@ export const es: Messages = {
   'bots.tpl.security.role': 'Crea un Investigador que ubique dónde el código maneja entradas, archivos, secretos y llamadas de red; luego un Revisor por cada área riesgosa. Nadie edita archivos. Termina con una lista de hallazgos, los más graves primero, con archivo y línea.',
   'bots.tpl.research.name': 'Investigar y resumir',
   'bots.tpl.research.role': 'Divide la pregunta en dos o tres partes y dale cada una a un Investigador. Nadie edita archivos. Une sus respuestas en un resumen breve con referencias a archivos y di qué tan seguro estás.',
+  'bots.tpl.slides.name': 'Presentación de negocio',
+  'bots.tpl.slides.role': 'Convierte lo que sabe el proyecto (sus documentos, notas y memoria) en una presentación.\nUn Investigador reúne los datos que hacen falta, cada cifra con su fecha y su fuente, leyendo solo los archivos necesarios.\nDespués un agente escribe la presentación como un guion corto en Markdown: una idea por lámina, un título que ya diga la conclusión, máximo seis viñetas.\nSi el proyecto tiene una skill o un script de presentaciones, úsalo; si no, arma un .pptx con python-pptx.\nPásala a PDF e imágenes y que el Juez de interfaz revise todas las láminas en una sola hoja de contacto.\nNada inventado. Nunca envíes ni subas la presentación sin preguntarme.\nAl final, da las rutas de los archivos y una línea por lámina.',
   'bots.you': 'Tú',
   'bots.activity': 'Actividad',
   'bots.ev.created': '{who} puso a trabajar a {other}',
