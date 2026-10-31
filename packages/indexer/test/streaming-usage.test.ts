@@ -31,6 +31,7 @@ describe('usage written while a reply streams', () => {
       reply('a1', 'm1', 100, 8),
       reply('a2', 'm1', 100, 258),
       reply('a3', 'm1', 0, 0), // a record that carries no counts
+      { type: 'cost-state', sessionId: ID, totalCostUSD: 0.1, modelUsage: { 'claude-haiku-4-5-20251001': { inputTokens: 30 }, 'claude-sonnet-5[1m]': { inputTokens: 100 } } },
     ]),
   );
   writeFileSync(join(subDir, 'agent-sub.jsonl'), jsonl([reply('s1', 'p1', 50, 3), reply('s2', 'p1', 50, 90)]));
@@ -51,6 +52,10 @@ describe('usage written while a reply streams', () => {
     expect(tree.inputTokens).toBe(100);
     expect(reader.getSession(ID)!.contextTokens).toBe(100);
     expect(tree.children.find((c) => c.id === 'sub')!.outputTokens).toBe(90);
+  });
+
+  it('knows a conversation runs on the 1M context from the CLI’s cost record, which replies leave out', () => {
+    expect(reader.getSession(ID)!.contextWindow).toBe(1_000_000);
   });
 
   it('counts the agents a workflow ran with the conversation that ran it', () => {

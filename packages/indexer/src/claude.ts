@@ -102,6 +102,12 @@ export function readClaudeFile(path: string, progress?: ClaudeProgress): ClaudeP
       case 'summary':
         if (d.summary && !s.aiTitle) s.aiTitle = String(d.summary);
         return;
+      case 'cost-state': {
+        // Written once per CLI run: its model ids keep the long-context mark («claude-opus-5-5[1m]») that replies drop.
+        const ids = Object.keys(d.modelUsage ?? {});
+        if (ids.length) s.contextWindow = ids.some((id) => id.endsWith('[1m]')) ? 1_000_000 : null;
+        return;
+      }
       case 'user': {
         const content = d.message?.content;
         if (d.isMeta) {
