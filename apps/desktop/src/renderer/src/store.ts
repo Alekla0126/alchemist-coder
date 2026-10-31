@@ -12,6 +12,7 @@ import { useWelcome } from './welcome-state';
 import { markViewed } from './attention';
 import { bornConversation, heldConversation, provisionalProjects } from './stay-put';
 import { mergeOrder, readOrder } from './reorder';
+import { changeQueue } from './change-queue';
 
 const api = window.alchemist;
 const CATALOG_KEY = 'alchemist.catalog';
@@ -376,7 +377,7 @@ export const useStore = create<State>((set, get) => ({
         void Promise.all([get().refreshProjects(), ...Object.keys(get().trees).map((id) => get().loadTree(id)), ...(wantsRecent(get()) ? [get().loadRecent()] : [])]).then(() => resolveIndexed());
       } else if (p.done % 60 === 0) void get().refreshProjects();
     });
-    api.onSessionsChanged((ids) => void get().onChanged(ids));
+    api.onSessionsChanged((ids) => changes.push(ids));
     api.onRunnerEvent((m) => applyRunnerEvent(m));
     api.onAppCommand((command) => runAppCommand(command));
     if (info.capture?.settings) set({ settingsOpen: true });
@@ -1046,6 +1047,14 @@ function reloadRecentSoon() {
     void useStore.getState().loadRecent();
   }, 1200);
 }
+
+const changes = changeQueue({
+  hidden: () => document.hidden,
+  focused: () => document.hasFocus(),
+  flush: (ids) => void useStore.getState().onChanged(ids),
+});
+document.addEventListener('visibilitychange', () => changes.wake());
+window.addEventListener('focus', () => changes.wake());
 
 function runAppCommand(command: string) {
   const s = useStore.getState();
