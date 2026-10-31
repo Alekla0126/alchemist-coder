@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { basename, dirname, join, sep } from 'node:path';
 import { DatabaseSync, type StatementSync } from 'node:sqlite';
 import type { AgentStatus, IndexProgress, Source } from '@alchemist-coder/core';
-import { parseClaudeFile, type SubagentMeta } from './claude.ts';
+import { readClaudeFile, type ClaudeProgress, type SubagentMeta } from './claude.ts';
 import { parseCodexFile } from './codex.ts';
 import { geminiProjectRoot, grokSessionInfo, parseGeminiFile, parseGrokFile } from './acp-sources.ts';
 import { migrate } from './schema.ts';
@@ -57,6 +57,11 @@ interface ParsedFile {
   mtime: number;
   size: number;
   changed: boolean;
+  /** Its rows are only the ones appended since the last read; the earlier ones are already stored. */
+  appended?: boolean;
+  /** Where a Claude transcript was left, to read only what's appended next time. */
+  progress?: ClaudeProgress;
+  ino?: number;
 }
 
 interface AgentRow {
@@ -329,8 +334,18 @@ export class Indexer {
     const mtime = Math.trunc(st.mtimeMs);
     const cached = this.cache.get(path);
     if (cached && cached.mtime === mtime && cached.size === st.size) return { ...cached, changed: false };
+    if (source === 'claude-code') {
+      // A live transcript only grows: read what was appended, not the whole file again.
+      const grew = !!cached?.progress && cached.ino === st.ino && st.size > cached.size;
+      const progress = readClaudeFile(path, grew ? cached!.progress : undefined);
+      const summary = progress.summary;
+      const parsed = { summary: { ...summary }, mtime, size: st.size, changed: true, appended: grew };
+      summary.rows = [];
+      this.cache.set(path, { summary, mtime, size: st.size, changed: false, progress, ino: st.ino });
+      return parsed;
+    }
     const summary =
-      source === 'codex' ? parseCodexFile(path) : source === 'gemini' ? parseGeminiFile(path).summary : source === 'grok' ? parseGrokFile(path).summary : parseClaudeFile(path);
+      source === 'codex' ? parseCodexFile(path) : source === 'gemini' ? parseGeminiFile(path).summary : parseGrokFile(path).summary;
     const parsed = { summary, mtime, size: st.size, changed: true };
     // Rows are written to the database; the cache keeps only what the agent tree needs.
     this.cache.set(path, { ...parsed, summary: { ...summary, rows: [] } });
@@ -450,7 +465,7 @@ export class Indexer {
       ];
       for (const f of files) {
         if (f.parsed.changed) {
-          this.stmt.deleteMessages!.run(sessionId, f.agentId);
+          if (!f.parsed.appended) this.stmt.deleteMessages!.run(sessionId, f.agentId);
           for (const r of f.parsed.summary.rows) {
             this.stmt.message!.run(sessionId, f.agentId, r.key, r.role, r.ts, r.offset, r.length, r.text);
           }
@@ -464,6 +479,8 @@ export class Indexer {
       this.db.exec('COMMIT');
     } catch (error) {
       this.db.exec('ROLLBACK');
+      // What was read this time never reached the database: next time these files are read whole.
+      for (const path of [task.mainPath, ...task.subagents.map((f) => f.path)]) this.cache.delete(path);
       throw error;
     }
     return sessionId;

@@ -37,20 +37,47 @@ function textOf(content: unknown): string {
     .join('\n');
 }
 
+/** What has been read of a Claude transcript, so the next read starts where this one stopped. */
+export interface ClaudeProgress {
+  /** Totals so far; `rows` holds only the rows of the last read. */
+  summary: FileSummary;
+  /** Byte where the next read starts: after the last whole line. */
+  resumeAt: number;
+  models: Set<string>;
+  /** The latest replies by message id: records still to come can raise their counts. */
+  replies: Map<string, { model: string | null; usage: TokenUsage }>;
+  /** What's already final: replies with no id and older replies. */
+  counted: Pick<FileSummary, 'usage' | 'costUsd'>;
+}
+
+/** Replies kept open for more records (one reply's records are written one after another). */
+const OPEN_REPLIES = 16;
+
 /** Parses one Claude Code transcript: a main session file or a subagent file. */
 export function parseClaudeFile(path: string): FileSummary {
-  const s = newSummary();
-  const models = new Set<string>();
-  // One API response is split into several records whose usage can grow as it streams: summed once per reply, at the end.
-  const replies = new Map<string, { model: string | null; usage: TokenUsage }>();
+  return readClaudeFile(path).summary;
+}
 
-  forEachLine(path, (line, offset, length) => {
+/**
+ * Reads a Claude Code transcript from where `progress` stopped, or from the start without it. Transcripts
+ * only grow while an agent works, so a live one is read a few lines at a time instead of whole.
+ */
+export function readClaudeFile(path: string, progress?: ClaudeProgress): ClaudeProgress {
+  const p = progress ?? { summary: newSummary(), resumeAt: 0, models: new Set<string>(), replies: new Map(), counted: { usage: emptyUsage(), costUsd: null } };
+  const s = p.summary;
+  const { models, replies } = p;
+  s.rows = [];
+
+  forEachLine(path, (line, offset, length, complete) => {
     let d: Json;
     try {
       d = JSON.parse(line);
     } catch {
+      // A last line still being written is read again next time.
+      if (complete) p.resumeAt = offset + length + 1;
       return;
     }
+    p.resumeAt = complete ? offset + length + 1 : offset + length;
     const ts = tsOf(d.timestamp);
     touchTs(s, ts);
     if (typeof d.sessionId === 'string') s.sessionId ??= d.sessionId;
@@ -119,7 +146,7 @@ export function parseClaudeFile(path: string): FileSummary {
         } else {
           s.assistantMessages++;
           if (messageId) replies.set(messageId, { model, usage: u });
-          else addUsage(s, model, u);
+          else addUsage(p.counted, model, u);
         }
         const current = known?.usage ?? u;
         const read = current.input + current.cacheRead + current.cacheWrite5m + current.cacheWrite1h;
@@ -152,11 +179,19 @@ export function parseClaudeFile(path: string): FileSummary {
       default:
         return;
     }
-  });
+  }, p.resumeAt);
 
+  // Older replies are final: they join what's counted, and only the latest stay open.
+  for (const [id, r] of replies) {
+    if (replies.size <= OPEN_REPLIES) break;
+    addUsage(p.counted, r.model, r.usage);
+    replies.delete(id);
+  }
+  s.usage = { ...p.counted.usage };
+  s.costUsd = p.counted.costUsd;
   for (const r of replies.values()) addUsage(s, r.model, r.usage);
   s.models = [...models];
-  return s;
+  return p;
 }
 
 export interface SubagentMeta {

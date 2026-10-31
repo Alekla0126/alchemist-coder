@@ -115,7 +115,7 @@ export function titleFrom(text: string): string {
   return clean.length > 90 ? `${clean.slice(0, 89)}…` : clean;
 }
 
-export function addUsage(s: FileSummary, model: string | null, u: TokenUsage): void {
+export function addUsage(s: Pick<FileSummary, 'usage' | 'costUsd'>, model: string | null, u: TokenUsage): void {
   s.usage.input += u.input;
   s.usage.output += u.output;
   s.usage.cacheRead += u.cacheRead;
