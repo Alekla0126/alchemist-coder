@@ -2,7 +2,7 @@ import { closeSync, createReadStream, existsSync, openSync, readdirSync, readFil
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
-import { emptyUsage, estimateCost, type TokenUsage } from '@alchemist-coder/core';
+import { emptyUsage, estimateCost, maxUsage, type TokenUsage } from '@alchemist-coder/core';
 import type { ClaudeLimits, CliVersion, KimiUsage, KimiWindow, PlanUsage, UsageWindow } from '../shared/api';
 
 export interface UsageHomes {
@@ -41,19 +41,26 @@ async function eachLine(file: string, fn: (line: string) => void, start = 0, end
   for await (const line of rl) fn(line);
 }
 
+interface Reply {
+  ts: number;
+  usage: TokenUsage;
+  cost: number;
+}
+
 /** What one transcript contributed: each reply's time, tokens and cost, and any usage limit it hit. */
 interface FileTally {
   /** Bytes already read (transcripts only grow, so a refresh reads what was appended). */
   offset: number;
-  replies: Array<{ ts: number; usage: TokenUsage; cost: number }>;
-  seen: Set<string>;
+  replies: Reply[];
+  /** Each reply by its message id: its later records (they can carry larger counts) merge into it. */
+  seen: Map<string, Reply>;
   limits: Array<{ ts: number; type: string; resetsAt: number }>;
 }
 
 /** Reads the lines appended to `file` since the last time (whole lines only). */
 async function tallyFile(file: string, tally: FileTally, since: number): Promise<void> {
   const size = statSync(file, { throwIfNoEntry: false })?.size ?? 0;
-  if (size < tally.offset) Object.assign(tally, { offset: 0, replies: [], seen: new Set(), limits: [] }); // rewritten
+  if (size < tally.offset) Object.assign(tally, { offset: 0, replies: [], seen: new Map(), limits: [] }); // rewritten
   if (size === tally.offset) return;
   let consumed = tally.offset;
   let partial = false;
@@ -82,10 +89,6 @@ async function tallyFile(file: string, tally: FileTally, since: number): Promise
       const m = o.message;
       const u = m?.usage;
       if (o.type !== 'assistant' || !u) return;
-      // Claude Code writes one line per content block of a reply, all with the same usage.
-      const key = `${m.id ?? ''}:${o.requestId ?? ''}`;
-      if (m.id && tally.seen.has(key)) return;
-      tally.seen.add(key);
       const cc = u.cache_creation ?? {};
       const usage: TokenUsage = {
         input: Number(u.input_tokens) || 0,
@@ -94,7 +97,17 @@ async function tallyFile(file: string, tally: FileTally, since: number): Promise
         cacheWrite5m: Number(cc.ephemeral_5m_input_tokens ?? (cc.ephemeral_1h_input_tokens == null ? u.cache_creation_input_tokens : 0)) || 0,
         cacheWrite1h: Number(cc.ephemeral_1h_input_tokens) || 0,
       };
-      tally.replies.push({ ts, usage, cost: estimateCost(m.model, usage) ?? 0 });
+      // Claude Code writes one line per content block of a reply; a subagent's first ones carry its count mid-stream.
+      const key = `${m.id ?? ''}:${o.requestId ?? ''}`;
+      const known = m.id ? tally.seen.get(key) : undefined;
+      if (known) {
+        maxUsage(known.usage, usage);
+        known.cost = estimateCost(m.model, known.usage) ?? known.cost;
+        return;
+      }
+      const reply: Reply = { ts, usage, cost: estimateCost(m.model, usage) ?? 0 };
+      if (m.id) tally.seen.set(key, reply);
+      tally.replies.push(reply);
     },
     tally.offset,
     size - 1,
@@ -116,7 +129,16 @@ function recentTranscripts(root: string, since: number): string[] {
       if (e.isFile() && e.name.endsWith('.jsonl')) add(join(dir, e.name));
       else if (e.isDirectory()) {
         const sub = join(dir, e.name, 'subagents');
-        for (const f of existsSync(sub) ? readdirSync(sub) : []) if (f.endsWith('.jsonl')) add(join(sub, f));
+        for (const f of existsSync(sub) ? readdirSync(sub, { withFileTypes: true }) : []) {
+          if (f.isFile() && f.name.endsWith('.jsonl')) add(join(sub, f.name));
+          // Agents a workflow ran: subagents/workflows/<run>/agent-*.jsonl
+          else if (f.isDirectory() && f.name === 'workflows') {
+            for (const run of readdirSync(join(sub, f.name), { withFileTypes: true })) {
+              if (!run.isDirectory()) continue;
+              for (const w of readdirSync(join(sub, f.name, run.name))) if (w.endsWith('.jsonl')) add(join(sub, f.name, run.name, w));
+            }
+          }
+        }
       }
     }
   }
@@ -140,7 +162,7 @@ export async function claudeUsage(homes: UsageHomes, now = Date.now(), tallies =
   if (!account && !files.length) return null;
   for (const file of files) {
     let tally = tallies.get(file);
-    if (!tally) tallies.set(file, (tally = { offset: 0, replies: [], seen: new Set(), limits: [] }));
+    if (!tally) tallies.set(file, (tally = { offset: 0, replies: [], seen: new Map(), limits: [] }));
     await tallyFile(file, tally, since);
   }
   const windows = WINDOWS_H.map((hours) => ({ hours, usage: emptyUsage(), costUsd: 0, messages: 0 }));

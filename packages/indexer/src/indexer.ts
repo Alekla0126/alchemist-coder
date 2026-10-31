@@ -200,14 +200,20 @@ export class Indexer {
     const mainPath = join(root, projectDir, `${sessionId}.jsonl`);
     if (!existsSync(mainPath)) return null;
     const subagents: SessionFile[] = [];
-    const subDir = join(root, projectDir, sessionId, 'subagents');
-    if (existsSync(subDir)) {
-      for (const file of readdirSync(subDir)) {
+    const addAgents = (dir: string) => {
+      for (const file of readdirSync(dir)) {
         if (!file.startsWith('agent-') || !file.endsWith('.jsonl')) continue;
         const agentId = file.slice('agent-'.length, -'.jsonl'.length);
-        const metaPath = join(subDir, `agent-${agentId}.meta.json`);
-        subagents.push({ agentId, path: join(subDir, file), metaPath: existsSync(metaPath) ? metaPath : null });
+        const metaPath = join(dir, `agent-${agentId}.meta.json`);
+        subagents.push({ agentId, path: join(dir, file), metaPath: existsSync(metaPath) ? metaPath : null });
       }
+    };
+    const subDir = join(root, projectDir, sessionId, 'subagents');
+    if (existsSync(subDir)) {
+      addAgents(subDir);
+      // Agents a workflow ran: subagents/workflows/<run>/agent-*.jsonl, counted with the conversation that ran it.
+      const runs = join(subDir, 'workflows');
+      if (existsSync(runs)) for (const run of readdirSync(runs, { withFileTypes: true })) if (run.isDirectory()) addAgents(join(runs, run.name));
     }
     return {
       key: `claude-code:${sessionId}`,

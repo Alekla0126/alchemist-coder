@@ -1,4 +1,4 @@
-import { emptyUsage, type TokenUsage } from '@alchemist-coder/core';
+import { emptyUsage, maxUsage, type TokenUsage } from '@alchemist-coder/core';
 import { forEachLine } from './lines.ts';
 import { addUsage, newSummary, num, summarizeToolInput, titleFrom, touchTs, tsOf, type FileSummary } from './summary.ts';
 import { editsOf } from './edits.ts';
@@ -41,7 +41,8 @@ function textOf(content: unknown): string {
 export function parseClaudeFile(path: string): FileSummary {
   const s = newSummary();
   const models = new Set<string>();
-  const seenMessages = new Set<string>();
+  // One API response is split into several records whose usage can grow as it streams: summed once per reply, at the end.
+  const replies = new Map<string, { model: string | null; usage: TokenUsage }>();
 
   forEachLine(path, (line, offset, length) => {
     let d: Json;
@@ -109,16 +110,20 @@ export function parseClaudeFile(path: string): FileSummary {
         const msg: Json = d.message ?? {};
         const model = typeof msg.model === 'string' && msg.model !== '<synthetic>' ? msg.model : null;
         if (model) models.add(model);
-        // One API response is split into several records that repeat the same usage.
         const messageId = typeof msg.id === 'string' ? msg.id : null;
-        if (!messageId || !seenMessages.has(messageId)) {
-          if (messageId) seenMessages.add(messageId);
+        const u = usageOf(msg.usage);
+        const known = messageId ? replies.get(messageId) : undefined;
+        if (known) {
+          maxUsage(known.usage, u);
+          known.model ??= model;
+        } else {
           s.assistantMessages++;
-          const u = usageOf(msg.usage);
-          addUsage(s, model, u);
-          const read = u.input + u.cacheRead + u.cacheWrite5m + u.cacheWrite1h;
-          if (read > 0) s.contextTokens = read;
+          if (messageId) replies.set(messageId, { model, usage: u });
+          else addUsage(s, model, u);
         }
+        const current = known?.usage ?? u;
+        const read = current.input + current.cacheRead + current.cacheWrite5m + current.cacheWrite1h;
+        if (read > 0) s.contextTokens = read;
         if (typeof msg.stop_reason === 'string') s.lastStopReason = msg.stop_reason;
         let text = '';
         for (const b of Array.isArray(msg.content) ? msg.content : []) {
@@ -149,6 +154,7 @@ export function parseClaudeFile(path: string): FileSummary {
     }
   });
 
+  for (const r of replies.values()) addUsage(s, r.model, r.usage);
   s.models = [...models];
   return s;
 }
