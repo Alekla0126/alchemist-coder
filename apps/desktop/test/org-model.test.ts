@@ -199,7 +199,10 @@ describe('live exchanges', () => {
     expect(cardOf(t, 'b1', configs)).toBe('coord');
     expect(cardOf(t, 'b2', configs)).toBe('coder');
     expect(cardOf(t, 'b3', configs)).toBe('bot:b3');
-    expect(cardOf(t, 'you', configs)).toBeNull();
+    // You, and Autopilot deciding for you, sit at your own desk.
+    expect(cardOf(t, 'you', configs)).toBe('you');
+    expect(cardOf(t, 'autopilot', configs)).toBe('you');
+    expect(cardOf(t, 'b9', configs)).toBeNull();
   });
 });
 

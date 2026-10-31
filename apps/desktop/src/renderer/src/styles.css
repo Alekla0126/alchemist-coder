@@ -2110,7 +2110,7 @@ select.mk-chip { appearance: none; padding-right: 12px; }
 .of-top, .of-rooms, .of-open, .lv-board > .of-room { position: relative; z-index: 1; }
 /* The floor: a faint grid in the theme's own text color, so it reads as a floor in any theme. */
 .of-floor { padding: 18px 12px 14px; border: 1px solid var(--line); border-radius: 12px; background-color: color-mix(in srgb, var(--bg-card) 45%, var(--bg)); background-image: linear-gradient(color-mix(in srgb, var(--fg) 5%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--fg) 5%, transparent) 1px, transparent 1px); background-size: 32px 32px; }
-.of-top { display: flex; justify-content: center; }
+.of-top { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 18px; }
 .of-rooms { display: grid; grid-template-columns: repeat(auto-fill, minmax(296px, 1fr)); gap: 12px; }
 /* A department is a room: walls, and its name on a plate. */
 .of-room { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 8px 8px 6px; border: 2px solid color-mix(in srgb, var(--fg) 16%, transparent); border-radius: 10px; background: color-mix(in srgb, var(--bg) 60%, transparent); }
@@ -2225,8 +2225,49 @@ select.mk-chip { appearance: none; padding-right: 12px; }
 .lv-unread { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); padding: 3px 12px; border-radius: 999px; font-size: 11.5px; font-weight: 650; color: var(--on-accent, #1a0d05); background: var(--accent); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); }
 .lv-pick ul { list-style: none; display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
 .lv-empty { padding: 8px 0; }
+/* ---------- the office's tokens: what each desk spent (real, from the history) and what they handed each other (≈) ---------- */
+/* Your desk: a frame of its own, so it never reads as one more agent. */
+.of-desk.of-you { border: 1px dashed var(--line-2); }
+.lv-state.st-owner { color: var(--fg); }
+.tk-desk { display: flex; flex-direction: column; align-items: stretch; gap: 2px; width: 100%; margin-top: 2px; }
+/* The bar is the desk's share of the assignment's tokens; the number beside it says it in words. */
+.tk-bar { display: block; height: 4px; border-radius: 999px; background: color-mix(in srgb, var(--fg) 12%, transparent); overflow: hidden; }
+.tk-bar i { display: block; height: 100%; min-width: 2px; border-radius: inherit; background: color-mix(in srgb, var(--fg) 62%, transparent); }
+.tk-n { font-size: 10.5px; font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* "+12k": what a desk just spent, rising from its screen. */
+.tk-gain { position: absolute; z-index: 3; top: 4px; right: 6px; padding: 0 5px; border-radius: 4px; font-size: 11px; font-weight: 700; line-height: 16px; color: var(--fg); background: var(--bg-card); box-shadow: inset 0 0 0 1.5px var(--green); font-variant-numeric: tabular-nums; pointer-events: none; animation: tk-rise 2.6s ease-out both; }
+@keyframes tk-rise { 0% { opacity: 0; transform: translateY(6px); } 12% { opacity: 1; transform: translateY(0); } 75% { opacity: 1; } 100% { opacity: 0; transform: translateY(-14px); } }
+.of-envelope { white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* Over the office: what the assignment spent, in words. */
+.tk-strip { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; padding: 8px 12px; border: 1px solid var(--line-2); border-radius: 10px; font-size: 12px; color: var(--fg); background: var(--bg-card); font-variant-numeric: tabular-nums; }
+.tk-strip b { font-weight: 650; }
+.tk-strip span + span::before { content: '·'; margin-right: 14px; margin-left: -8px; color: var(--fg-2); }
+.of-card .tk-line { font-size: 11.5px; font-variant-numeric: tabular-nums; }
+/* The token exchange, desk by desk. */
+.tk-table { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.tk-table h4 { font-size: 12px; }
+.tk-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+.tk-table table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.tk-table th, .tk-table td { padding: 5px 10px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
+.tk-table thead th { font-size: 10.5px; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-2); background: var(--bg-card); }
+.tk-table th:first-child { text-align: left; }
+.tk-table tbody tr:last-child > * { border-bottom: 0; }
+.tk-table tbody tr:hover { background: var(--bg-hl); }
+/* Its desk's card is open: a background and an edge, not only a color. */
+.tk-table tbody tr.on { background: var(--bg-hl); box-shadow: inset 3px 0 0 var(--fg-2); }
+.tk-who { font-weight: 650; color: var(--fg); text-align: left; }
+.tk-who:hover { text-decoration: underline; text-underline-offset: 2px; }
+.tk-who:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 3px; }
+.tk-cell { display: inline-flex; align-items: center; gap: 6px; }
+.tk-cell .tk-bar { width: 56px; }
+/* Writing to an agent from its card. */
+.of-write { display: flex; flex-direction: column; gap: 4px; }
+.of-write textarea { width: 100%; min-height: 44px; padding: 6px 8px; border: 1px solid var(--line-2); border-radius: 8px; font: 12px/1.45 var(--sans); color: var(--fg); background: var(--bg-input); resize: vertical; user-select: text; }
+.of-write textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.of-write textarea:disabled { opacity: 0.7; }
+.of-write-bar { display: flex; align-items: center; gap: 6px; }
 /* Without motion the highlight still shows, standing still. */
-@media (prefers-reduced-motion: reduce) { .of-desk.lv-flash, .lv-spark, .of-bubble, .of-person, .of-mark, .of-screen i { animation: none; } .lv-spark { stroke-dasharray: none; } .lv-msg { transition: none; } .of-envelope { display: none; } }
+@media (prefers-reduced-motion: reduce) { .of-desk.lv-flash, .lv-spark, .of-bubble, .of-person, .of-mark, .of-screen i, .tk-gain { animation: none; } .lv-spark { stroke-dasharray: none; } .lv-msg { transition: none; } .of-envelope { display: none; } }
 
 /* ---------- chat by agent: tabs, who speaks, subagent cards, loading ---------- */
 .chat-agents { display: flex; align-items: center; gap: 6px; padding: 7px 18px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; flex: none; }

@@ -468,6 +468,8 @@ export interface TeamEvent {
   kind: TeamEventKind;
   /** Details: the other bot's id for created/message, a task or a count. */
   detail: string;
+  /** How long what was said is, in characters, when the detail doesn't hold all of it (a long task, a reply). */
+  chars?: number;
 }
 
 export interface TeamPlan {

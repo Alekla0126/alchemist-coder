@@ -17,6 +17,10 @@ const LESSON_CHARS = 400;
 /** On Autopilot a coordinator that ends its turn asking you is told to decide this many times per assignment, then it's yours. */
 const AUTOPILOT_NUDGES = 2;
 const REPLY_CHARS = 12_000;
+/** How much of what was said an activity line keeps. */
+const DETAIL_CHARS = 300;
+/** The kinds whose detail starts with the other bot's id ("b2|…"). */
+const SAID_TO: TeamEventKind[] = ['created', 'message', 'applied'];
 const PERMISSION_MODES: PermissionMode[] = ['default', 'acceptEdits', 'plan', 'bypassPermissions'];
 const ENDED: BotStatus[] = ['done', 'error', 'stopped'];
 const ACTIVE_STATUSES: BotStatus[] = ['starting', 'working', 'waiting'];
@@ -749,9 +753,12 @@ export class BotManager {
   }
 
   /** Adds a line to the team's activity (the oldest go past 200). */
-  private log(team: BotTeam, botId: string, kind: TeamEventKind, detail = '') {
+  private log(team: BotTeam, botId: string, kind: TeamEventKind, detail = '', chars?: number) {
     const list = team.activity ?? (team.activity = []);
-    list.push({ at: Date.now(), botId, kind, detail: detail.slice(0, 300) });
+    // What was said, without the other bot's id: kept whole as a length when the detail cuts it.
+    const said = SAID_TO.includes(kind) ? detail.slice(detail.indexOf('|') + 1) : detail;
+    const size = chars ?? (detail.length > DETAIL_CHARS ? said.length : 0);
+    list.push({ at: Date.now(), botId, kind, detail: detail.slice(0, DETAIL_CHARS), ...(size > 0 ? { chars: size } : {}) });
     if (list.length > 200) list.splice(0, list.length - 200);
   }
 
@@ -1016,15 +1023,18 @@ export class BotManager {
         }
         break;
       }
-      case 'result':
+      case 'result': {
         bot.doing = null;
         this.forgetTools(runId);
-        this.log(team, bot.id, event.ok ? 'finished' : 'failed');
-        bot.lastReply = clip(this.finalText(runId), REPLY_CHARS) || bot.lastReply;
+        const reply = this.finalText(runId);
+        // The reply isn't in the line: its length says how much it handed back.
+        this.log(team, bot.id, event.ok ? 'finished' : 'failed', '', reply.length);
+        bot.lastReply = clip(reply, REPLY_CHARS) || bot.lastReply;
         if (event.costUsd != null) bot.costUsd = event.costUsd;
         if (!ENDED.includes(bot.status)) bot.status = event.ok ? 'idle' : 'error';
         this.wake(runId);
         break;
+      }
       case 'error':
         bot.error = clip(event.message.trim(), 600);
         break;

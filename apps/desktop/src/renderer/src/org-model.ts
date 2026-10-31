@@ -166,6 +166,20 @@ export interface Exchange {
   text: string;
   /** A count, for those that carry one (agents in a plan, files applied). */
   n: number | null;
+  /** About how many tokens what was said weighs (estimateTokens); 0 when nothing was said. */
+  tokens: number;
+}
+
+/**
+ * About how many tokens a text weighs for a model, without a tokenizer: a token is about four
+ * characters in most languages, and about one per character in Chinese, Japanese and Korean. `chars`
+ * is its whole length when `text` is only its beginning.
+ */
+export function estimateTokens(text: string, chars = text.length): number {
+  if (chars <= 0) return 0;
+  const sample = text.slice(0, 2000);
+  const wide = sample ? (sample.match(/[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af\uf900-\ufaff]/g) ?? []).length / sample.length : 0;
+  return Math.max(1, Math.round(chars * wide + (chars * (1 - wide)) / 4));
 }
 
 /** The kinds that are someone telling someone something; a stop isn't. */
@@ -198,7 +212,7 @@ export function exchangesOf(team: BotTeam): Exchange[] {
     const [other, rest] = cut >= 0 ? [e.detail.slice(0, cut), e.detail.slice(cut + 1)] : ['', e.detail];
     const count = Number.parseInt(rest, 10);
     const n = ['plan', 'approved', 'applied'].includes(kind) && Number.isFinite(count) ? count : null;
-    const x: Exchange = { key: nth[i] ? `${keys[i]}#${nth[i]}` : keys[i]!, at: e.at, kind, from: e.botId, to: null, text: '', n };
+    const x: Exchange = { key: nth[i] ? `${keys[i]}#${nth[i]}` : keys[i]!, at: e.at, kind, from: e.botId, to: null, text: '', n, tokens: 0 };
     switch (kind) {
       case 'created':
       case 'message':
@@ -238,13 +252,26 @@ export function exchangesOf(team: BotTeam): Exchange[] {
         x.text = rest;
         break;
     }
+    // Its weight: the whole length when the line kept only the start (a long task is whole on its bot).
+    if (kind !== 'applied' && kind !== 'approved' && kind !== 'nudged') {
+      const task = kind === 'created' ? botOf(other)?.task : undefined;
+      const chars = e.chars ?? Math.max(x.text.length, task?.length ?? 0);
+      x.tokens = estimateTokens(task && task.length > x.text.length ? task : x.text, chars);
+    }
     out.push(x);
   });
   return out;
 }
 
-/** The card a bot shows on in the chart: its organization agent's, or its own (extrasIn's key) when defined on the spot. */
+/** Your desk in the office: what you say, and what Autopilot decides for you, comes from it. */
+export const YOU = 'you';
+
+/**
+ * The card a bot shows on in the chart: its organization agent's, or its own (extrasIn's key) when
+ * defined on the spot. You and Autopilot sit at your desk.
+ */
 export function cardOf(team: BotTeam, id: string, configs: BotConfig[]): string | null {
+  if (id === 'you' || id === 'autopilot') return YOU;
   const bot = team.bots.find((b) => b.id === id);
   if (!bot) return null;
   if (bot.configId && configs.some((c) => c.id === bot.configId)) return bot.configId;
@@ -265,7 +292,7 @@ export interface Link {
   n: number;
 }
 
-/** Who wrote to whom in an assignment, card to card: you, Autopilot and lessons to everyone have no card. */
+/** Who wrote to whom in an assignment, card to card (you included); a lesson is for everyone, so for no card. */
 export function linksOf(team: BotTeam, exchanges: Exchange[], configs: BotConfig[]): Link[] {
   const links = new Map<string, Link>();
   for (const x of exchanges) {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BotConfig, BotMember, BotTeam, TeamEvent } from '../src/shared/api';
-import { exchangesOf, linksOf, newExchanges, partnersOf } from '../src/renderer/src/org-model';
+import { estimateTokens, exchangesOf, linksOf, newExchanges, partnersOf } from '../src/renderer/src/org-model';
 
 const agent = { harnessId: 'claude-code', providerId: 'anthropic', model: 'sonnet' };
 const bot = (id: string, extra: Partial<BotMember> = {}): BotMember => ({ id, name: id, configId: null, role: '', agent, permissionMode: 'acceptEdits', canSpawn: false, parentId: 'b1', depth: 1, runId: null, status: 'working', task: `task of ${id}`, lastReply: '', costUsd: null, createdAt: 1000, ...extra });
@@ -198,7 +198,7 @@ describe('who wrote to whom', () => {
   const config = (id: string, extra: Partial<BotConfig> = {}): BotConfig => ({ id, name: id, role: '', agent, permissionMode: 'acceptEdits', canSpawn: false, kind: 'member', ...extra });
   const configs = [config('coord', { kind: 'coordinator' }), config('coder')];
 
-  it('counts the messages between two cards either way, and leaves out you and lessons', () => {
+  it('counts the messages between two cards either way, you at your desk, and leaves out lessons', () => {
     const t = team({
       bots: [lead({ configId: 'coord' }), bot('b2', { configId: 'coder' }), bot('b3', { parentId: 'b2', depth: 2 })],
       activity: [
@@ -213,6 +213,8 @@ describe('who wrote to whom', () => {
     expect(linksOf(t, exchangesOf(t), configs)).toEqual([
       { a: 'coder', b: 'coord', n: 2 },
       { a: 'bot:b3', b: 'coder', n: 1 },
+      // Your message to the coder and its question to you.
+      { a: 'coder', b: 'you', n: 2 },
     ]);
   });
 
@@ -233,3 +235,43 @@ describe('who wrote to whom', () => {
     expect(partnersOf(links, 'ui')).toEqual([]);
   });
 });
+
+describe('what an exchange weighs', () => {
+  it('is about a token every four characters, and one per character in Chinese, Japanese and Korean', () => {
+    expect(estimateTokens('')).toBe(0);
+    expect(estimateTokens('a')).toBe(1);
+    expect(estimateTokens('x'.repeat(400))).toBe(100);
+    expect(estimateTokens('请写出导出功能')).toBe(7);
+    // Half and half: 4 wide characters and 8 others weigh 4 + 2.
+    expect(estimateTokens('导出功能abcdefgh')).toBe(6);
+    // Only the start of a long text: its whole length counts, in the script of what's there.
+    expect(estimateTokens('Write the docs', 4000)).toBe(1000);
+  });
+
+  it("weighs what was said: a long task whole from its bot, a reply by its kept length, nothing for a count", () => {
+    const task = 'Export every row. '.repeat(30).trim();
+    const t = team({
+      bots: [lead(), bot('b2', { task, lastReply: 'Done: 3 files' })],
+      activity: [
+        // The line keeps the first 300 characters; the bot keeps the task whole.
+        { ...ev(1, 'b1', 'created', `b2|${task.slice(0, 300)}`) },
+        // A reply from before chars were kept: its latest text.
+        ev(2, 'b2', 'finished'),
+        { ...ev(3, 'b1', 'message', `b2|${'y'.repeat(300)}`), chars: 2000 },
+        { ...ev(4, 'b2', 'finished'), chars: 800 },
+        ev(5, 'you', 'approved', '2'),
+        ev(6, 'b1', 'applied', 'b2|3'),
+      ],
+    });
+    expect(exchangesOf(t).map((x) => [x.kind, x.tokens])).toEqual([
+      ['created', Math.round(task.length / 4)],
+      // An earlier turn's reply has no text: no weight rather than the wrong one.
+      ['finished', 0],
+      ['message', 500],
+      ['finished', 200],
+      ['approved', 0],
+      ['applied', 0],
+    ]);
+  });
+});
+

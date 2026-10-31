@@ -211,6 +211,25 @@ describe('bot teams', () => {
     expect(bots.listTeams()[0]!.bots[1]!.doing).toBeNull();
   });
 
+  it('keeps how long a long task or a reply was, so the office can weigh what they handed each other', async () => {
+    const { fake, bots } = setup();
+    const team = bots.startTeam({ goal: 'g', cwd: '/p', coordinator: { name: 'Lead', role: '', agent, permissionMode: 'acceptEdits' } });
+    const lead = { teamId: team.id, botId: 'b1' };
+    const task = 'Write the docs. '.repeat(40);
+    await bots.callTool(lead, 'create_bot', { name: 'W', task: 'short task' });
+    await bots.callTool(lead, 'create_bot', { name: 'X', task });
+    fake.play('run-2', 'Docs written in docs/a.md');
+    const [short, long, reply] = bots.team(team.id)!.activity!;
+    // A short one is whole in its line: no length needed.
+    expect(short).toMatchObject({ kind: 'created', detail: 'b2|short task' });
+    expect(short!.chars).toBeUndefined();
+    // A long one is cut to 300 characters, and keeps its real length (without the other bot's id).
+    expect(long!.detail).toHaveLength(300);
+    expect(long!.chars).toBe(task.trim().length);
+    // A reply isn't in its line at all: only its length.
+    expect(reply).toMatchObject({ kind: 'finished', botId: 'b2', detail: '', chars: 'Docs written in docs/a.md'.length });
+  });
+
   it('finishes only when the coordinator says so, and talking to it again reopens the team', async () => {
     const { fake, bots } = setup();
     const team = bots.startTeam({ goal: 'g', cwd: '/p', coordinator: { name: 'Lead', role: '', agent, permissionMode: 'acceptEdits' } });

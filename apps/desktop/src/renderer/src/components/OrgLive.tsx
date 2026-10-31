@@ -1,11 +1,13 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import type { BotConfig, BotTeam, Locale } from '@shared/api';
+import type { BotConfig, BotMember, BotTeam, Locale } from '@shared/api';
 import { openAssignment, openMember, showOnChart } from '../actions/org';
 import { AgentAvatar } from './AgentAvatar';
-import { clockTime, relativeTime } from '../format';
-import { aboutOf, cardOf, chartOf, exchangesOf, extrasIn, linksOf, newExchanges, partnersOf, teamState, workIn, type CardWork, type Exchange, type ExchangeKind } from '../org-model';
+import { clockTime, money, relativeTime, shortTokens } from '../format';
+import { ACTIVE, aboutOf, cardOf, chartOf, exchangesOf, extrasIn, linksOf, newExchanges, partnersOf, teamState, workIn, YOU, type CardWork, type Exchange, type ExchangeKind } from '../org-model';
+import { flowsOf, gainsOf, handsOf, ledgerOf, shareOf, totalOf, totalsOf, type Flow, type Hands, type Ledger, type SessionSpend, type Spend } from '../org-tokens';
 import { useStore, useT } from '../store';
-import { doingText } from './Bots';
+import { toast } from '../ui';
+import { doingText, errorText } from './Bots';
 
 type T = ReturnType<typeof useT>;
 
@@ -24,9 +26,16 @@ const PARTNERS = 3;
 /** How close to the bottom the feed counts as "at the end" (it then follows new messages). */
 const NEAR_END = 24;
 /** The card that opens under a desk is this wide, at most. */
-const CARD_W = 300;
+const CARD_W = 320;
+/** How long a desk's "+12k" shows after it spent more. */
+const GAIN_MS = 2600;
+/** The history is read again at most this often while the agents work. */
+const SPEND_EVERY_MS = 1500;
+/** How many desks a card names for what it handed over or got. */
+const HANDS = 3;
 
-type LiveState = CardWork['state'] | 'out';
+/** Your desk is 'owner', or 'waiting' while something waits for you. */
+type LiveState = CardWork['state'] | 'out' | 'owner';
 
 /** A line between two desks, edge to edge, in the office's coordinates. */
 interface Wire {
@@ -54,6 +63,8 @@ interface DeskInfo {
   /** Its organization agent; none for one defined on the spot. */
   member: BotConfig | null;
   coordinator: boolean;
+  /** Your own desk: whether something in the assignment waits for you. */
+  owner?: { waiting: boolean };
 }
 
 /** What a lit desk is doing in the exchange, in a word: its side of it. */
@@ -79,11 +90,115 @@ const nameIn = (team: BotTeam, id: string | null, t: T) =>
 /** A failed agent's error, short and on one line. */
 const errorOf = (team: BotTeam, work: CardWork | null) => (work?.state === 'error' ? clip(oneLine(team.bots.find((b) => b.id === work.botId)?.error ?? ''), ERROR_CLIP) : '');
 
-/** What kind of exchange it is, in words (with its count, when it has one). */
+/** What kind of exchange it is, in words (with its count, when it has one, and about what it weighs). */
 function kindText(x: Exchange, t: T) {
-  const label = t(`org.live.k.${x.kind}`);
-  if (x.n == null) return label;
-  return `${label} · ${x.kind === 'applied' ? t('bots.filesN', { n: x.n }) : t('bots.count', { n: x.n })}`;
+  const parts = [t(`org.live.k.${x.kind}`)];
+  if (x.n != null) parts.push(x.kind === 'applied' ? t('bots.filesN', { n: x.n }) : t('bots.count', { n: x.n }));
+  if (x.tokens > 0) parts.push(t('org.tokens.approx', { amount: shortTokens(x.tokens) }));
+  return parts.join(' · ');
+}
+
+/** A desk's state: yours says whether something waits for you; an agent's, how its part goes. */
+const stateOf = (d: DeskInfo): LiveState => (d.owner ? (d.owner.waiting ? 'waiting' : 'owner') : d.work ? d.work.state : 'out');
+const statusOf = (d: DeskInfo, t: T) => (d.owner ? t(d.owner.waiting ? 'org.live.st.needsYou' : 'org.live.st.owner') : t(`org.live.st.${stateOf(d)}`));
+
+/** What a desk spent, in a line: "85M read (84M from the cache) · 870k written · US$ 5.04". */
+function spendLine(s: Spend, t: T, locale: Locale) {
+  const read = t('org.tokens.read', { amount: shortTokens(s.read) });
+  return [
+    s.cached > 0 ? `${read} (${t('org.tokens.cached', { amount: shortTokens(s.cached) })})` : read,
+    t('org.tokens.written', { amount: shortTokens(s.written) }),
+    s.costUsd != null ? money(s.costUsd, locale) : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+/**
+ * The assignment's conversations as the history counts them, read again (at most every
+ * SPEND_EVERY_MS) when the index says one of them changed or the agents change. `team` says whose
+ * they are, so a desk never compares one assignment's tokens with another's.
+ */
+function useSessions(team: BotTeam): { team: string; rows: Record<string, SessionSpend | null> } | null {
+  const ids = team.bots.map((b) => b.sessionId).filter((x): x is string => !!x);
+  const key = ids.join(',');
+  const changed = useStore((s) => s.changedSessions);
+  const touched = changed.some((id) => ids.includes(id)) ? changed : null;
+  const [got, setGot] = useState<{ team: string; rows: Record<string, SessionSpend | null> } | null>(null);
+  const last = useRef(0);
+  useEffect(() => {
+    let live = true;
+    const read = () => {
+      last.current = Date.now();
+      void Promise.all(ids.map((id) => window.alchemist.session(id).catch(() => null))).then((rows) => {
+        if (live) setGot({ team: team.id, rows: Object.fromEntries(ids.map((id, i) => [id, rows[i] ?? null])) });
+      });
+    };
+    const wait = Math.max(0, last.current + SPEND_EVERY_MS - Date.now());
+    if (!wait) read();
+    const timer = wait ? setTimeout(read, wait) : undefined;
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [team.id, key, touched, team.bots.map((b) => b.status).join()]);
+  return got;
+}
+
+/** Who can still hear from you in the assignment: a live run, or a conversation to continue. */
+const reachable = (b: BotMember) => (!!b.runId && (ACTIVE.includes(b.status) || b.status === 'idle')) || !!b.sessionId;
+const running = (b: BotMember) => !!b.runId && (ACTIVE.includes(b.status) || b.status === 'idle');
+
+/** A box on a desk's card to write to its agent in this assignment, the same as from the assignment. */
+export function CardWrite({ team, bot }: { team: BotTeam; bot: BotMember }) {
+  const t = useT();
+  const messageBot = useStore((s) => s.messageBot);
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const planFirst = team.plan?.status === 'pending' && bot.depth === 0;
+  const can = reachable(bot) && !planFirst;
+  const live = running(bot);
+  const send = async () => {
+    const v = text.trim();
+    if (!v || !can || busy) return;
+    setBusy(true);
+    try {
+      await messageBot(team.id, bot.id, v);
+      setText('');
+      toast(t('org.office.sent', { name: bot.name }), undefined, 2500);
+    } catch (e) {
+      toast(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="of-write">
+      <textarea
+        rows={2}
+        value={text}
+        disabled={!can || busy}
+        aria-label={bot.depth === 0 ? t('org.office.writeCoordinator') : t('org.office.write')}
+        placeholder={planFirst ? t('bots.answerPlanFirst') : !can ? t('bots.ended') : live ? t('bots.messagePlaceholder', { name: bot.name }) : t('bots.continuePlaceholder', { name: bot.name })}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.nativeEvent.isComposing) return;
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            void send();
+          }
+        }}
+      />
+      {/* A finished agent starts again to read it: say so before it costs. */}
+      {can && !live && <small className="composer-note">{t('org.office.restarts')}</small>}
+      <div className="of-write-bar">
+        <span className="composer-sp" />
+        <button className="btn-send small" disabled={!can || busy || !text.trim()} onClick={() => void send()}>
+          {live ? t('run.send') : t('bots.continue')} ↵
+        </button>
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -91,12 +206,35 @@ function kindText(x: Exchange, t: T) {
  * finished), its name, its state in words and one line on what it's doing. When it talks, a bubble
  * with what it said; its card opens on a click. Nothing here changes size when it lights up.
  */
-function Desk({ d, team, lit, open, onOpen, onHover }: { d: DeskInfo; team: BotTeam; lit: Lit | null; open: boolean; onOpen: (id: string) => void; onHover: (id: string | null) => void }) {
+function Desk({
+  d,
+  team,
+  lit,
+  open,
+  spend,
+  share,
+  gain,
+  onOpen,
+  onHover,
+}: {
+  d: DeskInfo;
+  team: BotTeam;
+  lit: Lit | null;
+  open: boolean;
+  /** What its agents spent in the assignment; none when it isn't in it (or for your desk). */
+  spend: Spend | null;
+  share: number;
+  /** Tokens it spent since the last look, while its "+12k" shows. */
+  gain: { n: number; at: number } | null;
+  onOpen: (id: string) => void;
+  onHover: (id: string | null) => void;
+}) {
   const t = useT();
-  const state: LiveState = d.work ? d.work.state : 'out';
-  const status = t(`org.live.st.${state}`);
+  const state = stateOf(d);
+  const status = statusOf(d, t);
   // In the assignment: what it does there; not in it: what it does at all.
   const line = errorOf(team, d.work) || (d.work?.doing ? doingText(d.work.doing, t).text : '') || (d.work ? oneLine(d.work.task) : d.about);
+  const spent = spend ? (spend.counted ? t('org.tokens.amount', { amount: shortTokens(totalOf(spend)) }) : t('org.tokens.none')) : '';
   return (
     <div
       role="button"
@@ -104,8 +242,8 @@ function Desk({ d, team, lit, open, onOpen, onHover }: { d: DeskInfo; team: BotT
       data-live={d.id}
       aria-haspopup="dialog"
       aria-expanded={open}
-      aria-label={[d.name, status, line].filter(Boolean).join(' · ')}
-      className={`of-desk st-${state} ${d.coordinator ? 'of-lead' : ''} ${lit ? 'lv-flash' : ''} ${open ? 'on' : ''}`}
+      aria-label={[d.name, status, line, spent].filter(Boolean).join(' · ')}
+      className={`of-desk st-${state} ${d.coordinator ? 'of-lead' : ''} ${d.owner ? 'of-you' : ''} ${lit ? 'lv-flash' : ''} ${open ? 'on' : ''}`}
       onClick={() => onOpen(d.id)}
       onKeyDown={(e) => {
         if (e.key !== 'Enter' && e.key !== ' ') return;
@@ -126,6 +264,12 @@ function Desk({ d, team, lit, open, onOpen, onHover }: { d: DeskInfo; team: BotT
       )}
       {/* Its side in a word; the one talking has its bubble instead, which already says to whom. */}
       {lit && !lit.said && <span className="lv-flash-word of-word">{t(`org.live.flash.${lit.word}`)}</span>}
+      {/* Tokens it just spent rise from its screen; the meter below already says the total in words. */}
+      {gain && (
+        <span key={gain.at} className="tk-gain" aria-hidden>
+          +{shortTokens(gain.n)}
+        </span>
+      )}
       <span className="of-person">
         <AgentAvatar name={d.name} avatar={d.avatar} size={40} />
         {MARK[state] && (
@@ -150,6 +294,14 @@ function Desk({ d, team, lit, open, onOpen, onHover }: { d: DeskInfo; team: BotT
       <small className="of-line" title={line || undefined}>
         {line}
       </small>
+      {spend && (
+        <span className="tk-desk">
+          <span className="tk-bar" aria-hidden>
+            <i style={{ width: `${Math.round(share * 100)}%` }} />
+          </span>
+          <small className="tk-n">{spent}</small>
+        </span>
+      )}
     </div>
   );
 }
@@ -162,27 +314,43 @@ interface CardPos {
   tip: number;
 }
 
-/** A desk's card: what the agent does, its part in the assignment, what it's on now and who it talked with. */
-function DeskCard({ d, team, talk, pos, onClose }: { d: DeskInfo; team: BotTeam; talk: Talk; pos: CardPos; onClose: () => void }) {
+/** Whom a desk handed how much, or got how much from, in words: "Tester ≈ 1.2k, Reviewer ≈ 300 +1 more". */
+function handsText(xs: Hands['sent'], nameOf: (id: string) => string, t: T) {
+  const named = xs
+    .slice(0, HANDS)
+    .map((x) => `${nameOf(x.id)} ≈ ${shortTokens(x.tokens)}`)
+    .join(', ');
+  return xs.length > HANDS ? `${named} ${t('org.moreN', { n: xs.length - HANDS })}` : named;
+}
+
+/**
+ * A desk's card: what the agent does, its part in the assignment, what it's on now, who it talked
+ * with, what it spent and handed over, and a box to write to it.
+ */
+function DeskCard({ d, team, talk, pos, spend, hands, nameOf, onClose }: { d: DeskInfo; team: BotTeam; talk: Talk; pos: CardPos; spend: Spend | null; hands: Hands; nameOf: (id: string) => string; onClose: () => void }) {
   const t = useT();
-  const state: LiveState = d.work ? d.work.state : 'out';
+  const locale = useStore((s) => s.locale);
+  const state = stateOf(d);
   const error = errorOf(team, d.work);
   const doing = d.work?.doing ? doingText(d.work.doing, t).text : '';
   const talked = [talk.named, talk.more].filter(Boolean).join(' ');
   const botId = d.work?.botId;
+  // Yours writes to the coordinator; an agent's, to its latest bot in the assignment.
+  const bot = d.owner ? team.bots[0] : botId ? team.bots.find((b) => b.id === botId) : undefined;
+  const context = spend?.context ? (spend.contextWindow ? t('org.tokens.context', { used: shortTokens(spend.context), size: shortTokens(spend.contextWindow) }) : t('org.tokens.contextUsed', { used: shortTokens(spend.context) })) : '';
   return (
     <div className="of-card" role="dialog" aria-label={d.name} style={{ left: pos.left, top: pos.top, width: pos.width, '--tip': `${pos.tip}px` } as CSSProperties}>
       <div className="of-card-head">
         <AgentAvatar name={d.name} avatar={d.avatar} size={30} />
         <b>{d.name}</b>
-        <span className={`lv-state st-${state}`}>{t(`org.live.st.${state}`)}</span>
+        <span className={`lv-state st-${state}`}>{statusOf(d, t)}</span>
         <button className="of-close" onClick={onClose} aria-label={t('org.office.close')} title={t('org.office.close')}>
           ✕
         </button>
       </div>
       <h5>{t('org.office.about')}</h5>
       <p className="of-about">{d.about || t('org.office.noAbout')}</p>
-      {d.work ? (
+      {d.owner ? null : d.work ? (
         <>
           <h5>{t('org.office.part')}</h5>
           <p>{clip(oneLine(d.work.task), TASK_CLIP)}</p>
@@ -192,6 +360,21 @@ function DeskCard({ d, team, talk, pos, onClose }: { d: DeskInfo; team: BotTeam;
         <p className="composer-note">{t('org.office.notIn')}</p>
       )}
       {talked && <p className="lv-talk">↔ {`${t('org.live.talkedWith')} ${talked}`}</p>}
+      {(spend?.counted || hands.sent.length > 0 || hands.got.length > 0) && (
+        <>
+          <h5>{t('org.tokens.title')}</h5>
+          {spend && spend.counted > 0 && <p className="tk-line">{spendLine(spend, t, locale)}</p>}
+          {context && <p className="tk-line">{context}</p>}
+          {hands.sent.length > 0 && <p className="tk-line">↗ {t('org.tokens.sent', { amount: shortTokens(hands.sentTokens), who: handsText(hands.sent, nameOf, t) })}</p>}
+          {hands.got.length > 0 && <p className="tk-line">↙ {t('org.tokens.got', { amount: shortTokens(hands.gotTokens), who: handsText(hands.got, nameOf, t) })}</p>}
+        </>
+      )}
+      {bot && (
+        <>
+          <h5>{d.owner ? t('org.office.writeCoordinator') : t('org.office.write')}</h5>
+          <CardWrite team={team} bot={bot} />
+        </>
+      )}
       {(botId || d.member) && (
         <div className="of-card-actions">
           {botId && (
@@ -343,6 +526,97 @@ function measure(el: HTMLElement, pairs: Array<{ key: string; a: string; b: stri
 }
 
 /**
+ * What the assignment spent, over the office: real tokens from each agent's history, and about how
+ * many they handed each other in their messages.
+ */
+function TokenStrip({ ledger, flows, nameOf }: { ledger: Ledger; flows: Flow[]; nameOf: (id: string) => string }) {
+  const t = useT();
+  const locale = useStore((s) => s.locale);
+  const handed = flows.reduce((a, f) => a + f.tokens, 0);
+  const messages = flows.reduce((a, f) => a + f.n, 0);
+  return (
+    <div className="tk-strip" role="status" title={t('org.tokens.hint')}>
+      <b>{t('org.tokens.strip')}</b>
+      <span>{ledger.total.counted ? spendLine(ledger.total, t, locale) : t('org.tokens.none')}</span>
+      {ledger.top && <span>{t('org.tokens.top', { name: nameOf(ledger.top), share: `${Math.round(shareOf(ledger, ledger.top) * 100)}%` })}</span>}
+      {messages > 0 && <span>{t('org.tokens.handed', { n: messages, amount: shortTokens(handed) })}</span>}
+    </div>
+  );
+}
+
+/** One desk's row in the token exchange. */
+interface TokenRow {
+  id: string;
+  name: string;
+  spend: Spend | null;
+  hands: Hands;
+}
+
+/**
+ * The token exchange desk by desk, the biggest spender first: what each spent, read and wrote, and
+ * about how much it handed over and got. A row opens its desk's card, like the desk does.
+ */
+export function TokenTable({ rows, ledger, open, onOpen, onHover }: { rows: TokenRow[]; ledger: Ledger; open: string | null; onOpen: (id: string) => void; onHover: (id: string | null) => void }) {
+  const t = useT();
+  const locale = useStore((s) => s.locale);
+  if (!rows.length) return null;
+  const sorted = [...rows].sort((a, b) => (b.spend ? totalOf(b.spend) : -1) - (a.spend ? totalOf(a.spend) : -1) || b.hands.sentTokens - a.hands.sentTokens);
+  const amount = (n: number) => (n > 0 ? shortTokens(n) : '—');
+  return (
+    <section className="tk-table" aria-label={t('org.tokens.table')}>
+      <h4>{t('org.tokens.table')}</h4>
+      <p className="composer-note">{t('org.tokens.hint')}</p>
+      <div className="tk-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">{t('org.tokens.col.desk')}</th>
+              <th scope="col">{t('org.tokens.col.spent')}</th>
+              <th scope="col">{t('org.tokens.col.read')}</th>
+              <th scope="col">{t('org.tokens.col.written')}</th>
+              <th scope="col">{t('org.tokens.col.sent')}</th>
+              <th scope="col">{t('org.tokens.col.got')}</th>
+              <th scope="col">{t('org.tokens.col.cost')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((r) => {
+              const share = shareOf(ledger, r.id);
+              return (
+                <tr key={r.id} className={open === r.id ? 'on' : ''} onMouseEnter={() => onHover(r.id)} onMouseLeave={() => onHover(null)}>
+                  <th scope="row">
+                    <button className="tk-who" aria-expanded={open === r.id} title={t('org.tokens.rowHint')} onClick={() => onOpen(r.id)} onFocus={() => onHover(r.id)} onBlur={() => onHover(null)}>
+                      {r.name}
+                    </button>
+                  </th>
+                  <td>
+                    {r.spend?.counted ? (
+                      <span className="tk-cell">
+                        <span className="tk-bar" aria-hidden>
+                          <i style={{ width: `${Math.round(share * 100)}%` }} />
+                        </span>
+                        {shortTokens(totalOf(r.spend))} · {Math.round(share * 100)}%
+                      </span>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                  <td>{r.spend ? amount(r.spend.read) : '—'}</td>
+                  <td>{r.spend ? amount(r.spend.written) : '—'}</td>
+                  <td>{r.hands.sentTokens ? `≈ ${shortTokens(r.hands.sentTokens)}` : '—'}</td>
+                  <td>{r.hands.gotTokens ? `≈ ${shortTokens(r.hands.gotTokens)}` : '—'}</td>
+                  <td>{r.spend?.costUsd != null ? money(r.spend.costUsd, locale) : '—'}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+/**
  * An assignment live, as an office: the coordinator's desk on top, each agent with a team in a room
  * of its own, the rest side by side, and the conversation below. When two agents talk, the one
  * talking gets a bubble with what it said, an envelope goes to the other and both desks light up
@@ -358,6 +632,30 @@ export function OrgLive({ team, cwd }: { team: BotTeam; cwd: string }) {
   // The desks on each side of every exchange.
   const ends = useMemo(() => new Map(exchanges.map((x) => [x.key, [cardOf(team, x.from, configs), x.to ? cardOf(team, x.to, configs) : null] as const])), [exchanges, configs]);
   const links = useMemo(() => linksOf(team, exchanges, configs), [exchanges, configs]);
+  const flows = useMemo(() => flowsOf(team, exchanges, configs), [exchanges, configs]);
+  // What each desk spent, from the history; a desk that spends more shows "+12k" for a moment.
+  const sessions = useSessions(team);
+  const mine = sessions?.team === team.id ? sessions.rows : null;
+  const ledger = useMemo(() => ledgerOf(team, mine ?? {}, configs), [team.bots, mine, configs]);
+  const [gains, setGains] = useState<Map<string, { n: number; at: number }>>(new Map());
+  const looked = useRef<{ team: string; totals: Map<string, number> } | null>(null);
+  const gainTimers = useRef<Array<ReturnType<typeof setTimeout>>>([]);
+  useEffect(() => () => gainTimers.current.forEach(clearTimeout), []);
+  useEffect(() => {
+    // Only once the history is in: an empty ledger first would make every desk "spend" it all.
+    if (!mine) return;
+    const prev = looked.current?.team === team.id ? looked.current.totals : null;
+    looked.current = { team: team.id, totals: totalsOf(ledger) };
+    const grew = gainsOf(prev, ledger);
+    if (!grew.size) return;
+    const at = Date.now();
+    setGains((g) => new Map([...g, ...[...grew].map(([card, n]) => [card, { n, at }] as const)]));
+    const id = setTimeout(() => {
+      gainTimers.current = gainTimers.current.filter((x) => x !== id);
+      setGains((g) => new Map([...g].filter(([, x]) => x.at !== at)));
+    }, GAIN_MS);
+    gainTimers.current.push(id);
+  }, [ledger]);
   // Exchanges already seen in this assignment: only the ones arriving after it opened light up.
   const seen = useRef<{ team: string; keys: Set<string> } | null>(null);
   const [fresh, setFresh] = useState<Set<string>>(new Set());
@@ -403,6 +701,7 @@ export function OrgLive({ team, cwd }: { team: BotTeam; cwd: string }) {
     return () => ro.disconnect();
   }, []);
   const flashKey = flashPairs.map((p) => p.key).join(',');
+  const weightOf = useMemo(() => new Map(exchanges.map((x) => [x.key, x.tokens])), [exchanges]);
   useLayoutEffect(() => {
     const el = board.current;
     if (!el) return;
@@ -451,8 +750,15 @@ export function OrgLive({ team, cwd }: { team: BotTeam; cwd: string }) {
     };
   }, [openId]);
   const toggle = (id: string) => setOpenId((o) => (o === id ? null : id));
+  // Screenshots only (--scroll-to=".tk-table"): the part of the office to show; you never get moved.
+  useEffect(() => {
+    const to = useStore.getState().info?.capture?.scrollTo;
+    if (!to) return;
+    const id = setTimeout(() => board.current?.closest('.lv')?.querySelector(to)?.scrollIntoView({ block: 'start' }), 400);
+    return () => clearTimeout(id);
+  }, []);
   // Who each agent talked with, in words ("Coordinator · 6, Tester · 1").
-  const deskName = (id: string) => configs.find((c) => c.id === id)?.name ?? extras.find((x) => x.key === id)?.name ?? t('org.live.unknown');
+  const deskName = (id: string) => (id === YOU ? t('bots.you') : (configs.find((c) => c.id === id)?.name ?? extras.find((x) => x.key === id)?.name ?? t('org.live.unknown')));
   const talkOf = (id: string): Talk => {
     const partners = partnersOf(links, id);
     const named = partners.slice(0, PARTNERS).map((p) => `${deskName(p.id)} · ${p.n}`).join(', ');
@@ -463,8 +769,11 @@ export function OrgLive({ team, cwd }: { team: BotTeam; cwd: string }) {
   const desks = new Map<string, DeskInfo>();
   const desk = (d: DeskInfo) => {
     desks.set(d.id, d);
-    return <Desk key={d.id} d={d} team={team} lit={lit.get(d.id) ?? null} open={openId === d.id} onOpen={toggle} onHover={setHover} />;
+    return <Desk key={d.id} d={d} team={team} lit={lit.get(d.id) ?? null} open={openId === d.id} spend={ledger.desks.get(d.id) ?? null} share={shareOf(ledger, d.id)} gain={gains.get(d.id) ?? null} onOpen={toggle} onHover={setHover} />;
   };
+  // Your desk, beside the coordinator's: what you say comes from it, what they ask you goes to it.
+  const waiting = team.plan?.status === 'pending' || team.bots.some((b) => b.status === 'waiting');
+  const you = desk({ id: YOU, name: t('bots.you'), about: t('org.office.youAbout'), work: null, member: null, coordinator: false, owner: { waiting } });
   // An agent without a team isn't a department of its own: those sit side by side.
   const depts = leads.filter((l) => l.team.length > 0);
   const solo = leads.filter((l) => !l.team.length).map((l) => l.member);
@@ -481,8 +790,13 @@ export function OrgLive({ team, cwd }: { team: BotTeam; cwd: string }) {
   const open = solo.map((m) => desk(of(m)));
   const visitors = extras.map((x) => desk({ id: x.key, name: x.name, about: aboutOf({ role: x.role }), work: x.work, member: null, coordinator: false }));
   const shown = openId ? desks.get(openId) : undefined;
+  // The desks that spent or handed something over in this assignment, and yours.
+  const rows: TokenRow[] = [...desks.values()]
+    .filter((d) => d.owner || ledger.desks.has(d.id) || flows.some((f) => f.from === d.id || f.to === d.id))
+    .map((d) => ({ id: d.id, name: d.name, spend: ledger.desks.get(d.id) ?? null, hands: handsOf(flows, d.id) }));
   return (
     <div className="lv">
+      <TokenStrip ledger={ledger} flows={flows} nameOf={deskName} />
       <div className="lv-board of-floor" ref={board} role="group" aria-label={t('org.live.departments')}>
         {wires.length > 0 && (
           <svg className="lv-wires" aria-hidden>
@@ -494,10 +808,13 @@ export function OrgLive({ team, cwd }: { team: BotTeam; cwd: string }) {
         {/* An envelope from the one talking to the other, once per message. */}
         {wires.map((w) => (
           <span key={`env:${w.key}`} className="of-envelope" style={{ offsetPath: `path('M ${w.x1} ${w.y1} L ${w.x2} ${w.y2}')` }} aria-hidden>
-            ✉
+            ✉{weightOf.get(w.key) ? ` ${t('org.tokens.approx', { amount: shortTokens(weightOf.get(w.key)!) })}` : ''}
           </span>
         ))}
-        <div className="of-top">{top}</div>
+        <div className="of-top">
+          {you}
+          {top}
+        </div>
         {rooms.length > 0 && <div className="of-rooms">{rooms}</div>}
         {open.length > 0 && <div className="of-open">{open}</div>}
         {visitors.length > 0 && (
@@ -506,8 +823,9 @@ export function OrgLive({ team, cwd }: { team: BotTeam; cwd: string }) {
             <div className="of-desks">{visitors}</div>
           </section>
         )}
-        {shown && pos && <DeskCard d={shown} team={team} talk={talkOf(shown.id)} pos={pos} onClose={() => setOpenId(null)} />}
+        {shown && pos && <DeskCard d={shown} team={team} talk={talkOf(shown.id)} pos={pos} spend={ledger.desks.get(shown.id) ?? null} hands={handsOf(flows, shown.id)} nameOf={deskName} onClose={() => setOpenId(null)} />}
       </div>
+      <TokenTable rows={rows} ledger={ledger} open={openId} onOpen={toggle} onHover={setHover} />
       <section className="lv-chat" aria-label={t('org.live.messages')}>
         <h4>{t('org.live.messages')}</h4>
         <LiveFeed team={team} exchanges={exchanges} fresh={fresh} marked={marked} />
