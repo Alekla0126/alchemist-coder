@@ -1627,6 +1627,7 @@ export const zhCN: Messages = {
   'org.office.noProjects': '还没有有工作的项目。在下面写下你需要的: 协调者会分配。',
   'org.office.floor': '现在的工作, 按项目',
   'org.office.departments': '部门',
+  'org.office.clearFilter': '显示所有项目 (现在只有 {name})',
   'org.office.discardTitle': '放弃对 {name} 的更改?',
   'org.office.discardHint': '你更改了设置但没有保存。',
   'org.office.discard': '放弃',

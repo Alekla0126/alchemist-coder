@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { BotConfig, BotTeam } from '@shared/api';
 import { dismissMember, keepMember, openAssignment } from '../actions/org';
 import { relativeTime } from '../format';
+import { baseName, isInside } from '../paths';
 import { aboutOf, activityOf, inFolder, teamState } from '../org-model';
 import { channelOf, countsOf, isDemo, waitingBot, departmentsOf, latestTeam, projectsOf, type Department, type OfficeAgent, type OfficeMember, type OfficeProject, type OfficeState } from '../org-office';
 import { useOpenProjects, useStore, useT } from '../store';
@@ -258,6 +259,36 @@ function Talk({ to, setTo, configs, teams, floor, departments, coordinator }: { 
   );
 }
 
+/** Which project the office shows, in sight: a menu with several open, else the filter's name with ✕. */
+function ProjectFilter() {
+  const t = useT();
+  const orgProject = useStore((s) => s.orgProject);
+  const open = useOpenProjects();
+  const set = (orgProject: string) => useStore.setState({ orgProject });
+  const name = open.find((p) => p.cwd === orgProject)?.name ?? (orgProject ? baseName(orgProject) : '');
+  if (open.length > 1)
+    return (
+      <select className="org-filter ofc-filter" value={orgProject} aria-label={t('org.project')} onChange={(e) => set(e.target.value)}>
+        <option value="">{t('org.allProjects')}</option>
+        {orgProject && !open.some((p) => p.cwd === orgProject) && <option value={orgProject}>{name}</option>}
+        {open.map((p) => (
+          <option key={p.id} value={p.cwd}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+    );
+  if (!orgProject) return null;
+  return (
+    <span className="ofc-filter-chip" title={orgProject}>
+      📁 {name}
+      <button className="of-close" onClick={() => set('')} aria-label={t('org.office.clearFilter', { name })} title={t('org.office.clearFilter', { name })}>
+        ✕
+      </button>
+    </span>
+  );
+}
+
 /**
  * The organization on one screen: the work going on now project by project, animated (who works,
  * who waits for you, what's done), the departments beside it with each agent's settings a click
@@ -324,6 +355,12 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
     requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('.ofc-talk textarea')?.focus());
   };
   const summary = countText(counts, t);
+  // The automations live in the detailed view's column: there, for now, without changing the view you keep.
+  const automations = useStore((s) => (orgProject ? s.automations.filter((x) => isInside(x.automation.cwd, orgProject)) : s.automations).length);
+  const showAutomations = () => {
+    useStore.setState({ orgOffice: false, orgLive: false, orgMap: false });
+    requestAnimationFrame(() => document.getElementById('org-automations')?.scrollIntoView({ block: 'start' }));
+  };
   return (
     <div className={`ofc ${shown ? 'with-sheet' : ''}`}>
       <header className="ofc-head">
@@ -333,6 +370,11 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
         </span>
         {callout}
         <span className="composer-sp" />
+        <ProjectFilter />
+        <button className="btn-ghost small" onClick={showAutomations} title={t('auto.title')}>
+          ⚡ {t('auto.title')}
+          {automations > 0 && ` · ${automations}`}
+        </button>
         {views}
       </header>
       <div className="ofc-main">

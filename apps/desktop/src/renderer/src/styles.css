@@ -2788,3 +2788,6 @@ body { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; 
 .body.mode-bots.org-office:not(.drawer-open) > aside.side { display: none; }
 /* The sheet's Save stays in sight at its foot, however long the form. */
 .ofc-sheet .om-editor .bots-actions { position: sticky; bottom: -16px; z-index: 1; margin: 0 -14px -16px; padding: 10px 14px; border-top: 1px solid var(--line); background: var(--bg-card); }
+/* The project the office shows, beside the views. */
+.ofc-filter { width: auto; max-width: 220px; }
+.ofc-filter-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 240px; padding: 1px 2px 1px 8px; border: 1px solid var(--line-2); border-radius: 999px; font-size: 12px; color: var(--fg); background: var(--bg-input); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -1626,6 +1626,7 @@ export const en = {
   'org.office.noProjects': 'No projects with work yet. Write below what you need: the coordinator hands it out.',
   'org.office.floor': 'The work right now, by project',
   'org.office.departments': 'Departments',
+  'org.office.clearFilter': 'Show every project (now only {name})',
   'org.office.discardTitle': 'Discard the changes to {name}?',
   'org.office.discardHint': "You changed its settings and didn't save them.",
   'org.office.discard': 'Discard',

@@ -1627,6 +1627,7 @@ export const hi: Messages = {
   'org.office.noProjects': 'अभी काम वाले कोई प्रोजेक्ट नहीं। नीचे लिखें कि आपको क्या चाहिए: कोऑर्डिनेटर बाँट देगा।',
   'org.office.floor': 'अभी का काम, प्रोजेक्ट के हिसाब से',
   'org.office.departments': 'विभाग',
+  'org.office.clearFilter': 'सभी प्रोजेक्ट दिखाएँ (अभी सिर्फ़ {name})',
   'org.office.discardTitle': '{name} के बदलाव छोड़ दें?',
   'org.office.discardHint': 'आपने सेटिंग बदली और सेव नहीं की।',
   'org.office.discard': 'छोड़ें',

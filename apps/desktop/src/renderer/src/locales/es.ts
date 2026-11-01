@@ -1627,6 +1627,7 @@ export const es: Messages = {
   'org.office.noProjects': 'Aún no hay proyectos con trabajo. Escribe abajo lo que necesitas: el coordinador lo reparte.',
   'org.office.floor': 'El trabajo de ahora, por proyecto',
   'org.office.departments': 'Departamentos',
+  'org.office.clearFilter': 'Ver todos los proyectos (ahora solo {name})',
   'org.office.discardTitle': '¿Descartar los cambios de {name}?',
   'org.office.discardHint': 'Cambiaste su configuración y no la guardaste.',
   'org.office.discard': 'Descartar',

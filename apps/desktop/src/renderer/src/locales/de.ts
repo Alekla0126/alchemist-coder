@@ -1627,6 +1627,7 @@ export const de: Messages = {
   'org.office.noProjects': 'Noch keine Projekte mit Arbeit. Schreib unten, was du brauchst: der Koordinator verteilt es.',
   'org.office.floor': 'Die Arbeit gerade, nach Projekt',
   'org.office.departments': 'Abteilungen',
+  'org.office.clearFilter': 'Alle Projekte zeigen (jetzt nur {name})',
   'org.office.discardTitle': 'Änderungen an {name} verwerfen?',
   'org.office.discardHint': 'Du hast die Einstellungen geändert und nicht gespeichert.',
   'org.office.discard': 'Verwerfen',

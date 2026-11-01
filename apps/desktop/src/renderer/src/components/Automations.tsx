@@ -53,7 +53,7 @@ export function AutomationList() {
   const shown = orgProject ? list.filter((s) => s.automation.cwd === orgProject || s.automation.cwd.startsWith(`${orgProject}/`)) : list;
   return (
     <>
-      <div className="sec arena-sec">
+      <div className="sec arena-sec" id="org-automations">
         <span>{t('auto.title')}</span>
         <button className="new-btn" onClick={() => useStore.setState({ automationDialog: true })}>
           + {t('auto.new')}
