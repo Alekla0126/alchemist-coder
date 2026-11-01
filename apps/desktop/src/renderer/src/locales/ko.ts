@@ -1627,6 +1627,8 @@ export const ko: Messages = {
   'org.office.noProjects': '아직 작업이 있는 프로젝트가 없어요. 필요한 것을 아래에 쓰면 코디네이터가 나눠요.',
   'org.office.floor': '지금의 작업, 프로젝트별',
   'org.office.departments': '부서',
+  'org.office.noAgent': '조직을 준비하려면 에이전트와 모델을 고르세요.',
+  'org.office.pickAgent': '설정 › 에이전트',
   'org.office.hideDepts': '부서 숨기기',
   'org.office.showDepts': '부서 보기',
   'org.office.clearFilter': '모든 프로젝트 보기 (지금은 {name}만)',

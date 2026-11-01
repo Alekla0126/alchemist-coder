@@ -7,6 +7,7 @@ import { isDemo } from '../org-office';
 import { openMenu, promptText, toast } from '../ui';
 import { errorText } from './Bots';
 import { Chip } from './ComposerChips';
+import { defaultChoice } from './AgentPicker';
 import { Icon } from './Icon';
 import { VoiceButton } from './VoiceButton';
 import { appendSpoken } from '../voice';
@@ -124,7 +125,8 @@ export function OrgComposer({ coordinator, examples: showExamples }: { coordinat
   };
 
   const ready = !!goal.trim() && !!cwd && !!coordinator;
-  const why = !coordinator ? t('org.setup') : !cwd ? t('org.pickProject') : '';
+  const catalog = useStore((s) => s.catalog);
+  const why = !coordinator ? (catalog && !defaultChoice(catalog) ? t('org.office.noAgent') : t('org.setup')) : !cwd ? t('org.pickProject') : '';
   const start = async () => {
     if (!ready || !coordinator || busy) return;
     if (isDemo(coordinator.id)) return void toast(t('org.office.demoNoSend'), undefined, 3000);

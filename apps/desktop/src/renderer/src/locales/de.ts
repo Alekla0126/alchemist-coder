@@ -1627,6 +1627,8 @@ export const de: Messages = {
   'org.office.noProjects': 'Noch keine Projekte mit Arbeit. Schreib unten, was du brauchst: der Koordinator verteilt es.',
   'org.office.floor': 'Die Arbeit gerade, nach Projekt',
   'org.office.departments': 'Abteilungen',
+  'org.office.noAgent': 'Wähle Agent und Modell, um deine Organisation einzurichten.',
+  'org.office.pickAgent': 'Einstellungen › Agenten',
   'org.office.hideDepts': 'Abteilungen ausblenden',
   'org.office.showDepts': 'Abteilungen einblenden',
   'org.office.clearFilter': 'Alle Projekte zeigen (jetzt nur {name})',

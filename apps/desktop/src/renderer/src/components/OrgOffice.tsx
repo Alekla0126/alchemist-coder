@@ -9,6 +9,7 @@ import { channelOf, countsOf, isDemo, waitingBot, departmentsOf, latestTeam, pro
 import { useOpenProjects, useStore, useT } from '../store';
 import { confirmAction, toast } from '../ui';
 import { AgentAvatar } from './AgentAvatar';
+import { defaultChoice } from './AgentPicker';
 import { doingText } from './Bots';
 import { OrgChat } from './OrgChat';
 import { OrgComposer } from './OrgComposer';
@@ -302,6 +303,8 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
   const orgProject = useStore((s) => s.orgProject);
   const open = useOpenProjects();
   const deptsHidden = useLayout((l) => l.deptsHidden);
+  // The organization is set up with your default agent: with none to run (catalog read), say so instead of "Setting up…" for ever.
+  const noAgent = useStore((s) => !!s.catalog && !defaultChoice(s.catalog));
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), TICK_MS);
@@ -397,7 +400,17 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
       </div>
       <aside className="ofc-depts" aria-label={t('org.office.departments')}>
         <h3>{t('org.office.departments')}</h3>
-        {!coordinator && <p className="empty">{t('org.setup')}</p>}
+        {!coordinator &&
+          (noAgent ? (
+            <div className="ofc-no-agent" role="status">
+              <p>{t('org.office.noAgent')}</p>
+              <button className="btn-send" onClick={() => useStore.setState({ settingsOpen: true, settingsSection: 'agents' })}>
+                {t('org.office.pickAgent')}
+              </button>
+            </div>
+          ) : (
+            <p className="empty">{t('org.setup')}</p>
+          ))}
         {coordinator && (
           <ul className="ofc-dept-list">
             <MemberLine m={coordinator} open={sheet === coordinator.member.id} onOpen={openSheet} />
