@@ -808,6 +808,14 @@ button.chip.edition { cursor: pointer; }
 .set-dot.ok { color: var(--green); font-size: 12px; }
 .set-dot.off { color: var(--fg-3); }
 .set-pro { font-size: 10px; padding: 1px 6px; border-radius: 999px; background: var(--bg-sel); color: var(--accent); margin-left: 4px; }
+/* Settings › About: «Buy Pro», and where the license key or beta invitation is pasted. */
+.set-row a.pro-buy { color: var(--on-accent, #1a0d05); text-decoration: none; flex-shrink: 0; }
+.pro-code { align-items: flex-start; }
+.pro-code-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.pro-code-actions input { width: 220px; background: var(--bg-input); color: var(--fg); border: 1px solid var(--line-2); border-radius: 7px; padding: 5px 8px; font-size: 12.5px; font-family: var(--mono); }
+.pro-code-actions input:focus { outline: none; border-color: var(--accent); }
+.set-row p.pro-code-bad { color: var(--red); }
+.set-row p.pro-code-ok { color: var(--green); }
 .set-key { display: flex; align-items: center; gap: 8px; }
 .set-key input { background: var(--bg-input); color: var(--fg); border: 1px solid var(--line-2); border-radius: 7px; padding: 5px 8px; font-size: 12.5px; width: 220px; }
 .set-warn { color: var(--warn, #d9a441) !important; }

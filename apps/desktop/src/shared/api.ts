@@ -161,6 +161,15 @@ export interface BackupStatus {
 
 export type ExportFormat = 'md' | 'html' | 'json';
 
+/** What became of a pasted license key or invitation. reason: 'malformed' | 'signature' | 'expired' | 'device' | 'plan' | 'revoked' | 'no-pro-module'. */
+export interface ProActivation {
+  ok: boolean;
+  reason?: string;
+  /** When the key or invitation ends (ms). */
+  expiresAt?: number;
+  beta?: boolean;
+}
+
 export interface AppInfo {
   version: string;
   edition: 'community' | 'pro';
@@ -168,6 +177,10 @@ export interface AppInfo {
   personal: boolean;
   /** The app's first launch on this computer (no settings yet). */
   firstRun?: boolean;
+  /** This copy carries the Pro module, so a license key or beta invitation can turn Pro on. */
+  proModule?: boolean;
+  /** Where «Buy Pro» goes (a payment link), when this copy has one. */
+  proCheckout?: string | null;
   platform: string;
   systemLocale: string;
   /** The user's home folder (where a first project goes by default). */
@@ -1150,6 +1163,10 @@ export interface AlchemistApi {
   revealPath(path: string): Promise<void>;
   /** Copies text to the clipboard. */
   copyText(text: string): Promise<void>;
+  /** Checks a pasted Pro license key or beta invitation and keeps it; Pro starts on the next launch. */
+  proActivate(code: string): Promise<ProActivation>;
+  /** Quits and opens the app again. */
+  relaunch(): Promise<void>;
   /** Subscription plans and recent usage (Claude, Codex) from local data; `refresh` skips the one-minute cache. */
   planUsage(refresh?: boolean): Promise<PlanUsage>;
   /** Looks at the CLIs' versions again (after updating one); the result is pushed with the usage. */
@@ -1390,6 +1407,8 @@ export const Channels = {
   appCommand: 'app:command',
   revealPath: 'shell:reveal',
   copyText: 'clipboard:copy',
+  proActivate: 'pro:activate',
+  relaunch: 'app:relaunch',
   reviews: 'reviews:list',
   reviewFile: 'reviews:file',
   reviewKeep: 'reviews:keep',

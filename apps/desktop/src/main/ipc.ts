@@ -1,4 +1,4 @@
-import { BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron';
 import { slashCommands } from './slash-commands';
 import type { BotManager } from './bots';
 import { readFileSync, statSync } from 'node:fs';
@@ -8,7 +8,7 @@ import { installFromOpenVsx, parseJsonc, searchThemes, themesFromVsix } from '@a
 import type { IndexReader } from '@alchemist-coder/indexer';
 import { IMAGE_TYPES, type IndexProgress, type PromptImage, type QuestionAnswer } from '@alchemist-coder/core';
 import { mimeOf } from '@alchemist-coder/harness';
-import { Channels, MODEL_TIERS, type AppInfo, type ExportFormat, type ModelTier, type PermissionMode, type StarterAgent } from '../shared/api';
+import { Channels, MODEL_TIERS, type AppInfo, type ExportFormat, type ModelTier, type PermissionMode, type StarterAgent, type ProActivation } from '../shared/api';
 import { PERMISSION_MODES } from './bots';
 import type { SettingsStore } from './settings';
 import type { RunnerManager } from './runner';
@@ -79,6 +79,8 @@ export interface IpcDeps {
   board: BoardService;
   automations: AutomationHost;
   browser: BrowserHost;
+  /** Takes a pasted Pro license key or invitation; absent when this copy has no Pro module. */
+  proActivate?: (code: string) => Promise<ProActivation>;
 }
 
 /** Every handler validates its arguments: the renderer is treated as untrusted. */
@@ -301,6 +303,16 @@ export function registerIpc(deps: IpcDeps): void {
   ipcMain.handle(Channels.revealPath, (_e, path: unknown) => shell.showItemInFolder(deps.workspace.resolveInside(path)));
   ipcMain.handle(Channels.copyText, (_e, value: unknown) => {
     if (typeof value === 'string' && value.length <= 1_000_000) clipboard.writeText(value);
+  });
+  ipcMain.handle(Channels.proActivate, async (_e, code: unknown): Promise<ProActivation> => {
+    if (!deps.proActivate) return { ok: false, reason: 'no-pro-module' };
+    if (typeof code !== 'string' || code.length > 8192) return { ok: false, reason: 'malformed' };
+    return deps.proActivate(code).catch(() => ({ ok: false, reason: 'other' }));
+  });
+  // The edition is decided at launch: a kept license needs a fresh start.
+  ipcMain.handle(Channels.relaunch, () => {
+    app.relaunch();
+    app.quit();
   });
   ipcMain.handle(Channels.planUsage, (_e, refresh: unknown) => deps.usage.get(refresh === true));
   ipcMain.handle(Channels.cliVersions, () => deps.usage.refreshVersions());

@@ -1,6 +1,6 @@
 import { keys as shortcutText } from '../keys';
 import { useEffect, useState } from 'react';
-import { LOCALE_NAMES, LOCALES, isLocale, type PermissionMode } from '@shared/api';
+import { LOCALE_NAMES, LOCALES, isLocale, type PermissionMode, type ProActivation } from '@shared/api';
 import { useStore, useT } from '../store';
 import { toast } from '../ui';
 import { InstallButton } from './MissingAgent';
@@ -366,6 +366,68 @@ function Shortcuts() {
   );
 }
 
+/** The reasons a key can be turned down that have their own words; anything else is 'other'. */
+const KEY_ERRORS = ['malformed', 'signature', 'expired', 'device', 'revoked'];
+
+/**
+ * Pro, in a copy that carries the Pro module and isn't Pro yet: «Buy Pro» opens the payment link
+ * (when the build has one), and the license key that arrives by email, or a beta invitation, is
+ * pasted below. The edition is decided at launch, so once the key is kept it asks for a restart.
+ */
+function ProCode({ checkout }: { checkout: string | null | undefined }) {
+  const t = useT();
+  const locale = useStore((s) => s.locale);
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<ProActivation | null>(null);
+  const activate = async () => {
+    setBusy(true);
+    try {
+      setResult(await window.alchemist.proActivate(code));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const until = result?.expiresAt ? new Date(result.expiresAt).toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+  return (
+    <>
+      {checkout && (
+        <div className="set-row">
+          <div>
+            <b>{t('pro.buyTitle')}</b>
+            <p>{t('pro.buyHint')}</p>
+          </div>
+          <a className="btn-send small pro-buy" href={checkout} target="_blank" rel="noreferrer">
+            {t('pro.buy')}
+          </a>
+        </div>
+      )}
+      <div className="set-row pro-code">
+        <div>
+          <b>{t('pro.code')}</b>
+          <p>{t('pro.codeHint')}</p>
+          {result && !result.ok && <p className="pro-code-bad">{t(`pro.error.${KEY_ERRORS.includes(result.reason ?? '') ? result.reason : 'other'}` as never)}</p>}
+          {result?.ok && <p className="pro-code-ok">{t(result.beta ? 'pro.okBeta' : 'pro.ok', { date: until })}</p>}
+        </div>
+        <div className="pro-code-actions">
+          {result?.ok ? (
+            <button className="btn-send small" onClick={() => void window.alchemist.relaunch()}>
+              {t('pro.restart')}
+            </button>
+          ) : (
+            <>
+              <input value={code} placeholder={t('pro.placeholder')} spellCheck={false} onChange={(e) => (setCode(e.target.value), setResult(null))} onKeyDown={(e) => e.key === 'Enter' && code.trim() && void activate()} />
+              <button className="btn-send small" disabled={!code.trim() || busy} onClick={() => void activate()}>
+                {busy ? <span className="spin" /> : t('pro.activate')}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
 function About() {
   const t = useT();
   const info = useStore((s) => s.info);
@@ -379,6 +441,7 @@ function About() {
         <b>{t('settings.edition')}</b>
         <span>{info?.edition === 'pro' ? 'Pro' : t('status.edition')}</span>
       </div>
+      {info?.proModule && info.edition !== 'pro' && <ProCode checkout={info.proCheckout} />}
       <div className="set-row">
         <b>{t('settings.license')}</b>
         <a href="https://github.com/Alekla0126/alchemist-coder" target="_blank" rel="noreferrer">
@@ -394,6 +457,7 @@ function About() {
       <p className="composer-note">
         {t('settings.privacy')}
         {info?.personal && ` ${t('settings.privacyPersonal')}`}
+        {info?.edition === 'pro' && ` ${t('settings.privacyPro')}`}
       </p>
     </>
   );
