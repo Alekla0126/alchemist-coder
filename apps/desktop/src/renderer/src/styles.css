@@ -2712,8 +2712,8 @@ body { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; 
 .org-staff .btn-ghost { white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
 
 /* ---------- the office on one screen: the work by project, the departments beside it, the box under it ---------- */
-/* The screen never scrolls: each part scrolls inside itself. */
-.ofc { position: relative; flex: 1; min-width: 0; min-height: 0; height: 100%; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 280px); grid-template-rows: auto minmax(0, 1fr); gap: 12px 14px; padding: 14px 18px; }
+/* The screen never scrolls: each part scrolls inside itself. Its secondary text is mixed close to the text color, so it reads (4.5:1) on every surface it sits on: rooms, departments, chips, the sheet, a hovered row. */
+.ofc { --fg-2: color-mix(in srgb, var(--fg) 86%, var(--bg)); position: relative; flex: 1; min-width: 0; min-height: 0; height: 100%; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 280px); grid-template-rows: auto minmax(0, 1fr); gap: 12px 14px; padding: 14px 18px; }
 .ofc-head { grid-column: 1 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; min-width: 0; }
 .ofc-head h2 { font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .ofc-head .composer-note { margin: 0; }

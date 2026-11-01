@@ -133,7 +133,7 @@ export async function loadTheme(id: string): Promise<VsTheme> {
 }
 
 /** CSS variable ← first VS Code workbench color that the theme defines. */
-const WORKBENCH: Array<[string, string[]]> = [
+export const WORKBENCH: Array<[string, string[]]> = [
   ['--bg', ['editor.background']],
   ['--bg-side', ['sideBar.background', 'editor.background']],
   ['--bg-rail', ['activityBar.background', 'sideBar.background', 'editor.background']],
@@ -152,7 +152,7 @@ const WORKBENCH: Array<[string, string[]]> = [
 ];
 
 /** Derived defaults for themes that leave some workbench colors undefined. */
-const FALLBACK: Record<string, string> = {
+export const FALLBACK: Record<string, string> = {
   '--bg-hl': 'color-mix(in srgb, var(--fg) 7%, var(--bg))',
   '--bg-sel': 'color-mix(in srgb, var(--accent) 18%, transparent)',
   '--bg-input': 'color-mix(in srgb, var(--fg) 5%, var(--bg))',
