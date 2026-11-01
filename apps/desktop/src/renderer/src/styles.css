@@ -2527,6 +2527,11 @@ select.mk-chip { appearance: none; padding-right: 12px; }
 .browser-tabs .bt-new { width: 26px; height: 26px; margin: 0 0 3px 2px; border-radius: 6px; color: var(--fg-2); display: grid; place-items: center; flex: none; }
 .browser-tabs .bt-new:not(:disabled):hover { background: var(--bg-hl); color: var(--fg); }
 .browser-tabs .bt-new:disabled { opacity: 0.35; }
+/* Another browser's sign-ins: same size and colours as the new-tab button next to it. */
+.browser-tabs .bt-import { width: 26px; height: 26px; margin: 0 0 3px 0; border-radius: 6px; color: var(--fg-2); display: grid; place-items: center; flex: none; }
+.browser-tabs .bt-import:hover { background: var(--bg-hl); color: var(--fg); }
+/* Whose tab it is (an agent's or a bot's): a small tag before the title, in the muted text colour. */
+.browser-tab .bt-owner { flex: none; max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; font-weight: 600; color: var(--fg-2); }
 .browser-bar { display: flex; align-items: center; gap: 4px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
 .browser-bar .icon-btn { width: 26px; height: 26px; border-radius: 6px; color: var(--fg-2); font-size: 16px; display: grid; place-items: center; }
 .browser-bar .icon-btn:disabled { opacity: 0.35; }

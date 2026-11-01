@@ -251,6 +251,7 @@ export function registerIpc(deps: IpcDeps): void {
   ipcMain.handle(Channels.browserSignIns, (_e, bring: unknown, site: unknown) =>
     deps.browser.chooseSignIns(bring === true, typeof site === 'string' && /^[a-z0-9.-]{1,253}$/i.test(site) ? site : undefined),
   );
+  ipcMain.handle(Channels.browserImport, (_e, browser: unknown) => deps.browser.importFrom(text(browser, 'browser', 20)));
   ipcMain.handle(Channels.stopRun, (_e, runId: unknown) => deps.runner.stop(text(runId, 'run id', 100)));
   ipcMain.handle(Channels.interruptRun, (_e, runId: unknown) => deps.runner.interrupt(text(runId, 'run id', 100)));
   ipcMain.handle(Channels.respondToRun, (_e, runId: unknown, requestId: unknown, choiceId: unknown) =>

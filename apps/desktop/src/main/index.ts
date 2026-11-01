@@ -339,6 +339,8 @@ void app.whenReady().then(async () => {
   const browser = new BrowserHost(() => window, { command: process.execPath, script: writeBrowserBridge(userData) }, (state) => send(Channels.browserChanged, state));
   await browser.start();
   browserHost = browser;
+  // The organization's bots drive the same browser, each in tabs of its own.
+  bots.setBrowser({ tools: (label, project) => browser.mcpServer(label, project), bind: (server, runId) => browser.bindRun(server, runId) });
   const board = new BoardService(userData, (data) => send(Channels.boardChanged, data));
   // Automations run with the window closed too: a notification brings it back on the automation.
   const automations = new AutomationHost(userData, {

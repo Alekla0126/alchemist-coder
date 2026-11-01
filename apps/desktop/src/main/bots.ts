@@ -237,6 +237,7 @@ function workerPrompt(bot: BotMember, parentName: string, orgInstructions = '', 
         : '',
     bot.worktree ? `You work in your own copy of the project (${bot.worktree.path}). Your changes reach the main folder only when "${parentName}" applies them, so finish them completely there.` : '',
     brief?.alone ? ALONE_AGENT : '',
+    'The built-in browser (alchemist_browser tools) gives you tabs of your own with the project\'s sign-ins: use it only when no MCP or API does the job, read with find instead of whole pages, and close your tabs when done.',
     'When you finish, reply with what you did and anything the coordinator needs to know (files changed, open problems, and what went wrong and why, so the organization can learn from it).',
   ]
     .filter(Boolean)
@@ -336,6 +337,16 @@ export class BotManager {
   private readonly watchers = new Set<(team: BotTeam) => void>();
   private server: Server | null = null;
   private port = 0;
+  /**
+   * The built-in browser's tools for a bot's run (its own tab in the project's browser, with the project's
+   * sign-ins), set once the browser is up; without it bots run as before, with no browser.
+   */
+  private browser: { tools: (label: string, project: string) => SessionMcpServer | null; bind: (server: SessionMcpServer, runId: string) => void } | null = null;
+
+  /** Gives the organization's bots the built-in browser: each bot works in tabs of its own. */
+  setBrowser(browser: { tools: (label: string, project: string) => SessionMcpServer | null; bind: (server: SessionMcpServer, runId: string) => void }): void {
+    this.browser = browser;
+  }
   private saveTimer: NodeJS.Timeout | null = null;
 
   constructor(
@@ -910,8 +921,12 @@ export class BotManager {
         trusted: true,
       });
     }
+    // The project's browser (team.cwd, not a bot's own copy), so a bot uses the sign-ins you gave the project.
+    const web = this.browser?.tools(bot.name, team.cwd) ?? null;
+    if (web) mcpServers.push(web);
     try {
       const { runId } = this.runner.start({ cwd, harnessId: bot.agent.harnessId, providerId: bot.agent.providerId, model: bot.agent.model, prompt, permissionMode: bot.permissionMode, resumeSessionId }, { mcpServers, autopilot: this.pilot });
+      if (web) this.browser!.bind(web, runId);
       bot.runId = runId;
       bot.status = 'working';
       bot.error = null;

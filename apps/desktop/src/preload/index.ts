@@ -105,6 +105,7 @@ const api: AlchemistApi = {
   browserSwitchTab: (id) => ipcRenderer.invoke(Channels.browserSwitchTab, id),
   browserCloseTab: (id) => ipcRenderer.invoke(Channels.browserCloseTab, id),
   browserSignIns: (bring, site) => ipcRenderer.invoke(Channels.browserSignIns, bring, site),
+  browserImport: (browser) => ipcRenderer.invoke(Channels.browserImport, browser),
   refreshCliVersions: () => ipcRenderer.invoke(Channels.cliVersions),
   showMenu: (items) => ipcRenderer.invoke(Channels.showMenu, items),
   onAppCommand: (listener) => subscribe<string>(Channels.appCommand, listener),

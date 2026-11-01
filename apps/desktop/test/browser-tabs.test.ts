@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { acceptLanguages, activeAfterClose, browserUserAgent, cookiesToImport, keepsAsPopup, partitionFor, projectPartitions, readSignInChoices, SHARED_PARTITION, signInPlan, siteOf, sitesOf, tabAt, tabsText } from '../src/main/browser-tabs';
+import { acceptLanguages, activeAfterClose, browserUserAgent, cookiesToImport, keepsAsPopup, partitionFor, projectPartitions, readSignInChoices, SHARED_PARTITION, signInPlan, siteOf, sitesOf, tabAt, tabsText, mayUse, tabToReclaim, TAB_IDLE_MS } from '../src/main/browser-tabs';
 
 describe('a browser per project', () => {
   it('keeps each project’s cookies apart, and the same project’s across launches', () => {
@@ -21,9 +21,20 @@ describe('tabs', () => {
     { id: 't2', title: '', url: 'https://example.com/' },
   ];
 
-  it('reads them numbered from 1, the one in front marked', () => {
-    expect(tabsText(tabs, 't2')).toBe('[1] Docs — https://example.com/docs\n[2] (in front) Untitled — https://example.com/');
+  it('reads them numbered from 1, the one on screen marked', () => {
+    expect(tabsText(tabs, 't2')).toBe('[1] Docs — https://example.com/docs\n[2] (on screen) Untitled — https://example.com/');
     expect(tabsText([], null)).toMatch(/No tabs open/);
+  });
+
+  it('tells an agent which tab is its own and whose the others are', () => {
+    const shared = [
+      { id: 't1', title: 'Play Console', url: 'https://play.google.com/', owner: 'Tiendas' },
+      { id: 't2', title: 'YouTube', url: 'https://youtube.com/', owner: 'ASO' },
+      { id: 't3', title: 'Mine', url: 'https://example.com/', owner: null },
+    ];
+    expect(tabsText(shared, 't3', 't2')).toBe(
+      "[1] (Tiendas's) Play Console — https://play.google.com/\n[2] (yours) YouTube — https://youtube.com/\n[3] (on screen) Mine — https://example.com/",
+    );
   });
 
   it('finds a tab by its number, and says which numbers exist when it isn’t one', () => {
@@ -146,5 +157,31 @@ describe("other projects' sign-ins", () => {
     expect(plan.get('google.com')!.cookies.map((c) => c.value)).toEqual([`SID@${now + 900}`]);
     expect(signInPlan([a], [], now).get('apple.com')!.partition).toBe('persist:a');
     expect(signInPlan([], [], now).size).toBe(0);
+  });
+});
+
+describe('tabs of their own for every agent', () => {
+  const now = 10 * TAB_IDLE_MS;
+  const fresh = now - 1000;
+  const old = now - TAB_IDLE_MS - 1;
+
+  it('lets a run drive its own tabs and the user’s, but not another agent’s it’s still using', () => {
+    expect(mayUse({ id: 't1', token: 'a', usedAt: fresh }, 'a', now)).toBe(true);
+    expect(mayUse({ id: 't1', token: null, usedAt: 0 }, 'a', now)).toBe(true);
+    expect(mayUse({ id: 't1', token: 'b', usedAt: fresh }, 'a', now)).toBe(false);
+    // An agent that left its tab a while ago doesn't hold it any more.
+    expect(mayUse({ id: 't1', token: 'b', usedAt: old }, 'a', now)).toBe(true);
+  });
+
+  it('makes room by closing the agent tab idle the longest, never the user’s or the one on screen', () => {
+    const tabs = [
+      { id: 'user', token: null, usedAt: 0 },
+      { id: 'busy', token: 'a', usedAt: fresh },
+      { id: 'shown', token: 'b', usedAt: old - 5000 },
+      { id: 'idle', token: 'c', usedAt: old },
+      { id: 'oldest', token: 'd', usedAt: old - 1000 },
+    ];
+    expect(tabToReclaim(tabs, 'shown', now)).toBe('oldest');
+    expect(tabToReclaim(tabs.filter((t) => t.id !== 'oldest' && t.id !== 'idle'), 'shown', now)).toBeNull();
   });
 });

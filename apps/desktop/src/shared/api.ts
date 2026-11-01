@@ -335,6 +335,10 @@ export interface BrowserState {
   signInsFrom: string[] | null;
   /** Those sign-ins are all from the browser shared by every project before 1.3.1 (else from other projects). */
   signInsEarlier: boolean;
+  /** Those sign-ins come from another browser you use ("Chrome"), brought because you asked; else null. */
+  signInsBrowser: string | null;
+  /** The other browsers on this Mac whose sign-ins the pane can bring (Chrome, Brave, Edge, Arc, Vivaldi). */
+  importable: Array<{ id: string; name: string }>;
   /** Its tabs, in order; `active` is the one in front. */
   tabs: BrowserTab[];
   /** Every project's browser an agent used in the last few seconds (the title bar says so in words). */
@@ -350,6 +354,8 @@ export interface BrowserTab {
   url: string;
   loading: boolean;
   active: boolean;
+  /** The agent whose tab it is ("Claude Code", a bot's name), or null for yours. */
+  owner: string | null;
 }
 
 /** Where the browser pane's page area is, in window pixels. */
@@ -1099,6 +1105,11 @@ export interface AlchemistApi {
   /** Brings the earlier sign-ins to the shown project's browser (true) or keeps it apart (false). */
   /** Bring the offered sign-ins (all, or only `site`'s) to the shown project's browser, or say no to them. */
   browserSignIns(bring: boolean, site?: string): Promise<void>;
+  /**
+   * Reads the sign-ins of another browser you use (`browser` from `importable`) and offers them, site by
+   * site, to the shown project's browser. macOS asks you first (that browser's data and its keychain key).
+   */
+  browserImport(browser: string): Promise<{ sites: number } | { error: string }>;
   /** Agent runs in this project with changes still to review. */
   reviews(projectCwd: string): Promise<AgentReview[]>;
   reviewFile(reviewId: string, path: string): Promise<ReviewFileContent>;
@@ -1289,6 +1300,7 @@ export const Channels = {
   browserSwitchTab: 'browser:switch-tab',
   browserCloseTab: 'browser:close-tab',
   browserSignIns: 'browser:sign-ins',
+  browserImport: 'browser:import',
   cliVersions: 'usage:versions',
   showMenu: 'menu:show',
   appCommand: 'app:command',

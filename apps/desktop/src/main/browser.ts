@@ -6,7 +6,25 @@ import { app, session, WebContentsView, type BrowserWindow, type Rectangle, type
 import type { SessionMcpServer } from '@alchemist-coder/core';
 import { BROWSER_MAX_TABS, type BrowserState } from '../shared/api';
 import { clickScript, focusScript, formatSnapshot, KEYS, keyScript, locateScript, normalizeUrl, SNAPSHOT_SCRIPT, type Key, type PageSnapshot } from './browser-page';
-import { acceptLanguages, activeAfterClose, browserUserAgent, keepsAsPopup, partitionFor, projectPartitions, readSignInChoices, SHARED_PARTITION, signInPlan, tabAt, tabsText } from './browser-tabs';
+import {
+  acceptLanguages,
+  activeAfterClose,
+  AGENT_MAX_TABS,
+  browserUserAgent,
+  keepsAsPopup,
+  mayUse,
+  partitionFor,
+  projectPartitions,
+  readSignInChoices,
+  SHARED_PARTITION,
+  signInPlan,
+  tabAt,
+  tabsText,
+  tabToReclaim,
+  TAB_IDLE_MS,
+  type StoredCookie,
+} from './browser-tabs';
+import { CHROMIUM_BROWSERS, installedBrowsers, readChromiumCookies } from './chrome-cookies';
 
 export type { BrowserState };
 
@@ -26,7 +44,7 @@ const TOOLS = [
   {
     name: 'browser_open',
     description:
-      "Opens a web address (or searches for words) in Alchemist Coder's built-in browser for this project (its own tabs and sign-ins), which the user can watch next to the conversation. With new_tab, in a new tab, leaving the current one as it is. Then read the page with browser_read.",
+      "Opens a web address (or searches for words) in your tab of Alchemist Coder's built-in browser for this project (its sign-ins are the project's; other agents have tabs of their own), which the user can watch next to the conversation. With new_tab, in another tab of yours, leaving this one as it is. Then read the page with browser_read, ideally with find.",
     inputSchema: {
       type: 'object',
       properties: { url: { type: 'string', description: 'A web address, a domain, or words to search for' }, new_tab: { type: 'boolean', description: 'Open it in a new tab' }, find: { type: 'string', description: 'Only what mentions these words, alternatives separated by | (e.g. "Publish|Send for review"): a few lines instead of the whole page. Numbers stay the same.' } },
@@ -61,26 +79,34 @@ const TOOLS = [
   },
   { name: 'browser_back', description: 'Goes back to the previous page.', inputSchema: { type: 'object', properties: {} } },
   { name: 'browser_screenshot', description: 'A picture of what the browser shows right now (for layouts, images and anything the text misses).', inputSchema: { type: 'object', properties: {} } },
-  { name: 'browser_tabs', description: "Lists this project's browser tabs, numbered, and which one is in front (the one the other tools use).", inputSchema: { type: 'object', properties: {} } },
+  { name: 'browser_tabs', description: "Lists this project's browser tabs, numbered: which one is yours (the one the other tools use), which are other agents', and which one the user sees.", inputSchema: { type: 'object', properties: {} } },
   {
     name: 'browser_switch_tab',
-    description: 'Brings the tab with this number (from browser_tabs) to the front: the other tools then use it.',
+    description: "Works in the tab with this number (from browser_tabs) from now on: one of yours, one the user opened, or one another agent left a while ago.",
     inputSchema: { type: 'object', properties: { tab: { type: 'number' } }, required: ['tab'] },
   },
   {
     name: 'browser_close_tab',
-    description: 'Closes the tab with this number (from browser_tabs).',
+    description: 'Closes the tab with this number (from browser_tabs): yours, or one nobody is using. Close the ones you no longer need: each one is a page kept in memory.',
     inputSchema: { type: 'object', properties: { tab: { type: 'number' } }, required: ['tab'] },
   },
 ] as const;
 
 type Reply = { text?: string; content?: Array<{ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }>; isError?: boolean };
-/** A run's tools: which agent it is ("Claude Code"), its run once started, and its project's browser. */
-type Who = { label: string; runId: string | null; project: string };
+/**
+ * A run's tools: which agent it is ("Claude Code", a bot's name), its run once started, its project's
+ * browser, its token (`key`) and the tab it works in, so agents of one project don't drive each other's pages.
+ */
+type Who = { label: string; runId: string | null; project: string; key: string; tab: string | null };
 
 interface Tab {
   id: string;
   view: WebContentsView;
+  /** The agent whose tab it is, and its run's token; null for a tab you opened. */
+  owner: string | null;
+  token: string | null;
+  /** When an agent last used it (ms). */
+  usedAt: number;
 }
 
 /** A project's browser: its own cookies and sign-ins (partitionFor), its tabs, who drives it, whether you have it. */
@@ -121,7 +147,14 @@ export class BrowserHost {
    * Per project's partition, the sites whose sign-ins it could bring from the other projects' browsers
    * (or the one the app had before 1.3.1), which the pane offers, or null: none to bring, or you chose.
    */
-  private readonly offers = new Map<string, { sites: string[]; earlierOnly: boolean } | null>();
+  private readonly offers = new Map<string, { sites: string[]; earlierOnly: boolean; browser?: string } | null>();
+  /**
+   * Per partition, the cookies read from another browser you use, while its offer waits for your answer.
+   * Kept in memory only, and dropped as soon as you answer.
+   */
+  private readonly external = new Map<string, { browser: string; cookies: StoredCookie[] }>();
+  /** The other browsers on this Mac whose sign-ins the pane can bring. */
+  private readonly importable = installedBrowsers().map(({ id, name }) => ({ id, name }));
 
   constructor(
     private readonly window: () => BrowserWindow | null,
@@ -217,11 +250,26 @@ export class BrowserHost {
     const offer = this.offers.get(partition) ?? null;
     if (site && !offer?.sites.includes(site)) return;
     const sites = site ? [site] : (offer?.sites ?? []);
+    const external = this.external.get(partition);
     if (bring && sites.length) {
       const target = this.sessionFor(partition);
-      const plan = signInPlan(await this.signInSources(partition, true), await target.cookies.get({}), Date.now() / 1000);
+      const sources = external ? [{ partition: `external:${external.browser}`, cookies: external.cookies }] : await this.signInSources(partition, true);
+      const plan = signInPlan(sources, await target.cookies.get({}), Date.now() / 1000);
       for (const s of sites) for (const c of plan.get(s)?.cookies ?? []) await target.cookies.set(c).catch(() => {});
       await target.cookies.flushStore().catch(() => {});
+    }
+    if (external) {
+      // Another browser's sign-ins are offered only while you're answering: what you didn't bring is forgotten.
+      const rest = site && offer ? offer.sites.filter((s) => s !== site) : [];
+      if (rest.length && offer) this.offers.set(partition, { ...offer, sites: rest });
+      else {
+        this.offers.set(partition, null);
+        this.external.delete(partition);
+      }
+      const wc = this.shownWc();
+      if (bring && wc && wc.getURL() && wc.getURL() !== 'about:blank') wc.reload();
+      this.emit();
+      return;
     }
     const choices = this.readChoices();
     if (!site) {
@@ -235,6 +283,35 @@ export class BrowserHost {
     const wc = this.shownWc();
     if (bring && wc && wc.getURL() && wc.getURL() !== 'about:blank') wc.reload();
     this.emit();
+  }
+
+  /**
+   * You asked to bring the sign-ins of another browser you use into the shown project's browser: read
+   * them (macOS asks you to allow it) and offer, site by site, the ones this browser doesn't have. Nothing
+   * is brought until you pick sites in the pane; agents never call this.
+   */
+  async importFrom(browserId: string): Promise<{ sites: number } | { error: string }> {
+    const partition = partitionFor(this.shown);
+    if (partition === SHARED_PARTITION) return { error: 'Open a project first: each project has its own browser and sign-ins.' };
+    const browser = CHROMIUM_BROWSERS.find((b) => b.id === browserId);
+    if (!browser) return { error: 'Unknown browser.' };
+    let cookies: StoredCookie[];
+    try {
+      cookies = await readChromiumCookies(browser);
+    } catch (error) {
+      const why = error instanceof Error ? error.message : String(error);
+      return { error: /not permitted|EPERM|EACCES/i.test(why) ? `macOS didn't let Alchemist Coder read ${browser.name}'s data. Allow it in System Settings → Privacy & Security, then try again.` : /security|keychain|SecKeychain|exit code|status 5[0-9]/i.test(why) ? `The keychain didn't give ${browser.name}'s key: choose "Allow" when macOS asks.` : why };
+    }
+    const plan = signInPlan([{ partition: `external:${browser.id}`, cookies }], await this.sessionFor(partition).cookies.get({}).catch(() => []), Date.now() / 1000);
+    const sites = [...plan.keys()];
+    if (!sites.length) {
+      this.emit();
+      return { sites: 0 };
+    }
+    this.external.set(partition, { browser: browser.name, cookies });
+    this.offers.set(partition, { sites, earlierOnly: false, browser: browser.name });
+    this.emit();
+    return { sites: sites.length };
   }
 
   stop(): void {
@@ -252,7 +329,7 @@ export class BrowserHost {
   mcpServer(label: string, project = ''): SessionMcpServer | null {
     if (!this.port) return null;
     const token = randomBytes(24).toString('hex');
-    this.tokens.set(token, { label, runId: null, project });
+    this.tokens.set(token, { label, runId: null, project, key: token, tab: null });
     return {
       name: SERVER_NAME,
       command: this.bridge.command,
@@ -299,7 +376,9 @@ export class BrowserHost {
       project: this.shown,
       signInsFrom: this.shown ? (this.offers.get(partitionFor(this.shown))?.sites ?? null) : null,
       signInsEarlier: this.shown ? (this.offers.get(partitionFor(this.shown))?.earlierOnly ?? false) : false,
-      tabs: (b?.tabs ?? []).map((t) => ({ id: t.id, title: t.view.webContents.getTitle(), url: t.view.webContents.getURL(), loading: t.view.webContents.isLoading(), active: t.id === b!.active })),
+      signInsBrowser: this.shown ? (this.offers.get(partitionFor(this.shown))?.browser ?? null) : null,
+      importable: this.importable,
+      tabs: (b?.tabs ?? []).map((t) => ({ id: t.id, title: t.view.webContents.getTitle(), url: t.view.webContents.getURL(), loading: t.view.webContents.isLoading(), active: t.id === b!.active, owner: t.owner })),
       driving: [...this.browsers.values()].filter(recent).map((x) => ({ project: x.project, label: x.driver!.label, runId: x.driver!.runId })),
     };
   }
@@ -326,15 +405,27 @@ export class BrowserHost {
     return b.tabs.find((t) => t.id === b.active);
   }
 
-  /** A new tab in a project's browser, in front, on `url` if given. */
-  private newTab(b: ProjectBrowser, url?: string): Tab {
-    if (b.tabs.length >= BROWSER_MAX_TABS) throw new Error(`This browser already has ${BROWSER_MAX_TABS} tabs: close one first.`);
+  /**
+   * A new tab in a project's browser, on `url` if given. Yours comes to the front. An agent's (`who`) is
+   * its own: it comes to the front only when the pane has nothing else to show or shows that agent's page,
+   * so one agent never takes the screen from you or from another agent. When the browser is full, the tab
+   * an agent left the longest ago makes room.
+   */
+  private newTab(b: ProjectBrowser, url?: string, who?: Who): Tab {
+    if (who && b.tabs.filter((t) => t.token === who.key).length >= AGENT_MAX_TABS) {
+      throw new Error(`You already have ${AGENT_MAX_TABS} tabs: close one you no longer need with browser_close_tab.`);
+    }
+    if (b.tabs.length >= BROWSER_MAX_TABS) {
+      const idle = tabToReclaim(b.tabs, this.attachedView ? (b.tabs.find((t) => t.view === this.attachedView)?.id ?? null) : null, Date.now());
+      if (!idle) throw new Error(`This browser already has ${BROWSER_MAX_TABS} tabs: close one first.`);
+      this.closeTab(b, idle);
+    }
     const partition = partitionFor(b.project);
     this.sessionFor(partition);
     void this.findOffer(b.project);
     const webPreferences = { partition, sandbox: true, contextIsolation: true, nodeIntegration: false };
     const view = new WebContentsView({ webPreferences });
-    const tab: Tab = { id: `tab-${this.nextTab++}`, view };
+    const tab: Tab = { id: `tab-${this.nextTab++}`, view, owner: who?.label ?? null, token: who?.key ?? null, usedAt: Date.now() };
     const wc = view.webContents;
     // A sign-in popup stays a small window over the app, with the same cookies, so it can hand the
     // sign-in back through window.opener and close itself: only while you're looking at this page and
@@ -346,8 +437,11 @@ export class BrowserHost {
       }
       const target = normalizeUrl(next);
       if (target) {
+        // A page an agent drives opens its new tab for that agent, which goes on there.
+        const opener = tab.token ? this.tokens.get(tab.token) : undefined;
         try {
-          this.newTab(b, target);
+          const opened = this.newTab(b, target, opener);
+          if (opener && opener.tab === tab.id) opener.tab = opened.id;
         } catch {
           void wc.loadURL(target);
         }
@@ -374,11 +468,18 @@ export class BrowserHost {
       wc.on(event as 'did-navigate', () => this.emit());
     }
     b.tabs.push(tab);
-    b.active = tab.id;
+    const front = this.front(b);
+    if (!who || !front || front.token === who.key) b.active = tab.id;
+    if (who) who.tab = tab.id;
     if (url) void wc.loadURL(url).catch(() => {});
     this.place();
     this.emit();
     return tab;
+  }
+
+  /** The tab a run works in, while it's still open. */
+  private tabOf(b: ProjectBrowser, who: Who): Tab | undefined {
+    return who.tab ? b.tabs.find((t) => t.id === who.tab) : undefined;
   }
 
   /** The tab in front, or a new one when the browser has none. */
@@ -448,7 +549,11 @@ export class BrowserHost {
   async open(input: string): Promise<void> {
     const url = normalizeUrl(input);
     if (!url) throw new Error('That is not a web address');
-    await this.ensureFront(this.browserFor(this.shown)).view.webContents.loadURL(url).catch(() => {});
+    const b = this.browserFor(this.shown);
+    const front = this.front(b);
+    // An agent's tab in use stays that agent's: what you type opens in a tab of yours.
+    if (front?.token && Date.now() - front.usedAt < TAB_IDLE_MS) this.newTab(b, url);
+    else await this.ensureFront(b).view.webContents.loadURL(url).catch(() => {});
     this.emit();
   }
 
@@ -545,26 +650,35 @@ export class BrowserHost {
       case 'browser_open': {
         const url = normalizeUrl(String(args.url ?? ''));
         if (!url) throw new Error('That is not a web address');
-        const tab = args.new_tab === true || !this.front(b) ? this.newTab(b) : this.front(b)!;
+        const mine = this.tabOf(b, who);
+        const tab = args.new_tab === true || !mine ? this.newTab(b, undefined, who) : mine;
+        tab.usedAt = Date.now();
         await tab.view.webContents.loadURL(url).catch(() => {});
         this.emit();
         return { text: formatSnapshot(await this.read(tab), typeof args.find === 'string' ? args.find : '') };
       }
       case 'browser_tabs':
-        return { text: tabsText(b.tabs.map((t) => ({ id: t.id, title: t.view.webContents.getTitle(), url: t.view.webContents.getURL() })), b.active) };
+        return { text: tabsText(b.tabs.map((t) => ({ id: t.id, title: t.view.webContents.getTitle(), url: t.view.webContents.getURL(), owner: t.owner })), b.active, this.tabOf(b, who)?.id ?? null) };
       case 'browser_switch_tab': {
         const tab = tabAt(b.tabs, args.tab);
-        this.switchTab(b, tab.id);
-        return { text: `Tab ${String(args.tab)} is in front: ${tab.view.webContents.getURL() || 'about:blank'}. Read it with browser_read.` };
+        if (!mayUse(tab, who.key, Date.now())) throw new Error(`Tab ${String(args.tab)} is ${tab.owner}'s right now: open your own with browser_open.`);
+        tab.owner = who.label;
+        tab.token = who.key;
+        tab.usedAt = Date.now();
+        who.tab = tab.id;
+        return { text: `You now work in tab ${String(args.tab)}: ${tab.view.webContents.getURL() || 'about:blank'}. Read it with browser_read.` };
       }
       case 'browser_close_tab': {
         const tab = tabAt(b.tabs, args.tab);
+        if (!mayUse(tab, who.key, Date.now())) throw new Error(`Tab ${String(args.tab)} is ${tab.owner}'s: only it or the user can close it.`);
+        if (who.tab === tab.id) who.tab = null;
         this.closeTab(b, tab.id);
         return { text: `Closed tab ${String(args.tab)}. ${b.tabs.length ? `${b.tabs.length} left.` : 'No tabs left.'}` };
       }
     }
-    const tab = this.front(b);
-    if (!tab) return { text: 'The browser is empty: open a page with browser_open first.' };
+    const tab = this.tabOf(b, who);
+    if (!tab) return { text: 'You have no tab open: open a page with browser_open first.' };
+    tab.usedAt = Date.now();
     const wc = tab.view.webContents;
     switch (name) {
       case 'browser_read':
@@ -617,7 +731,7 @@ export class BrowserHost {
         return { text: `Back at ${wc.getURL() || 'the start'}.` };
       }
       case 'browser_screenshot': {
-        if (this.attachedView !== tab.view || !this.bounds) throw new Error("The browser pane is closed or shows another project's browser; ask the user to open it (the globe in the title bar) and try again.");
+        if (this.attachedView !== tab.view || !this.bounds) throw new Error("Your tab isn't on screen (the pane is closed, or shows another tab or project): a picture needs it there. Read the page with browser_read instead, or ask the user to show your tab.");
         const image = await wc.capturePage();
         const size = image.getSize();
         const shot = size.width > 1280 ? image.resize({ width: 1280 }) : image;

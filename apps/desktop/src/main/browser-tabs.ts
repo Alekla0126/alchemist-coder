@@ -172,12 +172,48 @@ export interface TabSummary {
   id: string;
   title: string;
   url: string;
+  /** The agent whose tab it is, or null/undefined for the user's. */
+  owner?: string | null;
 }
 
-/** The tabs as an agent reads them: numbered from 1, the one in front marked. */
-export function tabsText(tabs: TabSummary[], active: string | null): string {
+/**
+ * The tabs as an agent reads them: numbered from 1, the one it works in marked "yours", the others with
+ * whose they are, and the one the pane shows marked "on screen".
+ */
+export function tabsText(tabs: TabSummary[], active: string | null, mine: string | null = null): string {
   if (!tabs.length) return 'No tabs open: open a page with browser_open.';
-  return tabs.map((t, i) => `[${i + 1}]${t.id === active ? ' (in front)' : ''} ${t.title || 'Untitled'} — ${t.url || 'about:blank'}`).join('\n');
+  return tabs
+    .map((t, i) => {
+      const tags = [t.id === mine ? 'yours' : t.owner ? `${t.owner}'s` : null, t.id === active ? 'on screen' : null].filter(Boolean);
+      return `[${i + 1}]${tags.length ? ` (${tags.join(', ')})` : ''} ${t.title || 'Untitled'} — ${t.url || 'about:blank'}`;
+    })
+    .join('\n');
+}
+
+/** How long a tab stays an agent's after its last use: then another agent may take it, or it may be closed to make room. */
+export const TAB_IDLE_MS = 10 * 60_000;
+/** Tabs one agent can have at once: each is a page in memory, and an agent rarely needs more. */
+export const AGENT_MAX_TABS = 4;
+
+/** A tab as these rules see it: whose run it is (null: the user's) and when an agent last used it. */
+export interface TabUse {
+  id: string;
+  token: string | null;
+  usedAt: number;
+}
+
+/** Whether a run may drive or close a tab: its own, the user's, or one whose agent left it a while ago. */
+export function mayUse(tab: TabUse, token: string, now: number): boolean {
+  return !tab.token || tab.token === token || now - tab.usedAt > TAB_IDLE_MS;
+}
+
+/**
+ * The tab to close to make room for a new one when the browser is full: the one idle the longest, among
+ * agents' tabs no agent used for a while and that isn't on screen. Null when every tab is in use.
+ */
+export function tabToReclaim(tabs: TabUse[], onScreen: string | null, now: number): string | null {
+  const idle = tabs.filter((t) => t.token && t.id !== onScreen && now - t.usedAt > TAB_IDLE_MS).sort((a, b) => a.usedAt - b.usedAt);
+  return idle[0]?.id ?? null;
 }
 
 /** The tab a number (1-based, from browser_tabs) names, or an error an agent can act on. */
