@@ -1627,6 +1627,8 @@ export const ptBR: Messages = {
   'org.office.noProjects': 'Ainda não há projetos com trabalho. Escreva abaixo o que você precisa: o coordenador distribui.',
   'org.office.floor': 'O trabalho de agora, por projeto',
   'org.office.departments': 'Departamentos',
+  'org.office.hideDepts': 'Ocultar os departamentos',
+  'org.office.showDepts': 'Mostrar os departamentos',
   'org.office.clearFilter': 'Ver todos os projetos (agora só {name})',
   'org.office.discardTitle': 'Descartar as alterações de {name}?',
   'org.office.discardHint': 'Você mudou as configurações e não salvou.',

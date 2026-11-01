@@ -58,6 +58,8 @@ export function App() {
   const sideHidden = narrow || sideHiddenPref;
   // The organization's office is one screen of its own: its departments take the sidebar's place.
   const orgOffice = useStore((s) => s.orgOffice && !s.activeTeamId && !s.activeMemberId && !s.activeAutomationId);
+  const onOffice = mode === 'bots' && orgOffice;
+  useEffect(() => useViewport.setState({ office: onOffice }), [onOffice]);
   const selectionKey = useStore((s) => `${s.selection?.sessionId ?? ''}|${s.composeProjectId ?? ''}`);
 
   useEffect(() => {
@@ -154,11 +156,11 @@ export function App() {
   return (
     <div className={`app platform-${info?.platform ?? 'darwin'} ${mode === 'agents' && browserOpen ? `with-page ${sideHidden ? 'side-off' : ''}` : ''}`}>
       <TitleBar />
-      <div className={`body mode-${mode} ${narrow ? 'narrow' : sideHidden ? 'side-hidden' : ''} ${narrow && drawer ? 'drawer-open' : ''} ${mode === 'bots' && orgOffice ? 'org-office' : ''}`}>
+      <div className={`body mode-${mode} ${narrow ? 'narrow' : sideHidden ? 'side-hidden' : ''} ${narrow && drawer ? 'drawer-open' : ''} ${onOffice ? 'org-office' : ''}`}>
         <ProjectRail />
         {narrow && drawer && <div className="drawer-scrim" onClick={closeDrawer} aria-hidden />}
         {/* A folded sidebar leaves a thin edge: click it to bring the sidebar back. */}
-        {!narrow && sideHiddenPref && WITH_SIDEBAR.has(mode) && <button className="side-edge" onClick={toggleSidebar} title={t('layout.showSidebar')} aria-label={t('layout.showSidebar')} />}
+        {!narrow && sideHiddenPref && WITH_SIDEBAR.has(mode) && !onOffice && <button className="side-edge" onClick={toggleSidebar} title={t('layout.showSidebar')} aria-label={t('layout.showSidebar')} />}
         {mode === 'history' ? (
           <HistoryView />
         ) : mode === 'board' ? (

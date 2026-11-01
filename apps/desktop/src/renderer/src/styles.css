@@ -2807,3 +2807,6 @@ body { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; 
   .ofc-talk .org-composer .composer-box textarea { min-height: 38px; padding-top: 8px; }
   .ofc-talk .org-examples { display: none; }
 }
+/* The departments folded away (the sidebar button on the office): the floor takes the room. */
+.ofc.depts-off { grid-template-columns: minmax(0, 1fr); }
+.ofc.depts-off .ofc-depts { display: none; }

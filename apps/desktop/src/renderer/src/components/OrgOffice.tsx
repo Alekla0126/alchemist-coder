@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { BotConfig, BotTeam } from '@shared/api';
 import { dismissMember, keepMember, openAssignment } from '../actions/org';
 import { relativeTime } from '../format';
+import { useLayout } from '../layout';
 import { baseName, isInside } from '../paths';
 import { aboutOf, activityOf, inFolder, teamState } from '../org-model';
 import { channelOf, countsOf, isDemo, waitingBot, departmentsOf, latestTeam, projectsOf, type Department, type OfficeAgent, type OfficeMember, type OfficeProject, type OfficeState } from '../org-office';
@@ -300,6 +301,7 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
   const allTeams = useStore((s) => s.botTeams);
   const orgProject = useStore((s) => s.orgProject);
   const open = useOpenProjects();
+  const deptsHidden = useLayout((l) => l.deptsHidden);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), TICK_MS);
@@ -362,7 +364,7 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
     requestAnimationFrame(() => document.getElementById('org-automations')?.scrollIntoView({ block: 'start' }));
   };
   return (
-    <div className={`ofc ${shown ? 'with-sheet' : ''}`}>
+    <div className={`ofc ${shown ? 'with-sheet' : ''} ${deptsHidden ? 'depts-off' : ''}`}>
       <header className="ofc-head">
         <h2>{title}</h2>
         <span className="composer-note" aria-live="polite">

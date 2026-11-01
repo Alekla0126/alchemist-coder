@@ -12,6 +12,8 @@ interface Layout {
   /** The conversation opened next to the board. */
   peek: number;
   sideHidden: boolean;
+  /** The office's departments column, folded away (the sidebar button and ⌘B on the office). */
+  deptsHidden: boolean;
   /** The agent column of the split view, folded away. */
   splitSideHidden: boolean;
   /** The built-in browser's column, next to the conversation; 0 = half the room (until you drag it). */
@@ -33,13 +35,14 @@ function load(): Layout {
       splitTerm: clamp(Number(raw.splitTerm) || LIMITS.splitTerm[2], LIMITS.splitTerm),
       peek: clamp(Number(raw.peek) || LIMITS.peek[2], LIMITS.peek),
       sideHidden: raw.sideHidden === true,
+      deptsHidden: raw.deptsHidden === true,
       splitSideHidden: raw.splitSideHidden === true,
       // 620 was the old fixed default, saved without being dragged: it's "auto" now.
       browser: Number(raw.browser) && Number(raw.browser) !== 620 ? clamp(Number(raw.browser), LIMITS.browser) : 0,
       browserOpen: raw.browserOpen === true,
     };
   } catch {
-    return { side: LIMITS.side[2], splitSide: LIMITS.splitSide[2], splitTerm: LIMITS.splitTerm[2], peek: LIMITS.peek[2], sideHidden: false, splitSideHidden: false, browser: LIMITS.browser[2], browserOpen: false };
+    return { side: LIMITS.side[2], splitSide: LIMITS.splitSide[2], splitTerm: LIMITS.splitTerm[2], peek: LIMITS.peek[2], sideHidden: false, deptsHidden: false, splitSideHidden: false, browser: LIMITS.browser[2], browserOpen: false };
   }
 }
 
@@ -86,7 +89,8 @@ export const resetPanel = (panel: Panel) => useLayout.setState({ [panel]: LIMITS
 const isNarrow = () => typeof window !== 'undefined' && window.innerWidth < NARROW;
 
 /** The window's size class, and whether the floating sidebar is open (it starts closed). */
-export const useViewport = create<{ narrow: boolean; drawer: boolean }>(() => ({ narrow: isNarrow(), drawer: false }));
+/** `office`: the organization's office is on screen, where the sidebar button folds its departments instead. */
+export const useViewport = create<{ narrow: boolean; drawer: boolean; office: boolean }>(() => ({ narrow: isNarrow(), drawer: false, office: false }));
 if (typeof window !== 'undefined')
   window.addEventListener('resize', () => {
     const narrow = isNarrow();
@@ -95,7 +99,9 @@ if (typeof window !== 'undefined')
 
 /** ⌘B and the title bar button: hide or show the sidebar column, or open and close the floating one. */
 export const toggleSidebar = () => {
-  if (useViewport.getState().narrow) useViewport.setState((v) => ({ drawer: !v.drawer }));
+  // On the office the sidebar is out of sight: the button folds its departments, and the other views keep their sidebar as it was.
+  if (useViewport.getState().office) useLayout.setState((l) => ({ deptsHidden: !l.deptsHidden }));
+  else if (useViewport.getState().narrow) useViewport.setState((v) => ({ drawer: !v.drawer }));
   else useLayout.setState((l) => ({ sideHidden: !l.sideHidden }));
 };
 /** ⌘⌥B and the title bar button in split view: fold or unfold the agent column. */

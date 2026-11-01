@@ -1627,6 +1627,8 @@ export const ja: Messages = {
   'org.office.noProjects': 'まだ作業のあるプロジェクトはありません。必要なことを下に書けば、コーディネーターが割り振ります。',
   'org.office.floor': '今の仕事、プロジェクト別',
   'org.office.departments': '部署',
+  'org.office.hideDepts': '部署を隠す',
+  'org.office.showDepts': '部署を表示',
   'org.office.clearFilter': 'すべてのプロジェクトを表示 (今は {name} のみ)',
   'org.office.discardTitle': '{name} の変更を破棄しますか?',
   'org.office.discardHint': '設定を変更しましたが、保存していません。',
