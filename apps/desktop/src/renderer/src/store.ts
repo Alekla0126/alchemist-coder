@@ -1,3 +1,5 @@
+import { demoConfigs, demoTeams } from './org-office';
+import { rosterOf } from './org-roster';
 import { openFolderAsProject, openNewProject } from './components/NewProject';
 import { create } from 'zustand';
 import type { AgentNode, AgentOption, FileDiff, PromptImage, SlashCommand, IndexProgress, PermissionChoice, PlanEntry, ProjectSummary, QuestionAnswer, SearchHit, SessionSummary, ToolState } from '@alchemist-coder/core';
@@ -338,7 +340,8 @@ export const useStore = create<State>((set, get) => ({
   orgFocusTeamId: null,
   orgLive: localStorage.getItem(ORG_LIVE_KEY) === '1',
   orgMap: localStorage.getItem(ORG_MAP_KEY) === '1',
-  orgOffice: localStorage.getItem(ORG_OFFICE_KEY) === '1',
+  // The office unless you chose a detailed view last time.
+  orgOffice: localStorage.getItem(ORG_OFFICE_KEY) !== '0',
   orgGoal: '',
   automations: [],
   activeAutomationId: null,
@@ -543,6 +546,22 @@ export const useStore = create<State>((set, get) => ({
           });
           set({ captureReady: true });
         }
+      }
+      // A capture of another view isn't taken on the office, the organization's default.
+      if (info.capture.botsView !== 'office') set({ orgOffice: false });
+      if (info.capture.botsView === 'office') {
+        set({ orgOffice: true });
+        // --office-demo: an example floor from the organization's own agents (set up on first open).
+        for (let i = 0; i < 40 && info.capture.officeDemo && !get().botConfigs.some((c) => c.kind === 'coordinator'); i++) {
+          await new Promise((r) => setTimeout(r, 250));
+          await get().loadBots();
+        }
+        const l = get().locale;
+        const words = (k: 'goalA' | 'goalB' | 'taskA' | 'taskB' | 'taskC') => translate(l, `org.office.demo.${k}`);
+        const open = get().settings.openProjectIds.map((id) => get().projects.find((p) => p.id === id)).filter((p) => !!p);
+        if (info.capture.officeDemo && !get().botConfigs.some((c) => c.kind === 'coordinator')) set({ botConfigs: demoConfigs(rosterOf((k) => translate(l, k), (tier) => tier), { harnessId: 'claude-code', providerId: 'anthropic', model: 'default' }) });
+        if (info.capture.officeDemo) for (const team of demoTeams(get().botConfigs, open, Date.now(), { goalA: words('goalA'), goalB: words('goalB'), taskA: words('taskA'), taskB: words('taskB'), taskC: words('taskC') })) get().upsertTeam(team);
+        setTimeout(() => set({ captureReady: true }), 800);
       }
       if (info.capture.botsView === 'chart' || info.capture.botsView === 'live') set({ orgFocusTeamId: (get().botTeams.find((x) => x.plan?.status === 'pending') ?? latest)?.id ?? null, orgLive: info.capture.botsView === 'live', orgMap: false });
       // --bots-view=map (screenshots): the company's map of tokens, its heaviest agent picked.

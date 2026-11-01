@@ -132,3 +132,26 @@ describe('writing to an agent', () => {
     expect(latestTeam([])).toBeUndefined();
   });
 });
+
+describe('the example office', () => {
+  const text = { goalA: 'Goal A', goalB: 'Goal B', taskA: 'Task A', taskB: 'Task B', taskC: 'Task C' };
+  it('puts the organization to work in two projects, one agent waiting for you, without new agents', async () => {
+    const { demoTeams } = await import('../src/renderer/src/org-office');
+    const teams = demoTeams(configs, projects, NOW, text);
+    const floor = projectsOf(teams, configs, projects, NOW);
+    expect(floor.map((p) => p.name)).toEqual(['Castbook', 'Other']);
+    expect(floor[0]!.counts.waiting).toBe(1);
+    expect(teams.flatMap((x) => x.bots).every((b) => configs.some((c) => c.id === b.configId))).toBe(true);
+    expect(demoTeams([], projects, NOW, text)).toEqual([]);
+  });
+
+  it('builds the house staff when no organization is set up', async () => {
+    const { demoConfigs } = await import('../src/renderer/src/org-office');
+    const made = demoConfigs({ coordinator: { name: 'C', role: '' }, planner: { name: 'P', role: '' }, coder: { name: 'D', role: '', lead: 'planner', model: 'sonnet' } }, agent);
+    expect(made.map((c) => [c.id, c.kind, c.leadId, c.agent.model])).toEqual([
+      ['demo-coordinator', 'coordinator', null, 'sonnet'],
+      ['demo-planner', 'member', null, 'sonnet'],
+      ['demo-coder', 'member', 'demo-planner', 'sonnet'],
+    ]);
+  });
+});

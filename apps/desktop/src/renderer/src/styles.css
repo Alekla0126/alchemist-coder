@@ -2783,3 +2783,6 @@ body { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; 
 @media (prefers-reduced-motion: reduce) { .ofc-desk, .ofc-sheet, .ofc-empty-art, .ofc .st-waiting .of-person::after, .ofc .of-screen i { animation: none; } }
 /* Narrow: the departments go under the floor, still on the one screen. */
 @media (max-width: 900px) { .ofc { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) minmax(0, 30%); } .ofc-depts { grid-column: 1; grid-row: 3; } }
+/* On the office the organization's sidebar stays mounted (it loads and sets up the organization) but out of sight. */
+.body.mode-bots.org-office:not(.narrow) { grid-template-columns: 56px minmax(0, 1fr); }
+.body.mode-bots.org-office:not(.drawer-open) > aside.side { display: none; }

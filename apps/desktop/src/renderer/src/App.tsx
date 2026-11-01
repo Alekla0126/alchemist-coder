@@ -56,6 +56,8 @@ export function App() {
   const drawer = useViewport((v) => v.drawer);
   // A narrow window has no sidebar column: the sidebar floats over the page while it's open.
   const sideHidden = narrow || sideHiddenPref;
+  // The organization's office is one screen of its own: its departments take the sidebar's place.
+  const orgOffice = useStore((s) => s.orgOffice && !s.activeTeamId && !s.activeMemberId && !s.activeAutomationId);
   const selectionKey = useStore((s) => `${s.selection?.sessionId ?? ''}|${s.composeProjectId ?? ''}`);
 
   useEffect(() => {
@@ -145,14 +147,14 @@ export function App() {
 
   useEffect(() => {
     if (!info?.capture || !ready || !indexReady) return;
-    if ((info.capture.select || info.capture.compose || info.capture.project || info.capture.openFile || info.capture.settings || info.capture.arena || info.capture.themeSearch || info.capture.usage || info.capture.team || info.capture.orgGoal || info.capture.automationRun || info.capture.automationPrompt || info.capture.mode === 'marketing' || info.capture.mode === 'board' || info.capture.botsView === 'live' || (info.capture.browser && info.capture.browser !== '1') || info.capture.drag) && !captureReady) return;
+    if ((info.capture.select || info.capture.compose || info.capture.project || info.capture.openFile || info.capture.settings || info.capture.arena || info.capture.themeSearch || info.capture.usage || info.capture.team || info.capture.orgGoal || info.capture.automationRun || info.capture.automationPrompt || info.capture.mode === 'marketing' || info.capture.mode === 'board' || info.capture.botsView === 'live' || info.capture.botsView === 'office' || (info.capture.browser && info.capture.browser !== '1') || info.capture.drag) && !captureReady) return;
     window.alchemist.rendered();
   }, [info, ready, indexReady, captureReady]);
 
   return (
     <div className={`app platform-${info?.platform ?? 'darwin'} ${mode === 'agents' && browserOpen ? `with-page ${sideHidden ? 'side-off' : ''}` : ''}`}>
       <TitleBar />
-      <div className={`body mode-${mode} ${narrow ? 'narrow' : sideHidden ? 'side-hidden' : ''} ${narrow && drawer ? 'drawer-open' : ''}`}>
+      <div className={`body mode-${mode} ${narrow ? 'narrow' : sideHidden ? 'side-hidden' : ''} ${narrow && drawer ? 'drawer-open' : ''} ${mode === 'bots' && orgOffice ? 'org-office' : ''}`}>
         <ProjectRail />
         {narrow && drawer && <div className="drawer-scrim" onClick={closeDrawer} aria-hidden />}
         {/* A folded sidebar leaves a thin edge: click it to bring the sidebar back. */}

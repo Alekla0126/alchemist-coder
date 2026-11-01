@@ -92,6 +92,7 @@ function appInfo(): AppInfo {
           drag: arg('drag') ?? null,
           activity: process.argv.includes('--activity'),
           officeCard: process.argv.includes('--office-card'),
+          officeDemo: process.argv.includes('--office-demo'),
           scrollTo: arg('scroll-to') ?? null,
           runUntil: arg('run-until') === 'subagent' ? 'subagent' : null,
           orgGoal: arg('org-goal') ?? null,
@@ -101,7 +102,7 @@ function appInfo(): AppInfo {
           automationAnswer: process.argv.includes('--automation-answer'),
           orgApprove: process.argv.includes('--org-approve'),
           settings: (['general', 'agents', 'voice', 'automations', 'usage', 'backup', 'shortcuts', 'about'] as const).find((x) => x === arg('settings')) ?? null,
-          botsView: ['team', 'config', 'member', 'agent', 'chart', 'live', 'map'].includes(arg('bots-view') ?? '') ? (arg('bots-view') as 'team' | 'config' | 'member' | 'agent' | 'chart' | 'live' | 'map') : null,
+          botsView: ['team', 'config', 'member', 'agent', 'chart', 'live', 'map', 'office'].includes(arg('bots-view') ?? '') ? (arg('bots-view') as 'team' | 'config' | 'member' | 'agent' | 'chart' | 'live' | 'map' | 'office') : null,
           team: (() => {
             const [h, p, m] = (arg('team-agent') ?? '').split(',');
             const goal = arg('team');

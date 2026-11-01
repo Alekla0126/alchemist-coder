@@ -1,4 +1,4 @@
-import type { BotConfig, BotMember, BotStatus, BotTeam } from '@shared/api';
+import type { AgentChoice, BotConfig, BotMember, BotStatus, BotTeam, StarterAgent } from '@shared/api';
 import { ACTIVE, activityOf, botState, chartOf, teamState } from './org-model';
 import { baseName, isInside } from './paths';
 
@@ -184,3 +184,65 @@ export function channelOf(member: BotConfig, teams: BotTeam[]): { team: BotTeam;
 
 /** The assignment that moved last: the coordinator's conversation on the office's box. */
 export const latestTeam = (teams: BotTeam[]) => teams.reduce<BotTeam | undefined>((a, x) => (!a || x.updatedAt > a.updatedAt ? x : a), undefined);
+
+/** The words of the example office (screenshots with --office-demo), in the app's language. */
+export interface DemoText {
+  goalA: string;
+  goalB: string;
+  taskA: string;
+  taskB: string;
+  taskC: string;
+}
+
+/**
+ * An example office for screenshots, made from the organization's own agents and kept in the window
+ * only (never saved): one project at work with an agent waiting for you, another one finished.
+ */
+export function demoTeams(configs: BotConfig[], projects: Array<{ cwd: string }>, now: number, text: DemoText): BotTeam[] {
+  const coordinator = configs.find((c) => c.kind === 'coordinator');
+  const { leads } = chartOf(configs);
+  if (!coordinator || !leads.length) return [];
+  const [a, b] = [...leads].sort((x, y) => y.team.length - x.team.length);
+  const at = (i: number) => now - i * 60_000;
+  const member = (team: string, c: BotConfig, i: number, extra: Partial<BotMember>): BotMember => ({ id: `${team}-${i}`, name: c.name, configId: c.id, role: '', agent: c.agent, permissionMode: c.permissionMode, canSpawn: false, parentId: `${team}-0`, depth: 1, runId: null, sessionId: null, status: 'working', task: text.taskA, lastReply: '', costUsd: null, createdAt: at(10 - i), ...extra });
+  const lead = (team: string, extra: Partial<BotMember>): BotMember => ({ ...member(team, coordinator, 0, extra), parentId: null, depth: 0, canSpawn: true });
+  const crewA = [a!.member, ...a!.team].slice(0, 4);
+  const teamA: BotTeam = {
+    id: 'demo-a',
+    title: text.goalA,
+    goal: text.goalA,
+    cwd: projects[0]?.cwd ?? '/demo/komodo-android',
+    createdAt: at(30),
+    updatedAt: at(1),
+    bots: [
+      lead('demo-a', { task: text.goalA, doing: 'Bash: pnpm test' }),
+      ...crewA.map((c, i) => member('demo-a', c, i + 1, i === crewA.length - 1 ? { status: 'waiting', task: text.taskC } : i === 0 ? { status: 'done', task: text.taskB } : { doing: i === 1 ? 'Edit: OrgOffice.tsx' : null })),
+    ],
+  };
+  const crewB = [(b ?? a)!.member, ...(b ?? a)!.team].slice(0, 2);
+  const teamB: BotTeam = {
+    id: 'demo-b',
+    title: text.goalB,
+    goal: text.goalB,
+    cwd: projects[1]?.cwd ?? '/demo/pdf-master',
+    createdAt: at(120),
+    updatedAt: at(20),
+    bots: [lead('demo-b', { status: 'idle', task: text.goalB }), ...crewB.map((c, i) => member('demo-b', c, i + 1, { status: 'done', task: text.taskB }))],
+  };
+  return [teamA, teamB];
+}
+
+/** The example office's agents when the organization isn't set up (a screenshot profile with no agent CLI): the house staff, in the window only. */
+export function demoConfigs(staff: Record<string, StarterAgent>, agent: AgentChoice): BotConfig[] {
+  return Object.entries(staff).map(([key, s]) => ({
+    id: `demo-${key}`,
+    name: s.name,
+    role: s.role,
+    agent: { ...agent, model: s.model ?? agent.model },
+    permissionMode: s.permissionMode ?? 'acceptEdits',
+    canSpawn: s.canSpawn === true,
+    kind: key === 'coordinator' ? 'coordinator' : 'member',
+    leadId: s.lead ? `demo-${s.lead}` : null,
+    ...(s.proposed ? { proposed: true } : {}),
+  }));
+}
