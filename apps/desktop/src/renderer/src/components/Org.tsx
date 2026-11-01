@@ -3,8 +3,8 @@ import { ABOUT_MAX, type AgentChoice, type BotConfig, type BotMember, type BotTe
 import type { LiveQuestion } from '../live-turns';
 import { money, modelLabel as rawModelLabel, relativeTime } from '../format';
 import { sourceOf } from '../sources';
-import { ORG_LIVE_KEY, useOpenProjects, useStore, useT, type PendingPermission } from '../store';
-import { contextMenu, toast } from '../ui';
+import { ORG_LIVE_KEY, ORG_MAP_KEY, useOpenProjects, useStore, useT, type PendingPermission } from '../store';
+import { confirmAction, contextMenu, toast } from '../ui';
 import { Icon } from './Icon';
 import { baseName } from '../paths';
 import { AgentPicker, defaultChoice } from './AgentPicker';
@@ -15,6 +15,9 @@ import { addToTeam, approvePlan, askPlanChanges, changeAvatar, dismissMember, gi
 import { OrgChart } from './OrgChart';
 import { LivePick, OrgLive } from './OrgLive';
 import { OrgComposer } from './OrgComposer';
+import { OrgMap } from './OrgMap';
+import { OrgChat } from './OrgChat';
+import { ROSTER, ROSTER_DEPARTMENTS, rosterOf, tierModels } from '../org-roster';
 import { AutomationList, AutomationView, NewAutomationDialog } from './Automations';
 import { PermissionCard } from './LiveRun';
 import { QuestionForm } from './QuestionForm';
@@ -26,9 +29,6 @@ const DEFAULT_NAME = 'My organization';
 /** With more agents than this, available ones drop their role line so the chart stays short. */
 const COMPACT_AT = 8;
 
-/** The agents a new organization starts with (the coordinator first), in the app's language. */
-const STARTERS = ['coordinator', 'coder', 'tester', 'reviewer', 'uijudge', 'researcher'];
-const starterNames = (t: T) => Object.fromEntries(STARTERS.map((k) => [k, { name: t(`bots.starter.${k}.name` as never), role: t(`bots.starter.${k}.role` as never) }]));
 /** Roles to start a new agent from; the ones that only read ask before acting. */
 const PRESETS = ['coder', 'tester', 'reviewer', 'uijudge', 'researcher', 'planner'];
 const READ_ONLY = ['reviewer', 'uijudge', 'researcher', 'planner'];
@@ -551,7 +551,7 @@ export function OrgSidebar() {
     if (!agent) return;
     ensuring.current = true;
     void window.alchemist
-      .ensureOrg(agent, starterNames(t))
+      .ensureOrg(agent, rosterOf(t, tierModels(catalog, agent)))
       .then(() => useStore.getState().loadBots())
       .catch((e: unknown) => toast(errorText(e)))
       .finally(() => (ensuring.current = false));
@@ -909,11 +909,14 @@ function OrgHome() {
   ).filter((x) => !(x.kind === 'plan' && x.team.id === focus?.id));
   const agents = configs.filter((c) => c.kind !== 'coordinator' && !c.proposed && (!orgProject || inProject(c, orgProject))).length;
   const { urgent } = inboxGroups(inbox);
-  // The chart, or the chosen assignment live (its departments and their messages); only your click switches.
+  // The chart, the company's map of tokens, or the chosen assignment live; only your click switches.
   const live = useStore((s) => s.orgLive);
-  const view = (on: boolean) => {
-    useStore.setState({ orgLive: on });
-    localStorage.setItem(ORG_LIVE_KEY, on ? '1' : '0');
+  const onMap = useStore((s) => s.orgMap);
+  const shown: 'chart' | 'map' | 'live' = onMap ? 'map' : live ? 'live' : 'chart';
+  const view = (to: 'chart' | 'map' | 'live') => {
+    useStore.setState({ orgLive: to === 'live', orgMap: to === 'map' });
+    localStorage.setItem(ORG_LIVE_KEY, to === 'live' ? '1' : '0');
+    localStorage.setItem(ORG_MAP_KEY, to === 'map' ? '1' : '0');
   };
   return (
     <div className="org-home">
@@ -926,19 +929,21 @@ function OrgHome() {
         )}
       </header>
       <OrgComposer coordinator={coordinator} examples={!allTeams.length} />
+      {/* The conversation with the organization: what you asked and what it answered, without leaving the chart. */}
+      <OrgChat team={focus ?? latestOf(teams)} />
       {/* What blocks an agent goes first; suggestions can wait under the chart. */}
       {urgent > 0 && <Inbox items={inbox} />}
       <section className="oc-wrap" aria-label={t('org.chart')}>
         <div className="oc-top">
-          <h3>{live ? t('org.live.title') : t('org.chart')}</h3>
-          <span className="composer-note">{live ? t('org.live.hint') : t('org.chartHint')}</span>
+          <h3>{shown === 'live' ? t('org.live.title') : shown === 'map' ? t('org.map.title') : t('org.chart')}</h3>
+          <span className="composer-note">{shown === 'live' ? t('org.live.hint') : shown === 'map' ? t('org.map.hint') : t('org.chartHint')}</span>
           <span className="composer-sp" />
           <div className="lv-view" role="group" aria-label={t('org.live.view')}>
-            {[false, true].map((on) => (
-              <button key={String(on)} aria-pressed={live === on} className={live === on ? 'on' : ''} onClick={() => view(on)}>
+            {(['chart', 'map', 'live'] as const).map((v) => (
+              <button key={v} aria-pressed={shown === v} className={shown === v ? 'on' : ''} onClick={() => view(v)}>
                 {/* Chosen says so with a mark too, not only with a color. */}
-                {live === on && <span aria-hidden>✓ </span>}
-                {on ? t('org.live.title') : t('org.live.chart')}
+                {shown === v && <span aria-hidden>✓ </span>}
+                {v === 'live' ? t('org.live.title') : v === 'map' ? t('org.map.title') : t('org.live.chart')}
               </button>
             ))}
           </div>
@@ -948,12 +953,112 @@ function OrgHome() {
             </button>
           )}
         </div>
-        <ChartFocus teams={teams} focus={focus} />
-        {!live ? <OrgChart cwd={orgProject} focus={focus} /> : focus ? <OrgLive team={focus} cwd={orgProject} /> : <LivePick teams={teams} tabs={teams.some((x) => WATCH.includes(teamState(x)))} />}
+        {shown !== 'map' && <ChartFocus teams={teams} focus={focus} />}
+        {shown === 'map' ? (
+          <OrgMap cwd={orgProject} editor={(member) => <MapEditor key={member.id} member={member} />} />
+        ) : shown === 'chart' ? (
+          <OrgChart cwd={orgProject} focus={focus} />
+        ) : focus ? (
+          <OrgLive team={focus} cwd={orgProject} />
+        ) : (
+          <LivePick teams={teams} tabs={teams.some((x) => WATCH.includes(teamState(x)))} />
+        )}
       </section>
       {urgent === 0 && <Inbox items={inbox} />}
+      <StaffTemplate />
       <OrgInstructions />
     </div>
+  );
+}
+
+/** The assignment the home's conversation shows when none is on the chart: the one that moved last. */
+const latestOf = (teams: BotTeam[]) => teams.reduce<BotTeam | undefined>((a, x) => (!a || x.updatedAt > a.updatedAt ? x : a), undefined);
+
+/** An agent's settings beside the map: the same form as its profile, saved right there. */
+function MapEditor({ member }: { member: BotConfig }) {
+  const t = useT();
+  const { draft, set, clear, dirty } = useDraft(member);
+  const save = async () => {
+    if (!draft.agent) return;
+    try {
+      await window.alchemist.saveBotConfig({ ...member, ...draft, agent: draft.agent });
+      clear();
+      await useStore.getState().loadBots();
+      toast(t('org.saved'), undefined, 2500);
+    } catch (e) {
+      toast(errorText(e));
+    }
+  };
+  const open = () => useStore.setState({ activeMemberId: member.id, activeTeamId: null, activeBotId: null });
+  return (
+    <div className="om-editor">
+      <MemberForm draft={draft} set={set} coordinator={member.kind === 'coordinator'} />
+      <div className="bots-actions">
+        <button className="link small" onClick={open}>
+          {t('org.map.openProfile')} →
+        </button>
+        <span className="composer-sp" />
+        {dirty && (
+          <button className="btn-ghost small" onClick={clear}>
+            {t('dialog.cancel')}
+          </button>
+        )}
+        <button className="btn-send" disabled={!dirty || !draft.name.trim() || !draft.agent} onClick={() => void save()}>
+          {t('org.save')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The house staff, The Alchemist Code's departments: renewing brings the organization to it, after
+ * saying what it adds, changes and removes.
+ */
+function StaffTemplate() {
+  const t = useT();
+  const catalog = useStore((s) => s.catalog);
+  const coordinator = useStore((s) => s.botConfigs.find((c) => c.kind === 'coordinator'));
+  const [busy, setBusy] = useState(false);
+  const renew = async () => {
+    const agent = coordinator?.agent ?? defaultChoice(catalog);
+    if (!agent) return toast(t('bots.noAgent'));
+    setBusy(true);
+    try {
+      const staff = rosterOf(t, tierModels(catalog, agent));
+      const house = t('org.house.instructions');
+      const plan = await window.alchemist.renewStaff(agent, staff, house, false);
+      const n = plan.added.length + plan.updated.length + plan.removed.length + (plan.instructions ? 1 : 0);
+      if (!n) return void toast(t('org.staff.upToDate'), undefined, 4000);
+      const message = [
+        plan.added.length ? t('org.staff.adds', { n: plan.added.length, names: plan.added.join(', ') }) : '',
+        plan.updated.length ? t('org.staff.updates', { n: plan.updated.length, names: plan.updated.join(', ') }) : '',
+        plan.removed.length ? t('org.staff.removes', { n: plan.removed.length, names: plan.removed.join(', ') }) : '',
+        plan.instructions ? t('org.staff.instructions') : '',
+        t('org.staff.keeps'),
+      ]
+        .filter(Boolean)
+        .join('\n\n');
+      if (!(await confirmAction({ title: t('org.staff.confirmTitle'), message, confirmLabel: t('org.staff.apply'), cancelLabel: t('dialog.cancel') }))) return;
+      await window.alchemist.renewStaff(agent, staff, house, true);
+      await useStore.getState().loadBots();
+      toast(t('org.staff.done', { n }), undefined, 4000);
+    } catch (e) {
+      toast(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="org-staff" aria-label={t('org.staff.title')}>
+      <div>
+        <h3>{t('org.staff.title')}</h3>
+        <p className="composer-note">{t('org.staff.hint', { n: ROSTER.length, d: ROSTER_DEPARTMENTS })}</p>
+      </div>
+      <button className="btn-ghost small" disabled={busy} onClick={() => void renew()}>
+        {busy ? <span className="spin" /> : '⟳'} {t('org.staff.renew')}
+      </button>
+    </section>
   );
 }
 

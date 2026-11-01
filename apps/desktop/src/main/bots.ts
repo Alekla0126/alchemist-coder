@@ -4,7 +4,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, 
 import { dirname, join, relative } from 'node:path';
 import { commitAll, createWorktree, git, headCommit, listChanges, repoRoot } from '@alchemist-coder/arena';
 import type { Autopilot, SessionMcpServer } from '@alchemist-coder/core';
-import { ABOUT_MAX, type AgentChoice, type BotConfig, type BotMember, type BotStatus, type BotTeam, type OrgLesson, type OrgSettings, type PermissionMode, type PlannedBot, type RunnerEventMessage, type StartTeamRequest, type TeamEventKind, type TeamOrigin, type TeamPlan } from '../shared/api';
+import { ABOUT_MAX, type AgentChoice, type BotConfig, type RosterChange, type StarterAgent, type BotMember, type BotStatus, type BotTeam, type OrgLesson, type OrgSettings, type PermissionMode, type PlannedBot, type RunnerEventMessage, type StartTeamRequest, type TeamEventKind, type TeamOrigin, type TeamPlan } from '../shared/api';
 import type { RunnerManager } from './runner';
 
 /** Coordinator (0), the bots it creates (1), and theirs (2). */
@@ -21,7 +21,7 @@ const REPLY_CHARS = 12_000;
 const DETAIL_CHARS = 300;
 /** The kinds whose detail starts with the other bot's id ("b2|…"). */
 const SAID_TO: TeamEventKind[] = ['created', 'message', 'applied'];
-const PERMISSION_MODES: PermissionMode[] = ['default', 'acceptEdits', 'plan', 'bypassPermissions'];
+export const PERMISSION_MODES: PermissionMode[] = ['default', 'acceptEdits', 'plan', 'bypassPermissions'];
 const ENDED: BotStatus[] = ['done', 'error', 'stopped'];
 const ACTIVE_STATUSES: BotStatus[] = ['starting', 'working', 'waiting'];
 export const SERVER_NAME = 'alchemist_bots';
@@ -316,10 +316,39 @@ const sameLesson = (a: string, b: string) => {
   return norm(a) === norm(b);
 };
 
+/** The agent with a template's model (already one of its provider's); none keeps the agent's own. */
+const withModel = (agent: AgentChoice, model: string | undefined): AgentChoice => ({ ...agent, ...(model ? { model } : {}) });
+
+/** A template's agents with every lead before its team, so the team knows its lead's id. */
+function leadsFirst(entries: Array<[string, StarterAgent]>): Array<[string, StarterAgent]> {
+  const leads = new Set(entries.map(([, s]) => s.lead).filter(Boolean));
+  return [...entries.filter(([k, s]) => !s.lead || leads.has(k)), ...entries.filter(([k, s]) => s.lead && !leads.has(k))];
+}
+
+/** Two configurations the same in what a staff template sets (no lead and a null one are the same). */
+const sameStaffing = (a: BotConfig, b: BotConfig) =>
+  a.agent.model === b.agent.model && a.permissionMode === b.permissionMode && a.canSpawn === b.canSpawn && !!a.ownWorktree === !!b.ownWorktree && (a.about ?? '') === (b.about ?? '') && a.role === b.role && !!a.proposed === !!b.proposed && (a.leadId ?? null) === (b.leadId ?? null);
+
+/** A new configuration from a template's agent. The ones that only read ask before acting. */
+function starterConfig(key: string, s: StarterAgent, agent: AgentChoice): Partial<BotConfig> {
+  return {
+    name: s.name,
+    role: s.role,
+    about: s.about,
+    agent: withModel(agent, s.model),
+    permissionMode: s.permissionMode ?? (['planner', 'reviewer', 'researcher', 'uijudge'].includes(key) ? 'default' : 'acceptEdits'),
+    canSpawn: s.canSpawn ?? key === 'planner',
+    ownWorktree: s.ownWorktree === true,
+    proposed: s.proposed === true,
+  };
+}
+
 export class BotManager {
   private configs: BotConfig[] = [];
   private teams: BotTeam[] = [];
   private org: OrgSettings = { name: 'My organization', instructions: '', autopilot: false, lessons: [] };
+  /** While renewStaff only says what it would do: nothing is written. */
+  private dryRun = false;
   /** Decides for the organization's agents while it runs on Autopilot (asked by each of their runs). */
   private readonly pilot: Autopilot | undefined;
   /** How many times Autopilot told each assignment's coordinator to decide instead of asking you. */
@@ -385,6 +414,7 @@ export class BotManager {
   }
 
   private write(file: string, value: unknown) {
+    if (this.dryRun) return;
     writeFileSync(`${file}.tmp`, JSON.stringify(value, null, 1));
     renameSync(`${file}.tmp`, file);
   }
@@ -482,12 +512,12 @@ export class BotManager {
   }
 
   /** The first time: a coordinator with the given agent, and the starter agents. */
-  ensureOrg(agentInput: unknown, starters: Record<string, { name: string; role: string }>): BotConfig[] {
+  ensureOrg(agentInput: unknown, starters: Record<string, StarterAgent>): BotConfig[] {
     const agent = agentInput as AgentChoice | undefined;
     if (!agent?.harnessId || !agent.providerId || !agent.model) throw new Error('Choose an agent and a model');
     if (!this.coordinator()) {
       const lead = starters.coordinator ?? { name: 'Coordinator', role: '' };
-      this.saveConfig({ name: lead.name || 'Coordinator', role: lead.role, agent, permissionMode: 'acceptEdits', canSpawn: true, kind: 'coordinator' });
+      this.saveConfig({ name: lead.name || 'Coordinator', role: lead.role, about: lead.about, agent: withModel(agent, lead.model), permissionMode: lead.permissionMode ?? 'acceptEdits', canSpawn: true, kind: 'coordinator' });
     }
     const { coordinator: _lead, ...rest } = starters;
     return this.addStarters(agent, rest);
@@ -543,15 +573,115 @@ export class BotManager {
     return structuredClone(config);
   }
 
-  /** Adds the starter configurations (with the given agent) that aren't saved yet. */
-  addStarters(agentInput: unknown, names: Record<string, { name: string; role: string }>): BotConfig[] {
+  /**
+   * Adds the starter configurations (with the given agent) that aren't saved yet, each on its lead's
+   * team and, on Claude Code, with its tier's model.
+   */
+  addStarters(agentInput: unknown, names: Record<string, StarterAgent>): BotConfig[] {
     const agent = agentInput as AgentChoice | undefined;
     if (!agent?.harnessId || !agent.providerId || !agent.model) throw new Error('Choose an agent and a model');
-    for (const [key, s] of Object.entries(names).slice(0, 10)) {
-      if (this.configs.some((c) => c.name.toLowerCase() === s.name.toLowerCase())) continue;
-      this.saveConfig({ name: s.name, role: s.role, agent, permissionMode: ['planner', 'reviewer', 'researcher', 'uijudge'].includes(key) ? 'default' : 'acceptEdits', canSpawn: key === 'planner' });
+    const entries = leadsFirst(Object.entries(names).slice(0, 30));
+    const ids = new Map<string, string>();
+    for (const [key, s] of entries) {
+      const there = this.byName(s.name);
+      if (there) {
+        ids.set(key, there.id);
+        continue;
+      }
+      const lead = s.lead ? ids.get(s.lead) : undefined;
+      ids.set(key, this.saveConfig({ ...starterConfig(key, s, agent), leadId: lead ?? null }).id);
     }
     return this.listConfigs();
+  }
+
+  private byName(name: string): BotConfig | undefined {
+    const n = name.trim().toLowerCase();
+    return this.configs.find((c) => c.name.trim().toLowerCase() === n);
+  }
+
+  /**
+   * Brings the organization to a staff template: who's missing is added (not proposed, unless the
+   * template says so), each agent goes on its lead's team with the template's model tier (on Claude
+   * Code) and permissions, a name saved twice keeps only its first copy, and empty instructions get
+   * the template's. Roles you wrote, projects and pictures stay. `apply: false` writes nothing.
+   */
+  renewStaff(agentInput: unknown, starters: Record<string, StarterAgent>, instructions: string, apply: boolean): RosterChange {
+    const agent = agentInput as AgentChoice | undefined;
+    if (!agent?.harnessId || !agent.providerId || !agent.model) throw new Error('Choose an agent and a model');
+    const before = structuredClone(this.configs);
+    const beforeOrg = structuredClone(this.org);
+    // Trying it out writes nothing: every change is undone at the end.
+    this.dryRun = !apply;
+    try {
+      return this.renew(agent, starters, instructions, apply, before, beforeOrg);
+    } finally {
+      this.dryRun = false;
+    }
+  }
+
+  private renew(agent: AgentChoice, starters: Record<string, StarterAgent>, instructions: string, apply: boolean, before: BotConfig[], beforeOrg: OrgSettings): RosterChange {
+    const change: RosterChange = { added: [], updated: [], removed: [], instructions: false };
+    // Copies first: the same name twice, the later ones go unless an agent of theirs is at work.
+    const busy = new Set(this.teams.flatMap((t) => t.bots.filter((b) => ['starting', 'working', 'waiting'].includes(b.status)).map((b) => b.configId)));
+    const seen = new Set<string>();
+    for (const c of [...this.configs]) {
+      const n = c.name.trim().toLowerCase();
+      if (!seen.has(n)) {
+        seen.add(n);
+        continue;
+      }
+      if (c.kind === 'coordinator' || busy.has(c.id)) continue;
+      this.configs = this.configs.filter((x) => x.id !== c.id);
+      const kept = this.byName(c.name)!;
+      // The one that stays works wherever either did (none means every project).
+      kept.projects = kept.projects?.length && c.projects?.length ? [...new Set([...kept.projects, ...c.projects])] : [];
+      for (const x of this.configs) if (x.leadId === c.id) x.leadId = kept.id;
+      change.removed.push(c.name);
+    }
+    // A team is one level deep: an agent the template puts on a team stops leading one of its own.
+    for (const s of Object.values(starters)) {
+      const member = s.lead ? this.byName(s.name) : undefined;
+      if (member) for (const x of this.configs) if (x.leadId === member.id) x.leadId = null;
+    }
+    const ids = new Map<string, string>();
+    for (const [key, s] of leadsFirst(Object.entries(starters).slice(0, 30))) {
+      const there = key === 'coordinator' ? (this.coordinator() ?? this.byName(s.name)) : this.byName(s.name);
+      const lead = s.lead ? (ids.get(s.lead) ?? null) : null;
+      if (!there) {
+        const made = this.saveConfig({ ...starterConfig(key, s, agent), kind: key === 'coordinator' ? 'coordinator' : 'member', leadId: lead });
+        ids.set(key, made.id);
+        change.added.push(made.name);
+        continue;
+      }
+      ids.set(key, there.id);
+      const next: BotConfig = {
+        ...there,
+        // The template's model is one of the coordinator's provider: an agent on another one keeps its own.
+        agent: s.model && there.agent.harnessId === agent.harnessId && there.agent.providerId === agent.providerId ? { ...there.agent, model: s.model } : there.agent,
+        permissionMode: s.permissionMode ?? there.permissionMode,
+        canSpawn: there.kind === 'coordinator' || (s.canSpawn ?? there.canSpawn),
+        ownWorktree: s.ownWorktree ?? there.ownWorktree,
+        about: there.about || s.about,
+        role: there.role.trim() ? there.role : s.role,
+        proposed: s.proposed ? there.proposed === true : false,
+        ...(there.kind === 'coordinator' ? {} : { leadId: lead }),
+      };
+      if (sameStaffing(next, there)) continue;
+      change.updated.push(there.name);
+      this.saveConfig(next);
+    }
+    if (!this.org.instructions.trim() && instructions.trim()) {
+      change.instructions = true;
+      this.org = { ...this.org, instructions: instructions.trim() };
+    }
+    if (apply) {
+      this.write(this.files.configs, this.configs);
+      if (change.instructions) this.write(this.orgFile, this.org);
+    } else {
+      this.configs = before;
+      this.org = beforeOrg;
+    }
+    return change;
   }
 
   deleteConfig(id: string) {

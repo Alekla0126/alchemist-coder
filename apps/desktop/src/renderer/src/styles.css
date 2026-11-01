@@ -2616,3 +2616,92 @@ select.mk-chip { appearance: none; padding-right: 12px; }
 ::selection { background: color-mix(in srgb, var(--accent) 32%, transparent); color: var(--fg); }
 .entry { box-shadow: 0 1px 0 color-mix(in srgb, var(--fg) 4%, transparent) inset, 0 6px 18px -14px rgba(0, 0, 0, 0.55); }
 body { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
+
+/* ---------- Voice ----------
+   The microphone next to Send. While it records it says so in words, in red with a dot that follows
+   your voice, so the state reads in every theme; writing it out shows a spinner and words too. */
+.voice-btn { display: inline-flex; align-items: center; gap: 6px; height: 26px; min-width: 26px; padding: 0 6px; border-radius: 8px; color: var(--fg-2); border: 1px solid var(--line-2); background: var(--bg-hl); font-size: 11.5px; justify-content: center; }
+.voice-btn:hover:not(:disabled) { color: var(--fg); border-color: var(--fg-3); }
+.voice-btn:disabled { opacity: 0.45; }
+.voice-btn.recording { color: var(--red); border-color: var(--red); background: color-mix(in srgb, var(--red) 12%, var(--bg-input, var(--bg))); font-weight: 600; padding: 0 8px; }
+.voice-btn.transcribing { color: var(--fg); padding: 0 8px; cursor: default; }
+.voice-btn .spin { width: 11px; height: 11px; }
+.voice-live { display: inline-flex; align-items: center; gap: 2px; }
+.voice-cancel { width: 22px; height: 22px; color: var(--fg-3); }
+.rec-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 3px color-mix(in srgb, var(--red) 25%, transparent); transition: transform 90ms linear; }
+.voice-label { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* ---------- Organization: map, conversation and staff ----------
+   The map draws the company on a canvas: cards placed by the layout (OrgMap.tsx), the reporting
+   lines thin and quiet under them, and the token links in the accent color, as wide as their
+   tokens, with an arrow toward who got the most. Hovering or picking a card lights its links and
+   dims the rest; numbers are always in words too (labels, titles, the side panel). */
+.om { display: flex; flex-direction: column; gap: 10px; }
+.om-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.om-top .composer-note { margin: 0; font-variant-numeric: tabular-nums; }
+.om-top .composer-sp { flex: 1; }
+.om-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: start; }
+.om-body.with-side { grid-template-columns: minmax(0, 1fr) 320px; }
+.om-scroll { overflow: auto; max-height: 72vh; border-radius: 10px; background: color-mix(in srgb, var(--bg) 60%, transparent); border: 1px solid var(--line); }
+.om-canvas { position: relative; margin: 0 auto; }
+.om-lines { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+.om-report { fill: none; stroke: var(--line-2); stroke-width: 1.2; }
+.om-link { fill: none; stroke: var(--accent); opacity: 0.45; stroke-linecap: round; transition: opacity 0.12s; }
+.om-link.hot { opacity: 0.95; }
+.om-link.dim { opacity: 0.08; }
+#om-arrow path { fill: var(--accent); }
+.om-label { position: absolute; transform: translate(-50%, -50%); padding: 1px 6px; border-radius: 999px; font-size: 10.5px; font-variant-numeric: tabular-nums; color: var(--fg); background: var(--bg-card); border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--line)); white-space: nowrap; z-index: 2; pointer-events: auto; cursor: default; }
+.om-label.hot { border-color: var(--accent); font-weight: 650; }
+.om-card { position: absolute; display: flex; flex-direction: column; justify-content: space-between; gap: 2px; padding: 7px 9px 8px; text-align: left; border: 1px solid var(--line-2); border-radius: 10px; background: var(--bg-card); cursor: pointer; z-index: 1; transition: border-color 0.12s, opacity 0.12s, box-shadow 0.12s; }
+.om-card:hover, .om-card:focus-visible { border-color: var(--accent); outline: none; }
+.om-card.on { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent); }
+.om-card.dim { opacity: 0.45; }
+.om-card.lead { border-width: 1.5px; }
+.om-card.coord { background: color-mix(in srgb, var(--accent) 9%, var(--bg-card)); }
+.om-card.you, .om-card.extra { border-style: dashed; }
+.om-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.om-head b { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.om-model { font-size: 11px; color: var(--fg-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.om-spend { font-size: 11px; color: var(--fg); font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.om-bar { display: block; height: 3px; border-radius: 2px; background: var(--bg-hl); overflow: hidden; }
+.om-bar i { display: block; height: 100%; background: var(--accent); }
+.om-side { position: sticky; top: 0; display: flex; flex-direction: column; gap: 10px; max-height: 72vh; overflow-y: auto; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-card); }
+.om-side-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.om-side-head b { font-size: 14px; }
+.om-side h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--fg-2); margin: 4px 0 0; }
+.om-stats { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; margin: 0; font-size: 12px; }
+.om-stats dt { color: var(--fg-2); }
+.om-stats dd { margin: 0; font-variant-numeric: tabular-nums; }
+.om-stats small { color: var(--fg-3); }
+.om-partners { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.om-partners li { display: flex; justify-content: space-between; gap: 8px; }
+.om-partners span { color: var(--fg-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.om-body.with-side { grid-template-columns: minmax(0, 1fr) 360px; }
+/* Beside the map the form is one column: each label over its field, the agent's three choices stacked. */
+.om-editor { display: flex; flex-direction: column; gap: 10px; }
+.om-editor .bot-field { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+.om-editor .bot-field > span:first-child { padding-top: 0; }
+.om-editor .bot-field textarea { min-height: 60px; }
+.om-editor .bot-check { padding-left: 0; }
+.om-editor .agent-picker { grid-template-columns: minmax(0, 1fr); }
+.om-editor .agent-picker select { width: 100%; }
+.om-editor .bot-field .lang { justify-self: stretch; }
+
+/* The conversation with the organization on its home: your lines on the right, its answers on the left. */
+.org-chat { display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: color-mix(in srgb, var(--bg-input) 55%, transparent); }
+.org-chat-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.org-chat-head h3 { font-size: 13px; margin: 0; }
+.org-chat-head .composer-sp { flex: 1; }
+.org-chat-goal { font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.org-chat-lines { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; padding-right: 4px; }
+.org-chat-line { align-self: flex-start; max-width: 82%; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg-card); }
+.org-chat-line.mine { align-self: flex-end; background: color-mix(in srgb, var(--accent) 12%, var(--bg-card)); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+.org-chat-line small { display: block; font-size: 10.5px; color: var(--fg-2); margin-bottom: 2px; }
+.org-chat-line p { margin: 0; font-size: 12.5px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; user-select: text; }
+.org-chat-box textarea { min-height: 34px; }
+
+/* The house staff: one line and the button that renews it. */
+.org-staff { display: flex; align-items: center; justify-content: space-between; gap: 16px; border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; }
+.org-staff h3 { font-size: 13px; margin: 0 0 2px; }
+.org-staff p { margin: 0; max-width: 760px; }
+.org-staff .btn-ghost { white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }

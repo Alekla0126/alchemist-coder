@@ -10,6 +10,8 @@ import { Markdown } from './Markdown';
 import { TranscriptEntries } from './Transcript';
 import { CommitDialog } from './CommitDialog';
 import { Icon } from './Icon';
+import { VoiceButton } from './VoiceButton';
+import { appendSpoken } from '../voice';
 import { AgentAvatar } from './AgentAvatar';
 import { parsePatch } from '../diff';
 import { relativePath, tailOf } from '../paths';
@@ -818,6 +820,14 @@ export function TeamView({ team }: { team: BotTeam }) {
               <div className="composer-bar">
                 <span className="composer-note">{t('bots.mentionHint')}</span>
                 <span className="composer-sp" />
+                <VoiceButton
+                  owner={`team:${team.id}`}
+                  onText={(spoken) => {
+                    setText((v) => appendSpoken(v, spoken));
+                    requestAnimationFrame(() => box.current?.focus());
+                  }}
+                  focus={() => box.current?.focus()}
+                />
                 {ACTIVE.includes(bot.status) && bot.runId && (
                   <button className="btn-ghost small" onClick={() => void window.alchemist.stopBot(team.id, bot.id)}>
                     ■ {t('bots.stopBot')}

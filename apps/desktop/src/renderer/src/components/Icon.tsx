@@ -8,6 +8,12 @@ import type { ReactNode } from 'react';
 const SHIELD = 'M12 3.2c2.3 1.5 4.6 2.2 7 2.3v5.6c0 4.5-2.8 7.9-7 9.7-4.2-1.8-7-5.2-7-9.7V5.5c2.4-.1 4.7-.8 7-2.3z';
 
 const PATHS = {
+  mic: (
+    <>
+      <rect x="9" y="3.5" width="6" height="11" rx="3" />
+      <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5" />
+    </>
+  ),
   // Panels
   sidebarClose: (
     <>

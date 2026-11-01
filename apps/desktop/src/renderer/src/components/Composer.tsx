@@ -13,6 +13,8 @@ import { drafts, queues } from '../composer-state';
 import { sourceOf } from '../sources';
 import { useStore, useT } from '../store';
 import { confirmAction, openMenu, toast } from '../ui';
+import { VoiceButton } from './VoiceButton';
+import { appendSpoken } from '../voice';
 import { Chip, ContextChip, ModeTag, cachedEffort, effortLabel, effortOptionOf, effortTable, pickAction, rememberEffort } from './ComposerChips';
 
 const PREFS_KEY = 'alchemist.composer';
@@ -99,6 +101,19 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
   const setQueue = (q: string[]) => {
     queues.set(target, q);
     setQueueState(q);
+  };
+  const targetRef = useRef(target);
+  targetRef.current = target;
+  /** What you said, after what's already written (in the conversation you spoke in, even if you've left it). */
+  const addSpoken = (spokenIn: string) => (text: string) => {
+    const next = appendSpoken(drafts.get(spokenIn) ?? '', text);
+    drafts.set(spokenIn, next);
+    if (targetRef.current !== spokenIn) return;
+    setPromptState(next);
+    requestAnimationFrame(() => {
+      box.current?.focus();
+      box.current?.setSelectionRange(next.length, next.length);
+    });
   };
   useEffect(() => {
     setPromptState(drafts.get(target) ?? '');
@@ -746,6 +761,7 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
           {project && <Chip icon="bolt" label={t('chip.actions')} title={t('chip.actionsTip')} className="actions-chip" onClick={() => void pickAction(t, project.cwd, projectId, insertText)} />}
           <span className="composer-sp" />
           {ctx && <ContextChip used={ctx.used} size={ctx.size} onCompact={canCompact ? () => insertText('/compact') : undefined} />}
+          <VoiceButton owner={`composer:${target}`} onText={addSpoken(target)} focus={() => box.current?.focus()} />
           {busy && run?.config && (
             <button className="btn-ghost" onClick={() => void interruptRun(run.runId)} title="Esc">
               ⏸ {t('run.interrupt')}
