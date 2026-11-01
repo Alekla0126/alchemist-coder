@@ -2791,3 +2791,19 @@ body { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; 
 /* The project the office shows, beside the views. */
 .ofc-filter { width: auto; max-width: 220px; }
 .ofc-filter-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 240px; padding: 1px 2px 1px 8px; border: 1px solid var(--line-2); border-radius: 999px; font-size: 12px; color: var(--fg); background: var(--bg-input); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The rooms side by side as the floor allows, each at least 420 px (or the whole floor), from the top. */
+.ofc-stage { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); align-content: start; align-items: start; }
+.ofc-stage.empty { align-content: center; }
+.ofc-stage .ofc-empty { grid-column: 1 / -1; justify-self: center; }
+/* A short window (720 px): smaller desks and box, so the rooms and their assignments still show. */
+@media (max-height: 780px) {
+  .ofc { gap: 8px 12px; padding: 10px 14px; }
+  .ofc-head h2 { font-size: 15px; }
+  .ofc-stage { gap: 8px; padding: 8px; }
+  .ofc-room { gap: 4px; padding: 6px 8px 8px; }
+  .ofc-desk { width: 112px; padding: 6px 4px 4px; gap: 1px; }
+  .ofc-desk .of-name { margin-top: 2px; font-size: 12px; }
+  .ofc-talk { max-height: 36vh; gap: 6px; }
+  .ofc-talk .org-composer .composer-box textarea { min-height: 38px; padding-top: 8px; }
+  .ofc-talk .org-examples { display: none; }
+}

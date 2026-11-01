@@ -378,7 +378,7 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
         {views}
       </header>
       <div className="ofc-main">
-        <section className="ofc-stage" aria-label={t('org.office.floor')}>
+        <section className={`ofc-stage ${floor.length ? '' : 'empty'}`} aria-label={t('org.office.floor')}>
           {floor.length ? (
             floor.map((p) => <ProjectRoom key={p.cwd} p={p} onOpen={openDesk} />)
           ) : (
