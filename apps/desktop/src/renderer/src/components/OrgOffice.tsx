@@ -5,7 +5,7 @@ import { relativeTime } from '../format';
 import { aboutOf, activityOf, inFolder, teamState } from '../org-model';
 import { channelOf, countsOf, isDemo, waitingBot, departmentsOf, latestTeam, projectsOf, type Department, type OfficeAgent, type OfficeMember, type OfficeProject, type OfficeState } from '../org-office';
 import { useOpenProjects, useStore, useT } from '../store';
-import { toast } from '../ui';
+import { confirmAction, toast } from '../ui';
 import { AgentAvatar } from './AgentAvatar';
 import { doingText } from './Bots';
 import { OrgChat } from './OrgChat';
@@ -128,15 +128,29 @@ function Sheet({ member, floor, editor, onWrite, onClose }: { member: BotConfig;
   const box = useRef<HTMLElement>(null);
   const teams = useStore((s) => s.botTeams);
   const status = activityOf(member, teams).status;
-  useEffect(() => {
-    box.current?.focus();
-    const key = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    document.addEventListener('keydown', key);
-    return () => document.removeEventListener('keydown', key);
-  }, [member.id]);
+  useEffect(() => box.current?.focus(), [member.id]);
+  // Escape closes it from inside it (a menu or a picker that used the key keeps it); Tab stays in it.
+  const onKey = (e: React.KeyboardEvent<HTMLElement>) => {
+    if (e.key === 'Escape' && !e.defaultPrevented) {
+      e.preventDefault();
+      onClose();
+      return;
+    }
+    if (e.key !== 'Tab') return;
+    const all = [...(box.current?.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, summary, [tabindex]:not([tabindex="-1"])') ?? [])].filter((x) => !x.hasAttribute('disabled') && x.offsetParent !== null);
+    const [first, last] = [all[0], all[all.length - 1]];
+    if (!first || !last) return;
+    if (e.shiftKey && (document.activeElement === first || document.activeElement === box.current)) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
   const mine = floor.filter((a) => a.configId === member.id);
   return (
-    <aside className="ofc-sheet" role="dialog" aria-label={t('org.office.settingsOf', { name: member.name })} tabIndex={-1} ref={box}>
+    <aside className="ofc-sheet" role="dialog" aria-modal="true" aria-label={t('org.office.settingsOf', { name: member.name })} tabIndex={-1} ref={box} onKeyDown={onKey}>
       <header className="ofc-sheet-head">
         <AgentAvatar name={member.name} avatar={member.avatar} size={30} />
         <b>{member.name}</b>
@@ -273,21 +287,38 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
   const { coordinator, departments, proposed } = departmentsOf(configs, teams, orgProject);
   const shown = sheet ? configs.find((c) => c.id === sheet) : undefined;
   const agents = floor.flatMap((p) => p.agents);
-  const openSheet = (member: BotConfig, from: HTMLElement | null) => {
+  // Leaving an agent with unsaved settings (closing, or opening another one) asks first; leaving drops them.
+  const leave = async () => {
+    const id = sheet;
+    const draft = id ? useStore.getState().orgDrafts[id] : undefined;
+    if (!id || !draft) return true;
+    const name = configs.find((c) => c.id === id)?.name ?? '';
+    if (!(await confirmAction({ title: t('org.office.discardTitle', { name }), message: t('org.office.discardHint'), confirmLabel: t('org.office.discard'), cancelLabel: t('org.office.keepEditing'), danger: true }))) return false;
+    useStore.setState((st) => {
+      const drafts = { ...st.orgDrafts };
+      delete drafts[id];
+      return { orgDrafts: drafts };
+    });
+    return true;
+  };
+  const openSheet = async (member: BotConfig, from: HTMLElement | null) => {
+    if (!(await leave())) return;
     opener.current = from;
     setSheet((s) => (s === member.id ? null : member.id));
   };
-  const closeSheet = () => {
+  const closeSheet = async () => {
+    if (!(await leave())) return;
     setSheet(null);
     opener.current?.focus();
   };
   // A desk opens its agent's settings; one the coordinator defined on the spot opens its assignment.
   const openDesk = (a: OfficeAgent) => {
     const member = a.configId ? configs.find((c) => c.id === a.configId) : undefined;
-    if (member) openSheet(member, document.activeElement as HTMLElement | null);
+    if (member) void openSheet(member, document.activeElement as HTMLElement | null);
     else openAssignment(a.team, a.botId);
   };
-  const writeTo = (member: BotConfig) => {
+  const writeTo = async (member: BotConfig) => {
+    if (!(await leave())) return;
     setTo(member.kind === 'coordinator' ? COORDINATOR : member.id);
     setSheet(null);
     requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('.ofc-talk textarea')?.focus());
@@ -354,7 +385,7 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
           </section>
         )}
       </aside>
-      {shown && <Sheet key={shown.id} member={shown} floor={agents} editor={editor} onWrite={() => writeTo(shown)} onClose={closeSheet} />}
+      {shown && <Sheet key={shown.id} member={shown} floor={agents} editor={editor} onWrite={() => void writeTo(shown)} onClose={() => void closeSheet()} />}
     </div>
   );
 }

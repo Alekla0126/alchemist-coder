@@ -2786,3 +2786,5 @@ body { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; 
 /* On the office the organization's sidebar stays mounted (it loads and sets up the organization) but out of sight. */
 .body.mode-bots.org-office:not(.narrow) { grid-template-columns: 56px minmax(0, 1fr); }
 .body.mode-bots.org-office:not(.drawer-open) > aside.side { display: none; }
+/* The sheet's Save stays in sight at its foot, however long the form. */
+.ofc-sheet .om-editor .bots-actions { position: sticky; bottom: -16px; z-index: 1; margin: 0 -14px -16px; padding: 10px 14px; border-top: 1px solid var(--line); background: var(--bg-card); }

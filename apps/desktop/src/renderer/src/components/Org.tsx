@@ -1023,6 +1023,10 @@ const latestOf = (teams: BotTeam[]) => teams.reduce<BotTeam | undefined>((a, x) 
 function MapEditor({ member }: { member: BotConfig }) {
   const t = useT();
   const { draft, set, clear, dirty } = useDraft(member);
+  // "Saved ✓" beside the button for a moment, where you're looking.
+  const [saved, setSaved] = useState(false);
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => clearTimeout(savedTimer.current ?? undefined), []);
   const save = async () => {
     if (!draft.agent) return;
     // The example office's agents (screenshots) are in the window only.
@@ -1032,6 +1036,9 @@ function MapEditor({ member }: { member: BotConfig }) {
       clear();
       await useStore.getState().loadBots();
       toast(t('org.saved'), undefined, 2500);
+      setSaved(true);
+      clearTimeout(savedTimer.current ?? undefined);
+      savedTimer.current = setTimeout(() => setSaved(false), 2500);
     } catch (e) {
       toast(errorText(e));
     }
@@ -1045,6 +1052,9 @@ function MapEditor({ member }: { member: BotConfig }) {
           {t('org.map.openProfile')} →
         </button>
         <span className="composer-sp" />
+        <span className="composer-note" aria-live="polite">
+          {dirty ? t('org.unsaved') : saved ? t('org.savedCheck') : ''}
+        </span>
         {dirty && (
           <button className="btn-ghost small" onClick={clear}>
             {t('dialog.cancel')}
