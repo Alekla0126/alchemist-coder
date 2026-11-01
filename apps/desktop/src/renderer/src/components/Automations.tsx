@@ -412,6 +412,7 @@ function RunRow({ automation, run, selected, onSelect }: { automation: Automatio
 /** An automation: its diagram (editable), when it runs, what agents may decide alone, and its runs. */
 export function AutomationView({ state }: { state: AutomationState }) {
   const t = useT();
+  const back = useStore((s) => (s.orgOffice ? 'org.office.back' : 'org.backToChart') as 'org.office.back' | 'org.backToChart');
   const locale = useStore((s) => s.locale);
   const open = useOpenProjects();
   const telegram = useTelegram();
@@ -538,7 +539,7 @@ export function AutomationView({ state }: { state: AutomationState }) {
   return (
     <section className="team-view auto-view">
       <header className="team-head">
-        <button className="icon-btn ic-btn" onClick={() => (useStore.setState({ activeAutomationId: null }), showOnChart())} title={t('org.backToChart')} aria-label={t('org.backToChart')}>
+        <button className="icon-btn ic-btn" onClick={() => (useStore.setState({ activeAutomationId: null }), showOnChart())} title={t(back)} aria-label={t(back)}>
           <Icon name="chevronLeft" size={16} />
         </button>
         <div className="team-title">

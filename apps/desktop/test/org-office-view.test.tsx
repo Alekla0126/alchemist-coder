@@ -38,6 +38,8 @@ const state = {
   projects: [{ id: 1, cwd: '/p/castbook', name: 'Castbook' }],
   settings: { openProjectIds: [1], activeProjectId: 1 },
   messageBot: async () => {},
+  automations: [],
+  orgDrafts: {},
 };
 const memory = new Map<string, string>();
 vi.stubGlobal('localStorage', { getItem: (k: string) => memory.get(k) ?? null, setItem: (k: string, v: string) => void memory.set(k, v) });
@@ -54,9 +56,11 @@ describe('the office on one screen', () => {
 
   it('shows the work by project, who needs you first, saying in words how each one is doing', () => {
     expect(html).toContain('📁 Castbook');
-    expect(html).toContain('1 working · 1 waiting for you');
+    expect(html).toContain('1 working · 1 needs you');
     expect(html.indexOf('of-desk ofc-desk st-waiting')).toBeLessThan(html.indexOf('of-desk ofc-desk st-working'));
-    expect(html).toContain('Waiting for you');
+    // The same word for it everywhere in the office.
+    expect(html).toContain('>Needs you<');
+    expect(html).not.toContain('Waiting for you');
     // What the coordinator is doing right now, and the agent's task otherwise.
     expect(html).toContain('Write the exporter');
     expect(html).toContain('Export to CSV');
@@ -68,6 +72,9 @@ describe('the office on one screen', () => {
     expect(side.indexOf('Planner')).toBeLessThan(side.indexOf('Coder'));
     expect(side.indexOf('Finance')).toBeLessThan(side.indexOf('Proposed agents'));
     expect(side).toContain('Sales');
+    // A department with someone at work starts open; a quiet one starts folded, saying how many it has.
+    expect(side).toMatch(/aria-expanded="true"[^>]*>.*Planner/);
+    expect(side).toMatch(/aria-expanded="false"[^>]*>.*Finance.*1 agent/);
   });
 
   it('writes to the coordinator by default, with every agent to pick from by department', () => {

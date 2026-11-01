@@ -1627,6 +1627,7 @@ export const zhCN: Messages = {
   'org.office.noProjects': '还没有有工作的项目。在下面写下你需要的: 协调者会分配。',
   'org.office.floor': '现在的工作, 按项目',
   'org.office.departments': '部门',
+  'org.office.back': '返回办公室',
   'org.office.noAgent': '选择代理和模型来准备你的组织。',
   'org.office.pickAgent': '设置 › 代理',
   'org.office.hideDepts': '隐藏部门',

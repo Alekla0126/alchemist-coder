@@ -4,7 +4,7 @@ import { dismissMember, keepMember, openAssignment } from '../actions/org';
 import { relativeTime } from '../format';
 import { useLayout } from '../layout';
 import { baseName, isInside } from '../paths';
-import { aboutOf, activityOf, inFolder, teamState } from '../org-model';
+import { aboutOf, inFolder, teamState } from '../org-model';
 import { channelOf, countsOf, isDemo, waitingBot, departmentsOf, latestTeam, projectsOf, type Department, type OfficeAgent, type OfficeMember, type OfficeProject, type OfficeState } from '../org-office';
 import { useOpenProjects, useStore, useT } from '../store';
 import { confirmAction, toast } from '../ui';
@@ -26,11 +26,14 @@ const COORDINATOR = '';
 const LIVE: Record<OfficeState, 'working' | 'waiting' | 'done' | 'error'> = { working: 'working', waiting: 'waiting', done: 'done', failed: 'error' };
 const MARK: Partial<Record<OfficeState, string>> = { waiting: '?', failed: '!', done: '✓' };
 
-/** "2 working · 1 waiting for you · 3 finished", leaving out what's zero. */
+/** A state in a word, the same everywhere in the office (desks, sheet, departments): "Needs you", "Working"… */
+const stateWord = (state: OfficeState, t: T) => (state === 'waiting' || state === 'working' ? t(`org.status.${state}`) : t(`org.live.st.${LIVE[state]}`));
+
+/** "2 working · 1 needs you · 3 finished", leaving out what's zero. */
 function countText(c: Record<OfficeState, number>, t: T) {
   return [
     c.working ? t('org.workingN', { n: c.working }) : '',
-    c.waiting ? t('org.waitingN', { n: c.waiting }) : '',
+    c.waiting ? t('org.inboxN', { n: c.waiting }) : '',
     c.done ? t('org.office.doneN', { n: c.done }) : '',
     c.failed ? t('org.office.failedN', { n: c.failed }) : '',
   ]
@@ -42,7 +45,7 @@ function countText(c: Record<OfficeState, number>, t: T) {
 function FloorDesk({ a, onOpen }: { a: OfficeAgent; onOpen: (a: OfficeAgent) => void }) {
   const t = useT();
   const state = LIVE[a.state];
-  const status = t(`org.live.st.${state}`);
+  const status = stateWord(a.state, t);
   const line = (a.doing ? doingText(a.doing, t).text : '') || a.task;
   return (
     <button className={`of-desk ofc-desk st-${state} ${a.coordinator ? 'of-lead' : ''}`} aria-label={[a.name, status, line, a.team.title || a.team.goal].filter(Boolean).join(' · ')} title={a.team.title || a.team.goal} onClick={() => onOpen(a)}>
@@ -129,8 +132,6 @@ function MemberLine({ m, open, onOpen }: { m: OfficeMember; open: boolean; onOpe
 function Sheet({ member, floor, editor, onWrite, onClose }: { member: BotConfig; floor: OfficeAgent[]; editor: (member: BotConfig) => ReactNode; onWrite: () => void; onClose: () => void }) {
   const t = useT();
   const box = useRef<HTMLElement>(null);
-  const teams = useStore((s) => s.botTeams);
-  const status = activityOf(member, teams).status;
   useEffect(() => box.current?.focus(), [member.id]);
   // Escape closes it from inside it (a menu or a picker that used the key keeps it); Tab stays in it.
   const onKey = (e: React.KeyboardEvent<HTMLElement>) => {
@@ -152,12 +153,14 @@ function Sheet({ member, floor, editor, onWrite, onClose }: { member: BotConfig;
     }
   };
   const mine = floor.filter((a) => a.configId === member.id);
+  // Its state says the same as "Now" below: the most telling of its parts on the floor, else available.
+  const head = (['waiting', 'working', 'failed', 'done'] as const).find((x) => mine.some((a) => a.state === x));
   return (
     <aside className="ofc-sheet" role="dialog" aria-modal="true" aria-label={t('org.office.settingsOf', { name: member.name })} tabIndex={-1} ref={box} onKeyDown={onKey}>
       <header className="ofc-sheet-head">
         <AgentAvatar name={member.name} avatar={member.avatar} size={30} />
         <b>{member.name}</b>
-        <span className={`lv-state st-${status === 'idle' ? 'out' : status}`}>{member.proposed ? t('org.proposed') : t(`org.status.${status}`)}</span>
+        <span className={`lv-state st-${head ? LIVE[head] : 'out'}`}>{member.proposed ? t('org.proposed') : head ? stateWord(head, t) : t('org.status.idle')}</span>
         <button className="of-close" onClick={onClose} aria-label={t('org.office.close')} title={t('org.office.close')}>
           ✕
         </button>
@@ -180,7 +183,7 @@ function Sheet({ member, floor, editor, onWrite, onClose }: { member: BotConfig;
           <ul className="ofc-now">
             {mine.map((a) => (
               <li key={a.key}>
-                <span className={`lv-state st-${LIVE[a.state]}`}>{t(`org.live.st.${LIVE[a.state]}`)}</span>
+                <span className={`lv-state st-${LIVE[a.state]}`}>{stateWord(a.state, t)}</span>
                 <span className="ofc-now-text">{(a.doing ? doingText(a.doing, t).text : '') || a.task}</span>
                 <button className="link small" onClick={() => openAssignment(a.team, a.botId)}>
                   {t('org.openAssignment')} →
@@ -312,6 +315,7 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
   }, []);
   const [sheet, setSheet] = useState<string | null>(null);
   const [to, setTo] = useState(COORDINATOR);
+  const [unfolded, setUnfolded] = useState<Record<string, boolean>>({});
   // An agent that left the organization (deleted, dismissed) is no longer one to write to or look at.
   useEffect(() => {
     if (to && !configs.some((c) => c.id === to)) setTo(COORDINATOR);
@@ -416,19 +420,29 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
             <MemberLine m={coordinator} open={sheet === coordinator.member.id} onOpen={openSheet} />
           </ul>
         )}
-        {departments.map((d) => (
-          <section key={d.lead.id} className="ofc-dept" aria-label={d.lead.name}>
-            <h4>
-              <span>{d.lead.name}</span>
-              {(d.working > 0 || d.waiting > 0) && <small>{countText({ working: d.working, waiting: d.waiting, done: 0, failed: 0 }, t)}</small>}
-            </h4>
-            <ul className="ofc-dept-list">
-              {d.members.map((m) => (
-                <MemberLine key={m.member.id} m={m} open={sheet === m.member.id} onOpen={openSheet} />
-              ))}
-            </ul>
-          </section>
-        ))}
+        {/* Each folds; the ones with someone at work (or waiting for you) start open. */}
+        {departments.map((d) => {
+          const busy = d.working > 0 || d.waiting > 0;
+          const isOpen = unfolded[d.lead.id] ?? busy;
+          return (
+            <section key={d.lead.id} className={`ofc-dept ${isOpen ? 'open' : ''}`} aria-label={d.lead.name}>
+              <h4>
+                <button className="ofc-dept-fold" aria-expanded={isOpen} onClick={() => setUnfolded((u) => ({ ...u, [d.lead.id]: !isOpen }))}>
+                  <span aria-hidden>{isOpen ? '▾' : '▸'}</span>
+                  <span className="ofc-dept-name">{d.lead.name}</span>
+                  <small>{busy ? countText({ working: d.working, waiting: d.waiting, done: 0, failed: 0 }, t) : t('org.agentsN', { n: d.members.length })}</small>
+                </button>
+              </h4>
+              {isOpen && (
+                <ul className="ofc-dept-list">
+                  {d.members.map((m) => (
+                    <MemberLine key={m.member.id} m={m} open={sheet === m.member.id} onOpen={openSheet} />
+                  ))}
+                </ul>
+              )}
+            </section>
+          );
+        })}
         {proposed.length > 0 && (
           <section className="ofc-dept" aria-label={t('org.proposedSection')}>
             <h4>

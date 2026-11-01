@@ -1627,6 +1627,7 @@ export const it: Messages = {
   'org.office.noProjects': 'Ancora nessun progetto con lavoro. Scrivi qui sotto ciò che ti serve: il coordinatore lo distribuisce.',
   'org.office.floor': 'Il lavoro di adesso, per progetto',
   'org.office.departments': 'Reparti',
+  'org.office.back': 'Torna all’ufficio',
   'org.office.noAgent': 'Scegli agente e modello per preparare la tua organizzazione.',
   'org.office.pickAgent': 'Impostazioni › Agenti',
   'org.office.hideDepts': 'Nascondi i reparti',

@@ -1626,6 +1626,7 @@ export const en = {
   'org.office.noProjects': 'No projects with work yet. Write below what you need: the coordinator hands it out.',
   'org.office.floor': 'The work right now, by project',
   'org.office.departments': 'Departments',
+  'org.office.back': 'Back to the office',
   'org.office.noAgent': 'Choose an agent and a model to set up your organization.',
   'org.office.pickAgent': 'Settings › Agents',
   'org.office.hideDepts': 'Hide the departments',

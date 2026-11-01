@@ -1127,6 +1127,7 @@ function MemberPanel({ member }: { member: BotConfig }) {
   const org = useStore((s) => s.orgSettings);
   const coordinator = useStore((s) => s.botConfigs.find((c) => c.kind === 'coordinator'));
   const { draft, set, clear, dirty } = useDraft(member);
+  const back = useStore((s) => (s.orgOffice ? t('org.office.back') : t('org.backToChart')));
   const lead = member.kind === 'coordinator';
   const a = activityOf(member, teams);
   const openTeam = (team: BotTeam) => useStore.setState({ activeTeamId: team.id, activeBotId: team.bots.find((b) => b.configId === member.id)?.id ?? team.bots[0]?.id ?? null, activeMemberId: null });
@@ -1172,7 +1173,7 @@ function MemberPanel({ member }: { member: BotConfig }) {
   return (
     <section className="team-view org-member-panel">
       <header className="team-head">
-        <button className="icon-btn ic-btn" onClick={() => showOnChart()} title={t('org.backToChart')} aria-label={t('org.backToChart')}>
+        <button className="icon-btn ic-btn" onClick={() => showOnChart()} title={back} aria-label={back}>
           <Icon name="chevronLeft" size={16} />
         </button>
         <button className="av-edit" onClick={() => void changeAvatar(member)} title={t('avatar.change')} aria-label={t('avatar.change')}>
