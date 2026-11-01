@@ -128,6 +128,30 @@ describe('bot teams', () => {
     await expect(bots.callTool(lead, 'create_bot', { name: 'X', task: 't' })).rejects.toThrow(/spending cap/);
   });
 
+  it('gives bots the project’s browser, says so once, and lets go of it when the run ends', async () => {
+    const { fake, bots } = setup();
+    await bots.start();
+    const calls: string[] = [];
+    bots.setBrowser({
+      tools: (label, project) => (calls.push(`tools ${label} ${project}`), { name: 'alchemist_browser', command: 'node', args: [], env: { AC_BROWSER_TOKEN: label } }),
+      bind: (server, runId) => void calls.push(`bind ${server.env?.AC_BROWSER_TOKEN} ${runId}`),
+      release: (server) => void calls.push(`release ${server.env?.AC_BROWSER_TOKEN}`),
+    });
+    const team = bots.startTeam({ goal: 'g', cwd: '/p', coordinator: { name: 'Lead', role: '', agent, permissionMode: 'acceptEdits' } });
+    // The bot tools and the browser's.
+    expect(fake.started[0]!.mcp).toBe(2);
+    expect(fake.started[0]!.prompt).toContain('alchemist_browser');
+    expect(calls).toEqual(['tools Lead /p', 'bind Lead run-1']);
+    const emit = (bots as unknown as { onRunEvent(m: RunnerEventMessage): void }).onRunEvent.bind(bots);
+    emit({ runId: 'run-1', event: { type: 'started', sessionId: 'sess-1' } });
+    emit({ runId: 'run-1', event: { type: 'status', status: 'done' } });
+    expect(calls.at(-1)).toBe('release Lead');
+    // A continued conversation gets the browser again, without being told about it twice.
+    bots.message(team.id, 'b1', 'one more thing');
+    expect(fake.started[1]!.mcp).toBe(2);
+    expect(fake.started[1]!.prompt).toBe('one more thing');
+  });
+
   it('continues a finished bot in its saved conversation, and names teams from the goal', async () => {
     const { teamTitle } = await import('../src/main/bots');
     expect(teamTitle('Add a login page. Then test it.')).toBe('Add a login page.');

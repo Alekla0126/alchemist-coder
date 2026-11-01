@@ -119,6 +119,7 @@ export function BrowserPane({ covered: coveredBy = false, onClose }: { covered?:
   };
   const chooseImport = async () => {
     const list = state?.importable ?? [];
+    if (!list.length) return;
     if (list.length === 1) return void importFrom(list[0]!.id, list[0]!.name);
     const id = await api().showMenu(list.map((b) => ({ id: b.id, label: t('browser.importFrom', { browser: b.name }) })));
     const chosen = list.find((b) => b.id === id);
@@ -147,10 +148,10 @@ export function BrowserPane({ covered: coveredBy = false, onClose }: { covered?:
             </button>
           </div>
         ))}
-        <button className="icon-btn bt-new" disabled={tabs.length >= BROWSER_MAX_TABS} onClick={() => void api().browserNewTab()} title={tabs.length >= BROWSER_MAX_TABS ? t('browser.tabsFull', { n: BROWSER_MAX_TABS }) : t('browser.newTab')} aria-label={t('browser.newTab')}>
+        <button className="icon-btn bt-new" disabled={!!state?.tabsFull} onClick={() => void api().browserNewTab()} title={state?.tabsFull ? t('browser.tabsFull', { n: BROWSER_MAX_TABS }) : t('browser.newTab')} aria-label={t('browser.newTab')}>
           <Icon name="plus" size={14} />
         </button>
-        {(state?.importable.length ?? 0) > 0 && !!state?.project && (
+        {(state?.importable?.length ?? 0) > 0 && !!state?.project && (
           <button className="icon-btn bt-import" onClick={() => void chooseImport()} title={t('browser.importTitle')} aria-label={t('browser.importTitle')}>
             <Icon name="user" size={14} />
           </button>

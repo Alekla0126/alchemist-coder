@@ -339,6 +339,8 @@ export interface BrowserState {
   signInsBrowser: string | null;
   /** The other browsers on this Mac whose sign-ins the pane can bring (Chrome, Brave, Edge, Arc, Vivaldi). */
   importable: Array<{ id: string; name: string }>;
+  /** No room for another tab: every one is in use (an agent tab left idle makes room by itself). */
+  tabsFull: boolean;
   /** Its tabs, in order; `active` is the one in front. */
   tabs: BrowserTab[];
   /** Every project's browser an agent used in the last few seconds (the title bar says so in words). */

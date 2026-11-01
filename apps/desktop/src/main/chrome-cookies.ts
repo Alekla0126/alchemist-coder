@@ -147,14 +147,16 @@ export async function readChromiumCookies(browser: ChromiumBrowser, profile = 'D
   try {
     const copy = join(tmp, 'Cookies');
     copyFileSync(found.db, copy);
-    for (const side of ['-wal', '-shm']) if (existsSync(found.db + side)) copyFileSync(found.db + side, copy + side);
+    for (const side of ['-journal', '-wal', '-shm']) if (existsSync(found.db + side)) copyFileSync(found.db + side, copy + side);
     const sql = async (q: string) => {
       const { stdout } = await run('/usr/bin/sqlite3', ['-json', copy, q], { maxBuffer: 256 * 1024 * 1024 });
       return (stdout.trim() ? JSON.parse(stdout) : []) as Array<Record<string, unknown>>;
     };
     const version = Number((await sql("SELECT value FROM meta WHERE key = 'version'"))[0]?.value ?? 0);
+    // Partitioned cookies (CHIPS) belong to a third party inside one site, not to a sign-in: left out.
+    const partitioned = (await sql('PRAGMA table_info(cookies)')).some((c) => c.name === 'top_frame_site_key');
     const rows = (await sql(
-      'SELECT host_key, name, path, value, hex(encrypted_value) AS encrypted_value, expires_utc, is_secure, is_httponly, samesite, has_expires FROM cookies',
+      `SELECT host_key, name, path, value, hex(encrypted_value) AS encrypted_value, expires_utc, is_secure, is_httponly, samesite, has_expires FROM cookies${partitioned ? " WHERE top_frame_site_key = ''" : ''}`,
     )) as unknown as ChromiumRow[];
     const { stdout: password } = await run('/usr/bin/security', ['find-generic-password', '-w', '-s', browser.keychain]);
     return rowsToCookies(rows, chromiumKey(password.trim()), version);

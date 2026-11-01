@@ -18,6 +18,7 @@ import {
   readSignInChoices,
   SHARED_PARTITION,
   signInPlan,
+  siteOf,
   tabAt,
   tabsText,
   tabToReclaim,
@@ -39,6 +40,8 @@ const DRIVING_MS = 6000;
  */
 const FLUSH_MS = 2 * 60_000;
 const POPUP_SIZE = { width: 520, height: 700 };
+/** How long another browser's sign-ins wait for your answer before they're forgotten. */
+const EXTERNAL_MS = 10 * 60_000;
 
 const TOOLS = [
   {
@@ -82,12 +85,12 @@ const TOOLS = [
   { name: 'browser_tabs', description: "Lists this project's browser tabs, numbered: which one is yours (the one the other tools use), which are other agents', and which one the user sees.", inputSchema: { type: 'object', properties: {} } },
   {
     name: 'browser_switch_tab',
-    description: "Works in the tab with this number (from browser_tabs) from now on: one of yours, one the user opened, or one another agent left a while ago.",
+    description: "Works in the tab with this number (from browser_tabs) from now on: one of yours, one the user opened and isn't looking at, or one another agent left a while ago.",
     inputSchema: { type: 'object', properties: { tab: { type: 'number' } }, required: ['tab'] },
   },
   {
     name: 'browser_close_tab',
-    description: 'Closes the tab with this number (from browser_tabs): yours, or one nobody is using. Close the ones you no longer need: each one is a page kept in memory.',
+    description: "Closes the tab with this number (from browser_tabs): yours, or another agent's it left a while ago (never the user's). Close the ones you no longer need: each one is a page kept in memory.",
     inputSchema: { type: 'object', properties: { tab: { type: 'number' } }, required: ['tab'] },
   },
 ] as const;
@@ -155,6 +158,7 @@ export class BrowserHost {
   private readonly external = new Map<string, { browser: string; cookies: StoredCookie[] }>();
   /** The other browsers on this Mac whose sign-ins the pane can bring. */
   private readonly importable = installedBrowsers().map(({ id, name }) => ({ id, name }));
+  private externalTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(
     private readonly window: () => BrowserWindow | null,
@@ -262,10 +266,7 @@ export class BrowserHost {
       // Another browser's sign-ins are offered only while you're answering: what you didn't bring is forgotten.
       const rest = site && offer ? offer.sites.filter((s) => s !== site) : [];
       if (rest.length && offer) this.offers.set(partition, { ...offer, sites: rest });
-      else {
-        this.offers.set(partition, null);
-        this.external.delete(partition);
-      }
+      else this.dropExternal(partition);
       const wc = this.shownWc();
       if (bring && wc && wc.getURL() && wc.getURL() !== 'about:blank') wc.reload();
       this.emit();
@@ -308,13 +309,28 @@ export class BrowserHost {
       this.emit();
       return { sites: 0 };
     }
-    this.external.set(partition, { browser: browser.name, cookies });
+    // Only the offered sites' cookies are kept, and only while you answer (at most 10 minutes).
+    const offered = new Set(sites);
+    this.external.set(partition, { browser: browser.name, cookies: cookies.filter((c) => offered.has(siteOf(c.domain ?? '') ?? '')) });
     this.offers.set(partition, { sites, earlierOnly: false, browser: browser.name });
+    clearTimeout(this.externalTimer);
+    this.externalTimer = setTimeout(() => this.dropExternal(partition), EXTERNAL_MS);
+    this.externalTimer.unref?.();
     this.emit();
     return { sites: sites.length };
   }
 
+  /** Forgets another browser's sign-ins still waiting for an answer, and lets the project offers come back. */
+  private dropExternal(partition: string) {
+    if (!this.external.delete(partition)) return;
+    this.offers.delete(partition);
+    if (partitionFor(this.shown) === partition) void this.findOffer(this.shown);
+    this.emit();
+  }
+
   stop(): void {
+    this.external.clear();
+    clearTimeout(this.externalTimer);
     if (this.flushTimer) clearInterval(this.flushTimer);
     this.flushTimer = null;
     void this.flush();
@@ -337,6 +353,11 @@ export class BrowserHost {
       env: { ELECTRON_RUN_AS_NODE: '1', AC_BROWSER_URL: `http://127.0.0.1:${this.port}`, AC_BROWSER_TOKEN: token },
       trusted: true,
     };
+  }
+
+  /** A run ended: its token stops working, and its tabs are anyone's to take or close once idle. */
+  release(server: SessionMcpServer): void {
+    this.tokens.delete(server.env?.AC_BROWSER_TOKEN ?? '');
   }
 
   /** Ties a run's browser tools to the run once it has started, so the pane can name its conversation. */
@@ -378,6 +399,7 @@ export class BrowserHost {
       signInsEarlier: this.shown ? (this.offers.get(partitionFor(this.shown))?.earlierOnly ?? false) : false,
       signInsBrowser: this.shown ? (this.offers.get(partitionFor(this.shown))?.browser ?? null) : null,
       importable: this.importable,
+      tabsFull: !!b && b.tabs.length >= BROWSER_MAX_TABS && !tabToReclaim(b.tabs, b.active, Date.now()),
       tabs: (b?.tabs ?? []).map((t) => ({ id: t.id, title: t.view.webContents.getTitle(), url: t.view.webContents.getURL(), loading: t.view.webContents.isLoading(), active: t.id === b!.active, owner: t.owner })),
       driving: [...this.browsers.values()].filter(recent).map((x) => ({ project: x.project, label: x.driver!.label, runId: x.driver!.runId })),
     };
@@ -411,7 +433,7 @@ export class BrowserHost {
    * so one agent never takes the screen from you or from another agent. When the browser is full, the tab
    * an agent left the longest ago makes room.
    */
-  private newTab(b: ProjectBrowser, url?: string, who?: Who): Tab {
+  private newTab(b: ProjectBrowser, url?: string, who?: Who, adopt = true): Tab {
     if (who && b.tabs.filter((t) => t.token === who.key).length >= AGENT_MAX_TABS) {
       throw new Error(`You already have ${AGENT_MAX_TABS} tabs: close one you no longer need with browser_close_tab.`);
     }
@@ -440,8 +462,8 @@ export class BrowserHost {
         // A page an agent drives opens its new tab for that agent, which goes on there.
         const opener = tab.token ? this.tokens.get(tab.token) : undefined;
         try {
-          const opened = this.newTab(b, target, opener);
-          if (opener && opener.tab === tab.id) opener.tab = opened.id;
+          // The agent goes on in the new tab only when it opened from the tab it works in.
+          this.newTab(b, target, opener, opener?.tab === tab.id);
         } catch {
           void wc.loadURL(target);
         }
@@ -470,7 +492,7 @@ export class BrowserHost {
     b.tabs.push(tab);
     const front = this.front(b);
     if (!who || !front || front.token === who.key) b.active = tab.id;
-    if (who) who.tab = tab.id;
+    if (who && adopt) who.tab = tab.id;
     if (url) void wc.loadURL(url).catch(() => {});
     this.place();
     this.emit();
@@ -479,7 +501,8 @@ export class BrowserHost {
 
   /** The tab a run works in, while it's still open. */
   private tabOf(b: ProjectBrowser, who: Who): Tab | undefined {
-    return who.tab ? b.tabs.find((t) => t.id === who.tab) : undefined;
+    // Only while it's still this run's: another agent may have taken it after it sat idle.
+    return who.tab ? b.tabs.find((t) => t.id === who.tab && t.token === who.key) : undefined;
   }
 
   /** The tab in front, or a new one when the browser has none. */
@@ -517,6 +540,8 @@ export class BrowserHost {
   /** The project you're on: the pane shows its browser (its tabs and sign-ins). */
   setProject(project: string): void {
     if (project === this.shown) return;
+    // Another browser's sign-ins are offered to the project you asked from, only while you're on it.
+    for (const partition of [...this.external.keys()]) this.dropExternal(partition);
     this.shown = project;
     void this.findOffer(project);
     this.place();
@@ -662,6 +687,7 @@ export class BrowserHost {
       case 'browser_switch_tab': {
         const tab = tabAt(b.tabs, args.tab);
         if (!mayUse(tab, who.key, Date.now())) throw new Error(`Tab ${String(args.tab)} is ${tab.owner}'s right now: open your own with browser_open.`);
+        if (!tab.token && tab.view === this.attachedView) throw new Error(`The user is looking at tab ${String(args.tab)}: open your own with browser_open.`);
         tab.owner = who.label;
         tab.token = who.key;
         tab.usedAt = Date.now();
@@ -670,6 +696,7 @@ export class BrowserHost {
       }
       case 'browser_close_tab': {
         const tab = tabAt(b.tabs, args.tab);
+        if (!tab.token) throw new Error(`Tab ${String(args.tab)} is the user's: only they close it.`);
         if (!mayUse(tab, who.key, Date.now())) throw new Error(`Tab ${String(args.tab)} is ${tab.owner}'s: only it or the user can close it.`);
         if (who.tab === tab.id) who.tab = null;
         this.closeTab(b, tab.id);

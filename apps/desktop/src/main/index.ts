@@ -340,7 +340,7 @@ void app.whenReady().then(async () => {
   await browser.start();
   browserHost = browser;
   // The organization's bots drive the same browser, each in tabs of its own.
-  bots.setBrowser({ tools: (label, project) => browser.mcpServer(label, project), bind: (server, runId) => browser.bindRun(server, runId) });
+  bots.setBrowser({ tools: (label, project) => browser.mcpServer(label, project), bind: (server, runId) => browser.bindRun(server, runId), release: (server) => browser.release(server) });
   const board = new BoardService(userData, (data) => send(Channels.boardChanged, data));
   // Automations run with the window closed too: a notification brings it back on the automation.
   const automations = new AutomationHost(userData, {
