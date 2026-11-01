@@ -200,10 +200,15 @@ function Talk({ to, setTo, configs, teams, floor, departments, coordinator }: { 
   // Where its desk is, from the same floor: on an assignment it can't hear in, the coordinator passes it on.
   const desk = member ? floor.find((a) => a.configId === member.id && (a.state === 'working' || a.state === 'waiting')) : undefined;
   const latest = focus ?? latestTeam(teams);
-  // Writing to an agent with nothing open: the box starts the assignment for it, as "Give it a task" does.
+  // Writing to an agent with nothing open: the box starts the assignment for it, as "Give it a task"
+  // does. What it wrote goes when you pick someone else, unless you changed it; what you wrote stays.
+  const prefilled = useRef<string | null>(null);
   useEffect(() => {
-    if (!member || channel || useStore.getState().orgGoal.trim()) return;
-    useStore.setState({ orgGoal: t('org.giveTaskGoal', { name: member.name }) });
+    const goal = useStore.getState().orgGoal;
+    const next = member && !channel ? t('org.giveTaskGoal', { name: member.name }) : '';
+    if (goal.trim() && goal !== prefilled.current) return;
+    if (goal !== next) useStore.setState({ orgGoal: next });
+    prefilled.current = next || null;
   }, [to]);
   const chat = !member && mode === 'chat' && !!latest;
   return (
@@ -257,6 +262,10 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
   }, []);
   const [sheet, setSheet] = useState<string | null>(null);
   const [to, setTo] = useState(COORDINATOR);
+  // An agent that left the organization (deleted, dismissed) is no longer one to write to or look at.
+  useEffect(() => {
+    if (to && !configs.some((c) => c.id === to)) setTo(COORDINATOR);
+  }, [configs, to]);
   const opener = useRef<HTMLElement | null>(null);
   const teams = orgProject ? allTeams.filter((x) => inFolder(x, orgProject)) : allTeams;
   const floor = projectsOf(allTeams, configs, open, now, orgProject);
