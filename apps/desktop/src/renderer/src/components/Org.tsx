@@ -3,7 +3,7 @@ import { ABOUT_MAX, type AgentChoice, type BotConfig, type BotMember, type BotTe
 import type { LiveQuestion } from '../live-turns';
 import { money, modelLabel as rawModelLabel, relativeTime } from '../format';
 import { sourceOf } from '../sources';
-import { ORG_LIVE_KEY, ORG_MAP_KEY, useOpenProjects, useStore, useT, type PendingPermission } from '../store';
+import { ORG_LIVE_KEY, ORG_MAP_KEY, ORG_OFFICE_KEY, useOpenProjects, useStore, useT, type PendingPermission } from '../store';
 import { confirmAction, contextMenu, toast } from '../ui';
 import { Icon } from './Icon';
 import { baseName } from '../paths';
@@ -16,6 +16,7 @@ import { OrgChart } from './OrgChart';
 import { LivePick, OrgLive } from './OrgLive';
 import { OrgComposer } from './OrgComposer';
 import { OrgMap } from './OrgMap';
+import { OrgOffice } from './OrgOffice';
 import { OrgChat } from './OrgChat';
 import { ROSTER, ROSTER_DEPARTMENTS, rosterOf, tierModels } from '../org-roster';
 import { AutomationList, AutomationView, NewAutomationDialog } from './Automations';
@@ -912,12 +913,38 @@ function OrgHome() {
   // The chart, the company's map of tokens, or the chosen assignment live; only your click switches.
   const live = useStore((s) => s.orgLive);
   const onMap = useStore((s) => s.orgMap);
+  const office = useStore((s) => s.orgOffice);
   const shown: 'chart' | 'map' | 'live' = onMap ? 'map' : live ? 'live' : 'chart';
-  const view = (to: 'chart' | 'map' | 'live') => {
-    useStore.setState({ orgLive: to === 'live', orgMap: to === 'map' });
+  const view = (to: OrgShown) => {
+    useStore.setState({ orgOffice: to === 'office', ...(to === 'office' ? {} : { orgLive: to === 'live', orgMap: to === 'map' }) });
+    localStorage.setItem(ORG_OFFICE_KEY, to === 'office' ? '1' : '0');
+    if (to === 'office') return;
     localStorage.setItem(ORG_LIVE_KEY, to === 'live' ? '1' : '0');
     localStorage.setItem(ORG_MAP_KEY, to === 'map' ? '1' : '0');
   };
+  const views = <ViewSwitch shown={office ? 'office' : shown} onView={view} />;
+  // What needs you, from the office: the detailed view, where it's answered.
+  const showInbox = () => {
+    view('chart');
+    setTimeout(() => document.getElementById('org-inbox')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 60);
+  };
+  if (office)
+    return (
+      <OrgOffice
+        title={orgNameOf(org?.name, t)}
+        editor={(member) => <MapEditor key={member.id} member={member} />}
+        views={views}
+        callout={
+          urgent > 0 && (
+            <button className="org-callout ofc-callout" onClick={showInbox}>
+              <span className="org-dot st-waiting" aria-hidden />
+              <span className="org-callout-text">{t('org.inboxN', { n: urgent })}</span>
+              <span className="org-callout-go">{t('org.review')} →</span>
+            </button>
+          )
+        }
+      />
+    );
   return (
     <div className="org-home">
       <header className="org-home-head">
@@ -938,15 +965,7 @@ function OrgHome() {
           <h3>{shown === 'live' ? t('org.live.title') : shown === 'map' ? t('org.map.title') : t('org.chart')}</h3>
           <span className="composer-note">{shown === 'live' ? t('org.live.hint') : shown === 'map' ? t('org.map.hint') : t('org.chartHint')}</span>
           <span className="composer-sp" />
-          <div className="lv-view" role="group" aria-label={t('org.live.view')}>
-            {(['chart', 'map', 'live'] as const).map((v) => (
-              <button key={v} aria-pressed={shown === v} className={shown === v ? 'on' : ''} onClick={() => view(v)}>
-                {/* Chosen says so with a mark too, not only with a color. */}
-                {shown === v && <span aria-hidden>✓ </span>}
-                {v === 'live' ? t('org.live.title') : v === 'map' ? t('org.map.title') : t('org.live.chart')}
-              </button>
-            ))}
-          </div>
+          {views}
           {coordinator && (
             <button className="btn-ghost small" onClick={() => useStore.setState({ botConfigDialog: true })}>
               + {t('org.addAgent')}
@@ -967,6 +986,24 @@ function OrgHome() {
       {urgent === 0 && <Inbox items={inbox} />}
       <StaffTemplate />
       <OrgInstructions />
+    </div>
+  );
+}
+
+type OrgShown = 'office' | 'chart' | 'map' | 'live';
+
+/** How the organization shows: the one-screen office, or one of the detailed views (chart, map, live). */
+function ViewSwitch({ shown, onView }: { shown: OrgShown; onView: (to: OrgShown) => void }) {
+  const t = useT();
+  return (
+    <div className="lv-view" role="group" aria-label={t('org.live.view')}>
+      {(['office', 'chart', 'map', 'live'] as const).map((v) => (
+        <button key={v} aria-pressed={shown === v} className={shown === v ? 'on' : ''} onClick={() => onView(v)}>
+          {/* Chosen says so with a mark too, not only with a color. */}
+          {shown === v && <span aria-hidden>✓ </span>}
+          {v === 'office' ? t('org.office.view') : v === 'live' ? t('org.live.title') : v === 'map' ? t('org.map.title') : t('org.live.chart')}
+        </button>
+      ))}
     </div>
   );
 }

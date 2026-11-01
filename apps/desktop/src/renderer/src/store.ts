@@ -46,6 +46,8 @@ const PIN_ORDER_KEY = 'alchemist.pinOrder';
 /** Whether the organization chart shows the chosen assignment live. */
 export const ORG_LIVE_KEY = 'alchemist.orgLive';
 export const ORG_MAP_KEY = 'alchemist.orgMap';
+/** Whether the organization opens on the one-screen office ('1') or on the detailed views ('0'). */
+export const ORG_OFFICE_KEY = 'alchemist.orgOffice';
 function savedScope(): AgentsScope {
   const saved = localStorage.getItem('alchemist.agentsScope') as AgentsScope | null;
   return saved && SCOPES.includes(saved) ? saved : 'project';
@@ -159,6 +161,8 @@ interface State {
   orgLive: boolean;
   /** The chart shows the whole company as a map of tokens (who spent what and handed whom how much); kept between visits. */
   orgMap: boolean;
+  /** The organization's home is the office: the work by project, the departments and the box, on one screen; kept between visits. */
+  orgOffice: boolean;
   /** What you're writing as the next assignment: kept while you look at an agent or an assignment. */
   orgGoal: string;
   /** The organization's automations, with their latest runs. */
@@ -334,6 +338,7 @@ export const useStore = create<State>((set, get) => ({
   orgFocusTeamId: null,
   orgLive: localStorage.getItem(ORG_LIVE_KEY) === '1',
   orgMap: localStorage.getItem(ORG_MAP_KEY) === '1',
+  orgOffice: localStorage.getItem(ORG_OFFICE_KEY) === '1',
   orgGoal: '',
   automations: [],
   activeAutomationId: null,

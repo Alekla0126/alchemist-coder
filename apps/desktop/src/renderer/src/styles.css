@@ -2710,3 +2710,76 @@ body { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; 
 .org-staff h3 { font-size: 13px; margin: 0 0 2px; }
 .org-staff p { margin: 0; max-width: 760px; }
 .org-staff .btn-ghost { white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+
+/* ---------- the office on one screen: the work by project, the departments beside it, the box under it ---------- */
+/* The screen never scrolls: each part scrolls inside itself. */
+.ofc { position: relative; flex: 1; min-width: 0; min-height: 0; height: 100%; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 280px); grid-template-rows: auto minmax(0, 1fr); gap: 12px 14px; padding: 14px 18px; }
+.ofc-head { grid-column: 1 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; min-width: 0; }
+.ofc-head h2 { font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.ofc-head .composer-note { margin: 0; }
+.ofc-callout { margin: 0; }
+.ofc-main { display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 12px; min-width: 0; min-height: 0; }
+/* The floor: the live office's faint grid, the projects as rooms on it. */
+.ofc-stage { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background-color: color-mix(in srgb, var(--bg-card) 45%, var(--bg)); background-image: linear-gradient(color-mix(in srgb, var(--fg) 5%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--fg) 5%, transparent) 1px, transparent 1px); background-size: 32px 32px; }
+.ofc-room { flex: none; display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 8px 10px 10px; border: 2px solid color-mix(in srgb, var(--fg) 16%, transparent); border-radius: 10px; background: var(--bg); }
+.ofc-room-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; min-width: 0; }
+.ofc-room-head h4 { font-size: 12.5px; font-weight: 650; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.ofc-room-head .composer-note { margin: 0; }
+.ofc-desks { display: flex; flex-wrap: wrap; gap: 6px 4px; }
+/* A desk comes in fading, in place: nothing around it moves. */
+.ofc-desk { width: 132px; animation: ofc-in 0.3s ease-out both; }
+.ofc-teams { list-style: none; display: flex; flex-wrap: wrap; gap: 4px 6px; }
+.ofc-team { display: inline-flex; align-items: center; gap: 6px; max-width: 340px; padding: 2px 8px 2px 3px; border: 1px solid var(--line-2); border-radius: 999px; font-size: 11.5px; color: var(--fg); background: var(--bg-input); }
+.ofc-team:hover { background: var(--bg-hl); }
+.ofc-team:focus-visible, .ofc-member:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ofc-team-title { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ofc-team .r { flex: none; color: var(--fg-2); }
+.ofc-empty { margin: auto; display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: 440px; padding: 24px; text-align: center; border-radius: 12px; background: var(--bg); }
+.ofc-empty b { font-size: 15px; color: var(--fg); }
+.ofc-empty .composer-note { color: var(--fg-2); }
+.ofc-empty-art { font-size: 30px; animation: ofc-steam 3.2s ease-in-out infinite; }
+/* The box under the floor: who it's for, then the same box as everywhere. */
+.ofc-talk { max-height: min(46vh, 400px); min-width: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+.ofc-to { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; min-width: 0; }
+.ofc-to label { font-size: 12px; font-weight: 650; color: var(--fg); }
+.ofc-to select { max-width: 240px; padding: 4px 8px; border: 1px solid var(--line-2); border-radius: 7px; font-size: 12.5px; color: var(--fg); background: var(--bg-input); }
+.ofc-to-note { flex: 1 1 0; min-width: 0; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ofc-talk .org-chat-lines { max-height: 150px; }
+.ofc-talk .of-write textarea { width: 100%; }
+/* The departments, each with its agents; a click opens one's settings. */
+.ofc-depts { grid-row: 2; grid-column: 2; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 10px 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-side); }
+.ofc-depts h3 { padding: 0 6px; font-size: 11px; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-2); }
+.ofc-dept h4 { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; padding: 0 6px 2px; font-size: 11.5px; font-weight: 650; color: var(--fg); }
+.ofc-dept h4 span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ofc-dept h4 small { flex: none; font-weight: 500; color: var(--fg-2); }
+.ofc-dept-list { list-style: none; display: flex; flex-direction: column; gap: 1px; }
+.ofc-member { display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 6px; border-radius: 7px; text-align: left; }
+.ofc-member:hover, .ofc-member.on { background: var(--bg-hl); }
+.ofc-member.on { box-shadow: inset 2px 0 0 var(--accent); }
+.ofc-member-text { display: flex; flex-direction: column; min-width: 0; }
+.ofc-member-text b, .ofc-member-text small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ofc-member-text b { font-size: 12.5px; font-weight: 600; color: var(--fg); }
+.ofc-member-text small { font-size: 11px; color: var(--fg-2); }
+/* An agent's settings: a sheet over the office's right side, sliding in. */
+.ofc-sheet { position: absolute; top: 0; right: 0; bottom: 0; z-index: 30; display: flex; flex-direction: column; width: min(400px, 92%); border-left: 1px solid var(--line-2); background: var(--bg-card); box-shadow: -12px 0 32px rgba(0, 0, 0, 0.35); outline: 0; animation: ofc-sheet-in 0.16s ease-out; }
+.ofc-sheet-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.ofc-sheet-head b { flex: 1; min-width: 0; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ofc-sheet-body { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 12px 14px 16px; }
+.ofc-sheet-body h5 { margin-top: 6px; font-size: 11px; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-2); }
+.ofc-now { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.ofc-now li { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.ofc-now-text { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ofc-write-to { align-self: flex-start; }
+/* Waiting for you: a ring goes out from the person, over what's around, never pushing it. */
+.ofc .st-waiting .of-person::after { content: ''; position: absolute; inset: -3px; border-radius: 50%; box-shadow: 0 0 0 2px var(--amber); pointer-events: none; animation: ofc-ring 1.8s ease-out infinite; }
+/* The screen types by scaling its bars, so its box never changes size. */
+.ofc .of-screen i { height: 9px; transform: scaleY(0.33); transform-origin: bottom; }
+.ofc .st-working .of-screen i { animation-name: ofc-type; }
+@keyframes ofc-type { 0%, 100% { transform: scaleY(0.33); } 50% { transform: scaleY(1); } }
+@keyframes ofc-ring { from { transform: scale(0.95); opacity: 0.8; } to { transform: scale(1.45); opacity: 0; } }
+@keyframes ofc-in { from { opacity: 0; transform: translateY(4px); } }
+@keyframes ofc-sheet-in { from { opacity: 0.6; transform: translateX(16px); } }
+@keyframes ofc-steam { 0%, 100% { opacity: 0.75; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) { .ofc-desk, .ofc-sheet, .ofc-empty-art, .ofc .st-waiting .of-person::after, .ofc .of-screen i { animation: none; } }
+/* Narrow: the departments go under the floor, still on the one screen. */
+@media (max-width: 900px) { .ofc { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) minmax(0, 30%); } .ofc-depts { grid-column: 1; grid-row: 3; } }
