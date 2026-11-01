@@ -6,6 +6,7 @@ import { clockTime, money, relativeTime, shortTokens } from '../format';
 import { ACTIVE, aboutOf, cardOf, chartOf, exchangesOf, extrasIn, linksOf, newExchanges, partnersOf, teamState, workIn, YOU, type CardWork, type Exchange, type ExchangeKind } from '../org-model';
 import { flowsOf, gainsOf, handsOf, ledgerOf, shareOf, totalOf, totalsOf, type Flow, type Hands, type Ledger, type SessionSpend, type Spend } from '../org-tokens';
 import { useStore, useT } from '../store';
+import { isDemo } from '../org-office';
 import { toast } from '../ui';
 import { doingText, errorText } from './Bots';
 
@@ -161,6 +162,7 @@ export function CardWrite({ team, bot }: { team: BotTeam; bot: BotMember }) {
   const send = async () => {
     const v = text.trim();
     if (!v || !can || busy) return;
+    if (isDemo(team.id)) return void toast(t('org.office.demoNoSend'), undefined, 3000);
     setBusy(true);
     try {
       await messageBot(team.id, bot.id, v);

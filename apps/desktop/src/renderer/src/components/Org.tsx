@@ -17,6 +17,7 @@ import { LivePick, OrgLive } from './OrgLive';
 import { OrgComposer } from './OrgComposer';
 import { OrgMap } from './OrgMap';
 import { OrgOffice } from './OrgOffice';
+import { isDemo } from '../org-office';
 import { OrgChat } from './OrgChat';
 import { ROSTER, ROSTER_DEPARTMENTS, rosterOf, tierModels } from '../org-roster';
 import { AutomationList, AutomationView, NewAutomationDialog } from './Automations';
@@ -1024,6 +1025,8 @@ function MapEditor({ member }: { member: BotConfig }) {
   const { draft, set, clear, dirty } = useDraft(member);
   const save = async () => {
     if (!draft.agent) return;
+    // The example office's agents (screenshots) are in the window only.
+    if (isDemo(member.id)) return void toast(t('org.office.demoNoSave'), undefined, 3000);
     try {
       await window.alchemist.saveBotConfig({ ...member, ...draft, agent: draft.agent });
       clear();

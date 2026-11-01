@@ -165,6 +165,12 @@ export function departmentsOf(configs: BotConfig[], teams: BotTeam[], cwd = ''):
 /** Whether a bot can still hear from you: a live run, or a conversation to continue. */
 export const reachable = (b: BotMember) => (!!b.runId && (ACTIVE.includes(b.status) || b.status === 'idle')) || !!b.sessionId;
 
+/** The example office's agents and assignments (screenshots): shown, never saved nor sent to. */
+export const isDemo = (id: string | null | undefined) => !!id?.startsWith('demo-');
+
+/** The bot that waits for you in an assignment: the coordinator when its plan does, else the first one asking. */
+export const waitingBot = (team: BotTeam) => (team.plan?.status === 'pending' ? team.bots[0] : team.bots.find((b) => b.status === 'waiting'));
+
 /**
  * Where a message to an agent goes, without a new channel: its bot in the latest assignment it can
  * still hear in (a running one first). None: the message becomes an assignment for the coordinator.
@@ -172,7 +178,8 @@ export const reachable = (b: BotMember) => (!!b.runId && (ACTIVE.includes(b.stat
 export function channelOf(member: BotConfig, teams: BotTeam[]): { team: BotTeam; bot: BotMember } | null {
   let best: { team: BotTeam; bot: BotMember; live: boolean } | null = null;
   for (const team of teams) {
-    if (team.plan?.status === 'pending') continue;
+    // Not a stopped assignment (it would start again for a word), nor an automation's step (the automation runs it).
+    if (team.plan?.status === 'pending' || team.origin || teamState(team) === 'stopped') continue;
     for (const bot of team.bots) {
       if (bot.configId !== member.id || !reachable(bot)) continue;
       const live = ACTIVE.includes(bot.status);
@@ -204,7 +211,8 @@ export function demoTeams(configs: BotConfig[], projects: Array<{ cwd: string }>
   if (!coordinator || !leads.length) return [];
   const [a, b] = [...leads].sort((x, y) => y.team.length - x.team.length);
   const at = (i: number) => now - i * 60_000;
-  const member = (team: string, c: BotConfig, i: number, extra: Partial<BotMember>): BotMember => ({ id: `${team}-${i}`, name: c.name, configId: c.id, role: '', agent: c.agent, permissionMode: c.permissionMode, canSpawn: false, parentId: `${team}-0`, depth: 1, runId: null, sessionId: null, status: 'working', task: text.taskA, lastReply: '', costUsd: null, createdAt: at(10 - i), ...extra });
+  // Each with a run and a conversation, so the box writes to it as it would to a real one.
+  const member = (team: string, c: BotConfig, i: number, extra: Partial<BotMember>): BotMember => ({ id: `${team}-${i}`, name: c.name, configId: c.id, role: '', agent: c.agent, permissionMode: c.permissionMode, canSpawn: false, parentId: `${team}-0`, depth: 1, runId: `${team}-run-${i}`, sessionId: `${team}-session-${i}`, status: 'working', task: text.taskA, lastReply: '', costUsd: null, createdAt: at(10 - i), ...extra });
   const lead = (team: string, extra: Partial<BotMember>): BotMember => ({ ...member(team, coordinator, 0, extra), parentId: null, depth: 0, canSpawn: true });
   const crewA = [a!.member, ...a!.team].slice(0, 4);
   const teamA: BotTeam = {

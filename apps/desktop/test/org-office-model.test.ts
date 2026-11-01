@@ -155,3 +155,28 @@ describe('the example office', () => {
     ]);
   });
 });
+
+describe('who hears you', () => {
+  it("isn't an agent in a stopped assignment or in an automation's step", async () => {
+    const { channelOf: ch } = await import('../src/renderer/src/org-office');
+    const stopped = team('s', { stoppedReason: 'appClosed' as never, bots: [lead({ status: 'stopped' }), bot('b2', { configId: 'coder', status: 'idle', sessionId: 's2' })] });
+    const auto = team('a', { origin: { label: 'Nightly' } as never, bots: [lead({ status: 'working', runId: 'r' }), bot('b2', { configId: 'coder', status: 'working', runId: 'r2' })] });
+    expect(ch(coder, [stopped, auto])).toBeNull();
+  });
+
+  it('opens an assignment on whoever waits: its plan first, else the agent asking', async () => {
+    const { waitingBot } = await import('../src/renderer/src/org-office');
+    expect(waitingBot(team('p', { plan: { status: 'pending', bots: [], summary: '' } as never, bots: [lead({ status: 'idle' }), bot('b2', { status: 'waiting' })] }))?.id).toBe('b1');
+    expect(waitingBot(team('q', { bots: [lead({ status: 'working' }), bot('b2', { status: 'waiting' })] }))?.id).toBe('b2');
+    expect(waitingBot(team('r', { bots: [lead({ status: 'working' })] }))).toBeUndefined();
+  });
+
+  it('lets the box write to the example agents as to real ones', async () => {
+    const { demoTeams, isDemo } = await import('../src/renderer/src/org-office');
+    const [a] = demoTeams(configs, projects, NOW, { goalA: 'A', goalB: 'B', taskA: 'a', taskB: 'b', taskC: 'c' });
+    const someone = a!.bots.find((b) => b.depth > 0 && b.status === 'working')!;
+    expect(channelOf(configs.find((c) => c.id === someone.configId)!, [a!])?.bot.id).toBe(someone.id);
+    expect(isDemo(a!.id)).toBe(true);
+    expect(isDemo('3f2a')).toBe(false);
+  });
+});

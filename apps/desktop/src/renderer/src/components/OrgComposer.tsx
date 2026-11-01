@@ -3,6 +3,7 @@ import type { BotConfig } from '@shared/api';
 import { defaultTemplate, HOUSE_TEMPLATE, loadTemplates, saveTemplates, setDefaultTemplate, starterTemplates, type Template } from '../org-templates';
 import { baseName } from '../paths';
 import { useOpenProjects, useStore, useT } from '../store';
+import { isDemo } from '../org-office';
 import { openMenu, promptText, toast } from '../ui';
 import { errorText } from './Bots';
 import { Chip } from './ComposerChips';
@@ -126,6 +127,7 @@ export function OrgComposer({ coordinator, examples: showExamples }: { coordinat
   const why = !coordinator ? t('org.setup') : !cwd ? t('org.pickProject') : '';
   const start = async () => {
     if (!ready || !coordinator || busy) return;
+    if (isDemo(coordinator.id)) return void toast(t('org.office.demoNoSend'), undefined, 3000);
     setBusy(true);
     try {
       const team = await window.alchemist.startTeam({ goal, cwd, configId: coordinator.id, budgetUsd: Number(budget) || null, approvePlan: reviewPlan, guidance });

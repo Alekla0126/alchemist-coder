@@ -3,8 +3,9 @@ import type { BotConfig, BotTeam } from '@shared/api';
 import { dismissMember, keepMember, openAssignment } from '../actions/org';
 import { relativeTime } from '../format';
 import { aboutOf, activityOf, inFolder, teamState } from '../org-model';
-import { channelOf, countsOf, departmentsOf, latestTeam, projectsOf, type Department, type OfficeAgent, type OfficeMember, type OfficeProject, type OfficeState } from '../org-office';
+import { channelOf, countsOf, isDemo, waitingBot, departmentsOf, latestTeam, projectsOf, type Department, type OfficeAgent, type OfficeMember, type OfficeProject, type OfficeState } from '../org-office';
 import { useOpenProjects, useStore, useT } from '../store';
+import { toast } from '../ui';
 import { AgentAvatar } from './AgentAvatar';
 import { doingText } from './Bots';
 import { OrgChat } from './OrgChat';
@@ -85,7 +86,8 @@ function ProjectRoom({ p, onOpen }: { p: OfficeProject; onOpen: (a: OfficeAgent)
       <ul className="ofc-teams" aria-label={t('org.office.assignments')}>
         {p.teams.map((x) => (
           <li key={x.id}>
-            <button className="ofc-team" onClick={() => openAssignment(x)} title={x.goal}>
+            {/* One that waits for you opens on whoever waits: its plan, or the agent asking. */}
+            <button className="ofc-team" onClick={() => openAssignment(x, waitingBot(x)?.id)} title={x.goal}>
               <span className={`team-state ts-${teamState(x)}`}>{t(`bots.team.${teamState(x)}`)}</span>
               <span className="ofc-team-title">{x.title || x.goal}</span>
               <span className="r">{relativeTime(x.updatedAt, locale)}</span>
@@ -148,10 +150,10 @@ function Sheet({ member, floor, editor, onWrite, onClose }: { member: BotConfig;
           <div className="org-proposed">
             <span>{t('org.proposedHint')}</span>
             <span className="composer-sp" />
-            <button className="btn-ghost small" onClick={() => (onClose(), void dismissMember(member))}>
+            <button className="btn-ghost small" onClick={() => (isDemo(member.id) ? toast(t('org.office.demoNoSave'), undefined, 3000) : (onClose(), void dismissMember(member)))}>
               {t('org.dismiss')}
             </button>
-            <button className="btn-send" onClick={() => void keepMember(member)}>
+            <button className="btn-send" onClick={() => (isDemo(member.id) ? toast(t('org.office.demoNoSave'), undefined, 3000) : void keepMember(member))}>
               {t('org.keep')}
             </button>
           </div>
@@ -188,13 +190,15 @@ function Sheet({ member, floor, editor, onWrite, onClose }: { member: BotConfig;
  * The box under the floor: to the coordinator (a new assignment, or the conversation of the one
  * that moved last) or to any agent (in the assignment it's in; none, the coordinator hands it over).
  */
-function Talk({ to, setTo, configs, teams, departments, coordinator }: { to: string; setTo: (id: string) => void; configs: BotConfig[]; teams: BotTeam[]; departments: Department[]; coordinator: BotConfig | undefined }) {
+function Talk({ to, setTo, configs, teams, floor, departments, coordinator }: { to: string; setTo: (id: string) => void; configs: BotConfig[]; teams: BotTeam[]; floor: OfficeAgent[]; departments: Department[]; coordinator: BotConfig | undefined }) {
   const t = useT();
   const allTeams = useStore((s) => s.botTeams);
   const [mode, setMode] = useState<'new' | 'chat'>('new');
   const focus = useStore((s) => s.botTeams.find((x) => x.id === s.orgFocusTeamId));
   const member = to ? configs.find((c) => c.id === to) : undefined;
   const channel = member ? channelOf(member, teams) : null;
+  // Where its desk is, from the same floor: on an assignment it can't hear in, the coordinator passes it on.
+  const desk = member ? floor.find((a) => a.configId === member.id && (a.state === 'working' || a.state === 'waiting')) : undefined;
   const latest = focus ?? latestTeam(teams);
   // Writing to an agent with nothing open: the box starts the assignment for it, as "Give it a task" does.
   useEffect(() => {
@@ -228,7 +232,7 @@ function Talk({ to, setTo, configs, teams, departments, coordinator }: { to: str
             ))}
           </div>
         )}
-        <span className="composer-note ofc-to-note">{member ? (channel ? t('org.office.inAssignment', { title: channel.team.title || channel.team.goal }) : t('org.office.viaCoordinator')) : chat ? '' : t('org.office.toCoordinator')}</span>
+        <span className="composer-note ofc-to-note">{member ? (channel ? t('org.office.inAssignment', { title: channel.team.title || channel.team.goal }) : desk ? t('org.office.onButVia', { title: desk.team.title || desk.team.goal }) : t('org.office.viaCoordinator')) : chat ? '' : t('org.office.toCoordinator')}</span>
       </div>
       {member && channel ? <CardWrite key={channel.bot.id} team={channel.team} bot={channel.bot} /> : chat ? <OrgChat team={latest} /> : <OrgComposer coordinator={coordinator} examples={!allTeams.length} />}
     </section>
@@ -305,7 +309,7 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
             </div>
           )}
         </section>
-        <Talk to={to} setTo={setTo} configs={configs} teams={teams} departments={departments} coordinator={coordinator?.member} />
+        <Talk to={to} setTo={setTo} configs={configs} teams={teams} floor={agents} departments={departments} coordinator={coordinator?.member} />
       </div>
       <aside className="ofc-depts" aria-label={t('org.office.departments')}>
         <h3>{t('org.office.departments')}</h3>
