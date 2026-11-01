@@ -12,11 +12,15 @@ import { BackupCard } from './HistoryView';
 import { ThemePicker } from './ThemePicker';
 import { UsageDetails } from './UsageMeter';
 import { AutomationSettingsCard } from './Automations';
+import { VOICE_ENGINES, WHISPER_MODELS, type VoiceStatus } from '@shared/api';
+import { loadVoicePrefs, saveVoicePrefs, type VoicePrefs } from '../voice';
+import { engineName, voiceStatus } from './VoiceButton';
 
-type Section = 'general' | 'agents' | 'automations' | 'usage' | 'backup' | 'shortcuts' | 'about';
+type Section = 'general' | 'agents' | 'voice' | 'automations' | 'usage' | 'backup' | 'shortcuts' | 'about';
 const SECTIONS: Array<[Section, string]> = [
   ['general', '⚙'],
   ['agents', '🧩'],
+  ['voice', '🎤'],
   ['automations', '⚡'],
   ['usage', '📊'],
   ['backup', '🛟'],
@@ -132,6 +136,82 @@ function General() {
         </div>
         <input type="checkbox" className="set-switch" checked={vim} onChange={(e) => setVim(e.target.checked)} />
       </div>
+    </>
+  );
+}
+
+/** The microphone: which engine writes out what you say, Whisper's size, the language you speak, and tidying. */
+function VoiceSettings() {
+  const t = useT();
+  const locale = useStore((s) => s.locale);
+  const [prefs, setPrefs] = useState<VoicePrefs>(loadVoicePrefs);
+  const [status, setStatus] = useState<VoiceStatus | null>(null);
+  useEffect(() => void voiceStatus(true).then(setStatus), [prefs.model]);
+  const save = (next: VoicePrefs) => {
+    setPrefs(next);
+    saveVoicePrefs(next);
+  };
+  const info = (id: (typeof VOICE_ENGINES)[number]) => status?.engines.find((e) => e.id === id);
+  const missing = (id: (typeof VOICE_ENGINES)[number]) => {
+    const e = info(id);
+    return e && !e.available ? ` — ${t(`voice.why.${e.detail || 'missing'}` as never)}` : '';
+  };
+  const chosen = prefs.engine === 'auto' ? status?.auto : prefs.engine;
+  const local = chosen === 'whisper' || chosen === 'whisper-cpp';
+  return (
+    <>
+      <div className="set-row">
+        <div>
+          <b>{t('voice.engineLabel')}</b>
+          <p>{status && !status.auto ? t('voice.noneHint') : t('voice.engineHint')}</p>
+          {prefs.engine === 'auto' && status && <p className="set-path">{status.auto ? t('voice.autoUses', { engine: engineName(t, status.auto) }) : t('voice.noEngine')}</p>}
+        </div>
+        <select value={prefs.engine} aria-label={t('voice.engineLabel')} onChange={(e) => save({ ...prefs, engine: e.target.value as VoicePrefs['engine'] })}>
+          <option value="auto">{engineName(t, 'auto')}</option>
+          {VOICE_ENGINES.filter((id) => id !== 'dictation' || status?.platform === 'darwin').map((id) => (
+            <option key={id} value={id}>
+              {engineName(t, id)}
+              {missing(id)}
+            </option>
+          ))}
+        </select>
+      </div>
+      {local && (
+        <div className="set-row">
+          <div>
+            <b>{t('voice.model')}</b>
+            <p>{t('voice.modelHint')}</p>
+          </div>
+          <select value={prefs.model} aria-label={t('voice.model')} onChange={(e) => save({ ...prefs, model: e.target.value })}>
+            {WHISPER_MODELS.map((m) => (
+              <option key={m} value={m}>
+                {t(`voice.size.${m}` as never)}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      {chosen !== 'dictation' && (
+        <>
+          <div className="set-row">
+            <div>
+              <b>{t('voice.language')}</b>
+              <p>{t('voice.languageHint')}</p>
+            </div>
+            <select value={prefs.language} aria-label={t('voice.language')} onChange={(e) => save({ ...prefs, language: e.target.value as VoicePrefs['language'] })}>
+              <option value="app">{t('voice.languageApp', { language: LOCALE_NAMES[locale] })}</option>
+              <option value="auto">{t('voice.languageAuto')}</option>
+            </select>
+          </div>
+          <div className="set-row">
+            <div>
+              <b>{t('voice.tidy')}</b>
+              <p>{t('voice.tidyHint')}</p>
+            </div>
+            <input type="checkbox" className="set-switch" checked={prefs.tidy} aria-label={t('voice.tidy')} onChange={(e) => save({ ...prefs, tidy: e.target.checked })} />
+          </div>
+        </>
+      )}
     </>
   );
 }
@@ -350,6 +430,7 @@ export function Settings() {
           </div>
           {section === 'general' && <General />}
           {section === 'agents' && <Agents />}
+          {section === 'voice' && <VoiceSettings />}
           {section === 'automations' && <AutomationSettingsCard />}
           {section === 'usage' && <Usage />}
           {section === 'backup' && <BackupCard />}

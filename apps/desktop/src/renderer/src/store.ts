@@ -45,6 +45,7 @@ const SCOPES: AgentsScope[] = ['project', 'all', 'recent'];
 const PIN_ORDER_KEY = 'alchemist.pinOrder';
 /** Whether the organization chart shows the chosen assignment live. */
 export const ORG_LIVE_KEY = 'alchemist.orgLive';
+export const ORG_MAP_KEY = 'alchemist.orgMap';
 function savedScope(): AgentsScope {
   const saved = localStorage.getItem('alchemist.agentsScope') as AgentsScope | null;
   return saved && SCOPES.includes(saved) ? saved : 'project';
@@ -156,6 +157,8 @@ interface State {
   orgFocusTeamId: string | null;
   /** The chart shows the chosen assignment live (departments and messages) instead of the organization; kept between visits. */
   orgLive: boolean;
+  /** The chart shows the whole company as a map of tokens (who spent what and handed whom how much); kept between visits. */
+  orgMap: boolean;
   /** What you're writing as the next assignment: kept while you look at an agent or an assignment. */
   orgGoal: string;
   /** The organization's automations, with their latest runs. */
@@ -199,7 +202,7 @@ interface State {
   /** The Settings screen is showing. */
   settingsOpen: boolean;
   /** Which Settings section opens next. */
-  settingsSection: 'general' | 'agents' | 'automations' | 'usage' | 'backup' | 'shortcuts' | 'about' | null;
+  settingsSection: 'general' | 'agents' | 'voice' | 'automations' | 'usage' | 'backup' | 'shortcuts' | 'about' | null;
   /** The ⌘K command palette is showing. */
   paletteOpen: boolean;
   /** ⌘W in Code/Split: the editor closes its active tab (asking about unsaved edits). */
@@ -330,6 +333,7 @@ export const useStore = create<State>((set, get) => ({
   orgProject: '',
   orgFocusTeamId: null,
   orgLive: localStorage.getItem(ORG_LIVE_KEY) === '1',
+  orgMap: localStorage.getItem(ORG_MAP_KEY) === '1',
   orgGoal: '',
   automations: [],
   activeAutomationId: null,
@@ -535,7 +539,9 @@ export const useStore = create<State>((set, get) => ({
           set({ captureReady: true });
         }
       }
-      if (info.capture.botsView === 'chart' || info.capture.botsView === 'live') set({ orgFocusTeamId: (get().botTeams.find((x) => x.plan?.status === 'pending') ?? latest)?.id ?? null, orgLive: info.capture.botsView === 'live' });
+      if (info.capture.botsView === 'chart' || info.capture.botsView === 'live') set({ orgFocusTeamId: (get().botTeams.find((x) => x.plan?.status === 'pending') ?? latest)?.id ?? null, orgLive: info.capture.botsView === 'live', orgMap: false });
+      // --bots-view=map (screenshots): the company's map of tokens, its heaviest agent picked.
+      if (info.capture.botsView === 'map') set({ orgFocusTeamId: null, orgLive: false, orgMap: true });
       // --bots-view=live (screenshots): a message comes in a moment later, so the capture shows it lighting up.
       if (info.capture.botsView === 'live')
         setTimeout(() => {

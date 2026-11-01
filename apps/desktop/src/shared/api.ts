@@ -124,6 +124,27 @@ export interface Settings {
   autopilot: boolean;
 }
 
+/** Speech to text for the microphone button, local engines first (main/voice.ts). */
+export const VOICE_ENGINES = ['whisper-cpp', 'whisper', 'openai', 'dictation'] as const;
+export type VoiceEngineId = (typeof VOICE_ENGINES)[number];
+/** Whisper's model sizes: bigger is more accurate and slower. */
+export const WHISPER_MODELS = ['tiny', 'base', 'small', 'medium', 'turbo'] as const;
+export interface VoiceStatus {
+  /** `detail`: the model file in use, or why it can't be used ('missing', 'noModel', 'noFfmpeg', 'noKey', 'macOnly'). */
+  engines: Array<{ id: VoiceEngineId; available: boolean; detail: string }>;
+  /** What "Automatic" uses now. */
+  auto: VoiceEngineId | null;
+  platform: string;
+}
+export interface VoiceRequest {
+  engine: 'auto' | VoiceEngineId;
+  model: string;
+  /** Two-letter language of the speech; null = let the engine tell. */
+  language: string | null;
+  /** Words the speech is likely to have (names of agents, projects, products), so the engine spells them right. */
+  hint?: string | null;
+}
+
 export interface BackupStatus {
   dir: string | null;
   auto: boolean;
@@ -173,6 +194,8 @@ export interface AppInfo {
     scope?: 'project' | 'all' | 'recent' | null;
     /** Marketing mode's tab to show. */
     mkTab?: string | null;
+    /** The microphone as if recording or writing out (to see its look). */
+    voice?: 'recording' | 'transcribing' | null;
     /** Writes the first piece with this agent, then captures. */
     mkGenerate?: AgentChoice | null;
     compose: boolean;
@@ -224,11 +247,11 @@ export interface AppInfo {
     /** With `orgGoal`: approve the plan and capture while its agents work. */
     orgApprove?: boolean;
     /** Open Settings at this section. */
-    settings: 'general' | 'agents' | 'automations' | 'usage' | 'backup' | 'shortcuts' | 'about' | null;
+    settings: 'general' | 'agents' | 'voice' | 'automations' | 'usage' | 'backup' | 'shortcuts' | 'about' | null;
     /** Starts a real agent run and captures once it asks for permission or finishes. */
     run: { harnessId: string; providerId: string; model: string; permissionMode: PermissionMode; prompt: string; cwd: string | null } | null;
     /** Bots mode: open the most recent team, the new-configuration dialog, or the chart with a plan to review on it. */
-    botsView: 'team' | 'config' | 'member' | 'agent' | 'chart' | 'live' | null;
+    botsView: 'team' | 'config' | 'member' | 'agent' | 'chart' | 'live' | 'map' | null;
     /** Starts a real bot team (coordinator agent from `agent`) and captures once it settles. */
     team: { goal: string; harnessId: string; providerId: string; model: string; cwd: string; approvePlan: boolean; org: boolean } | null;
     /** Runs a real Arena task and captures it at plan review or once the agents finish. */
@@ -403,6 +426,38 @@ export interface BotConfig {
   leadId?: string | null;
   /** Its picture: an image you chose (a small data URL) or one of the app's (`emoji:🧪`); none shows its initials. */
   avatar?: string | null;
+}
+
+/**
+ * One agent of a staff template (the house one is The Alchemist Code's, in org-roster.ts), in the
+ * app's language. `lead`: the key of the agent whose team it's on; none, it reports to the coordinator.
+ */
+export interface StarterAgent {
+  name: string;
+  role: string;
+  about?: string;
+  /** What its work needs: opus where a mistake costs most, sonnet to do, haiku to measure and summarize. */
+  tier?: ModelTier;
+  /** That tier as a model of the agent's provider ("opus", "claude-opus-…"); none: the agent's own model. */
+  model?: string;
+  permissionMode?: PermissionMode;
+  canSpawn?: boolean;
+  ownWorktree?: boolean;
+  lead?: string;
+  proposed?: boolean;
+}
+export const MODEL_TIERS = ['opus', 'sonnet', 'haiku'] as const;
+export type ModelTier = (typeof MODEL_TIERS)[number];
+
+/** What renewing the staff from a template does (or would do): agents by name. */
+export interface RosterChange {
+  added: string[];
+  /** Agents already there whose team, model or permissions change. */
+  updated: string[];
+  /** Same name twice: the copies go (the first one stays, with its history). */
+  removed: string[];
+  /** The organization's instructions are set (they were empty). */
+  instructions: boolean;
 }
 
 /** The organization: its name and the instructions the coordinator and every agent get. */
@@ -1158,7 +1213,9 @@ export interface AlchemistApi {
   orgSettings(): Promise<OrgSettings>;
   saveOrgSettings(settings: Partial<OrgSettings>): Promise<OrgSettings>;
   /** Creates the coordinator (and the starter agents) the first time. */
-  ensureOrg(agent: AgentChoice, starters: Record<string, { name: string; role: string }>): Promise<BotConfig[]>;
+  ensureOrg(agent: AgentChoice, starters: Record<string, StarterAgent>): Promise<BotConfig[]>;
+  /** Brings the organization to a staff template: adds who's missing, sets teams, models and permissions, drops copies. `apply: false` only says what it would do. */
+  renewStaff(agent: AgentChoice, starters: Record<string, StarterAgent>, instructions: string, apply: boolean): Promise<RosterChange>;
   botTeams(): Promise<BotTeam[]>;
   startTeam(request: StartTeamRequest): Promise<BotTeam>;
   /** Sends a message to one bot of a team (you, not the coordinator). */
@@ -1190,6 +1247,14 @@ export interface AlchemistApi {
   onTerminalExit(listener: (message: { id: string; code: number }) => void): () => void;
   /** Opens a file dialog and returns the parsed VS Code theme JSON, or null if cancelled. */
   /** Opens a file dialog: a theme .json, or a .vsix with one or more themes; null if cancelled. */
+  /** Speech-to-text engines and which one "Automatic" picks. */
+  voiceStatus(model: string): Promise<VoiceStatus>;
+  /** Asks the system for the microphone; false when refused. */
+  voiceMicrophone(): Promise<boolean>;
+  /** macOS: starts the system's dictation in the focused text field. */
+  voiceDictate(): void;
+  /** A recording (16 kHz mono WAV) as text. */
+  transcribe(audio: Uint8Array, request: VoiceRequest): Promise<{ text: string; engine: VoiceEngineId }>;
   importTheme(): Promise<unknown[] | null>;
   /** Theme extensions on Open VSX (open-vsx.org). */
   searchThemes(query: string): Promise<Array<{ namespace: string; name: string; displayName: string; description: string; version: string; downloads: number; verified: boolean }>>;
@@ -1339,6 +1404,7 @@ export const Channels = {
   orgSettings: 'bots:org',
   saveOrgSettings: 'bots:saveOrg',
   ensureOrg: 'bots:ensureOrg',
+  renewStaff: 'bots:renewStaff',
   botTeams: 'bots:teams',
   startTeam: 'bots:startTeam',
   messageBot: 'bots:message',
@@ -1365,6 +1431,10 @@ export const Channels = {
   killTerminal: 'term:kill',
   terminalData: 'term:data',
   terminalExit: 'term:exit',
+  voiceStatus: 'voice:status',
+  voiceMicrophone: 'voice:microphone',
+  voiceDictate: 'voice:dictate',
+  transcribe: 'voice:transcribe',
   importTheme: 'theme:import',
   searchThemes: 'theme:search',
   installTheme: 'theme:install',

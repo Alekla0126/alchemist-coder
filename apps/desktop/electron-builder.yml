@@ -21,6 +21,11 @@ mac:
     - target: zip
       arch: [arm64, x64]
   hardenedRuntime: true
+  # The defaults plus audio input, for dictating with the composer's microphone.
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    NSMicrophoneUsageDescription: Alchemist Coder uses the microphone only while you dictate a message, to write out what you say.
   artifactName: Alchemist-Coder-${version}-${arch}.${ext}
   # Notarization needs an Apple Developer ID. Without one, community builds are signed ad hoc ("-"):
   # unsigned, a downloaded app's broken signature makes macOS call it "damaged". The default

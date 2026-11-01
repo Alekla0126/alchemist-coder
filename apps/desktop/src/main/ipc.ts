@@ -8,7 +8,8 @@ import { installFromOpenVsx, parseJsonc, searchThemes, themesFromVsix } from '@a
 import type { IndexReader } from '@alchemist-coder/indexer';
 import { IMAGE_TYPES, type IndexProgress, type PromptImage, type QuestionAnswer } from '@alchemist-coder/core';
 import { mimeOf } from '@alchemist-coder/harness';
-import { Channels, type AppInfo, type ExportFormat } from '../shared/api';
+import { Channels, MODEL_TIERS, type AppInfo, type ExportFormat, type ModelTier, type PermissionMode, type StarterAgent } from '../shared/api';
+import { PERMISSION_MODES } from './bots';
 import type { SettingsStore } from './settings';
 import type { RunnerManager } from './runner';
 import type { BrowserHost } from './browser';
@@ -21,6 +22,7 @@ import type { UsageService } from './usage';
 import { showMenu } from './menus';
 import { conversationFiles } from './session-files';
 import type { TerminalManager } from './terminals';
+import type { Voice } from './voice';
 import { browsableRoot, type Workspace } from './workspace';
 import { createProjectFolder } from './new-project';
 import { loadMarketing, readDrafts, saveMarketing } from './marketing';
@@ -69,6 +71,7 @@ export interface IpcDeps {
   exportSession: (sessionId: string, format: ExportFormat) => Promise<string | null>;
   workspace: Workspace;
   terminals: TerminalManager;
+  voice: Voice;
   /** The app's data folder. */
   dataDir: string;
   board: BoardService;
@@ -77,6 +80,28 @@ export interface IpcDeps {
 }
 
 /** Every handler validates its arguments: the renderer is treated as untrusted. */
+/** A staff template from the window: known fields with the right types, and no more agents than an organization holds. */
+export function cleanStarters(input: unknown): Record<string, StarterAgent> {
+  const list = input && typeof input === 'object' ? (input as Record<string, Record<string, unknown> | null>) : {};
+  const out: Record<string, StarterAgent> = {};
+  for (const [key, v] of Object.entries(list).slice(0, 30)) {
+    if (!/^[\w-]{1,40}$/.test(key) || !v || typeof v !== 'object') continue;
+    out[key] = {
+      name: String(v.name ?? '').slice(0, 60),
+      role: String(v.role ?? '').slice(0, 4000),
+      ...(typeof v.about === 'string' && v.about ? { about: v.about.slice(0, 180) } : {}),
+      ...(MODEL_TIERS.includes(v.tier as ModelTier) ? { tier: v.tier as ModelTier } : {}),
+      ...(typeof v.model === 'string' && /^[\w.:@/[\]-]{1,120}$/.test(v.model) ? { model: v.model } : {}),
+      ...(PERMISSION_MODES.includes(v.permissionMode as PermissionMode) ? { permissionMode: v.permissionMode as PermissionMode } : {}),
+      ...(typeof v.canSpawn === 'boolean' ? { canSpawn: v.canSpawn } : {}),
+      ...(typeof v.ownWorktree === 'boolean' ? { ownWorktree: v.ownWorktree } : {}),
+      ...(typeof v.lead === 'string' && /^[\w-]{1,40}$/.test(v.lead) ? { lead: v.lead } : {}),
+      ...(v.proposed === true ? { proposed: true } : {}),
+    };
+  }
+  return out;
+}
+
 export function registerIpc(deps: IpcDeps): void {
   const withReader = <T>(fallback: T, fn: (r: IndexReader) => T): T => {
     const r = deps.reader();
@@ -323,18 +348,13 @@ export function registerIpc(deps: IpcDeps): void {
   });
   ipcMain.handle(Channels.botConfigs, () => deps.bots.listConfigs());
   ipcMain.handle(Channels.saveBotConfig, (_e, config: unknown) => deps.bots.saveConfig(config));
-  ipcMain.handle(Channels.addStarterBots, (_e, agent: unknown, starters: unknown) => {
-    const list = starters && typeof starters === 'object' ? (starters as Record<string, { name?: unknown; role?: unknown }>) : {};
-    const clean = Object.fromEntries(Object.entries(list).map(([k, v]) => [k, { name: String(v?.name ?? '').slice(0, 60), role: String(v?.role ?? '').slice(0, 4000) }]));
-    return deps.bots.addStarters(agent, clean);
-  });
+  ipcMain.handle(Channels.addStarterBots, (_e, agent: unknown, starters: unknown) => deps.bots.addStarters(agent, cleanStarters(starters)));
   ipcMain.handle(Channels.orgSettings, () => deps.bots.orgSettings());
   ipcMain.handle(Channels.saveOrgSettings, (_e, settings: unknown) => deps.bots.saveOrgSettings(settings));
-  ipcMain.handle(Channels.ensureOrg, (_e, agent: unknown, starters: unknown) => {
-    const list = starters && typeof starters === 'object' ? (starters as Record<string, { name?: unknown; role?: unknown }>) : {};
-    const clean = Object.fromEntries(Object.entries(list).slice(0, 12).map(([k, v]) => [k, { name: String(v?.name ?? '').slice(0, 60), role: String(v?.role ?? '').slice(0, 4000) }]));
-    return deps.bots.ensureOrg(agent, clean);
-  });
+  ipcMain.handle(Channels.ensureOrg, (_e, agent: unknown, starters: unknown) => deps.bots.ensureOrg(agent, cleanStarters(starters)));
+  ipcMain.handle(Channels.renewStaff, (_e, agent: unknown, starters: unknown, instructions: unknown, apply: unknown) =>
+    deps.bots.renewStaff(agent, cleanStarters(starters), typeof instructions === 'string' ? instructions.slice(0, 8000) : '', apply === true),
+  );
   ipcMain.handle(Channels.deleteBotConfig, (_e, id: unknown) => deps.bots.deleteConfig(text(id, 'config id', 60)));
   ipcMain.handle(Channels.botTeams, () => deps.bots.listTeams());
   ipcMain.handle(Channels.startTeam, (_e, request: unknown) => deps.bots.startTeam(request));
@@ -372,6 +392,13 @@ export function registerIpc(deps: IpcDeps): void {
   });
   ipcMain.on(Channels.killTerminal, (_e, id: unknown) => {
     if (typeof id === 'string') terminals.kill(id);
+  });
+  ipcMain.handle(Channels.voiceStatus, (_e, model: unknown) => deps.voice.status(typeof model === 'string' ? model.slice(0, 20) : 'base'));
+  ipcMain.handle(Channels.voiceMicrophone, () => deps.voice.microphone());
+  ipcMain.on(Channels.voiceDictate, () => deps.voice.dictate());
+  ipcMain.handle(Channels.transcribe, (_e, audio: unknown, request: unknown) => {
+    const r = (request && typeof request === 'object' ? request : {}) as Record<string, unknown>;
+    return deps.voice.transcribe(audio as Uint8Array, { engine: String(r.engine ?? 'auto') as never, model: String(r.model ?? 'base'), language: typeof r.language === 'string' ? r.language : null, hint: typeof r.hint === 'string' ? r.hint : null });
   });
   ipcMain.handle(Channels.importTheme, async () => {
     const result = await dialog.showOpenDialog({ title: 'Import a VS Code theme', filters: [{ name: 'VS Code theme or extension', extensions: ['json', 'jsonc', 'vsix'] }], properties: ['openFile'] });

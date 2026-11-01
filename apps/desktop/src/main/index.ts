@@ -32,6 +32,7 @@ import { BoardService } from './board';
 import { AutomationHost } from './automation-host';
 import { Workspace } from './workspace';
 import { KeychainSecretStore } from './secrets';
+import { Voice } from './voice';
 import { loadPersonalModule, loadProModule } from './extensions';
 import workerPath from './indexer-worker?modulePath';
 
@@ -99,8 +100,8 @@ function appInfo(): AppInfo {
           automationRun: process.argv.includes('--automation-run'),
           automationAnswer: process.argv.includes('--automation-answer'),
           orgApprove: process.argv.includes('--org-approve'),
-          settings: (['general', 'agents', 'automations', 'usage', 'backup', 'shortcuts', 'about'] as const).find((x) => x === arg('settings')) ?? null,
-          botsView: ['team', 'config', 'member', 'agent', 'chart', 'live'].includes(arg('bots-view') ?? '') ? (arg('bots-view') as 'team' | 'config' | 'member' | 'agent' | 'chart' | 'live') : null,
+          settings: (['general', 'agents', 'voice', 'automations', 'usage', 'backup', 'shortcuts', 'about'] as const).find((x) => x === arg('settings')) ?? null,
+          botsView: ['team', 'config', 'member', 'agent', 'chart', 'live', 'map'].includes(arg('bots-view') ?? '') ? (arg('bots-view') as 'team' | 'config' | 'member' | 'agent' | 'chart' | 'live' | 'map') : null,
           team: (() => {
             const [h, p, m] = (arg('team-agent') ?? '').split(',');
             const goal = arg('team');
@@ -128,6 +129,7 @@ function appInfo(): AppInfo {
           addAgent: process.argv.includes('--add-agent'),
           scope: (['project', 'all', 'recent'] as const).find((x) => x === arg('scope')) ?? null,
           mkTab: arg('mk-tab') ?? null,
+          voice: arg('voice') === 'recording' || arg('voice') === 'transcribing' ? (arg('voice') as 'recording' | 'transcribing') : null,
           mkGenerate: (() => {
             const [h, p, m] = (arg('mk-generate') ?? '').split(',');
             return h && p && m ? { harnessId: h, providerId: p, model: m } : null;
@@ -402,7 +404,7 @@ void app.whenReady().then(async () => {
     if ('autopilot' in patch) autopilotChanged();
     else if ('locale' in patch) buildMenu();
   };
-  registerIpc({ info: appInfo, bots, settings, onSettingsChanged, reader: () => reader, progress: () => progress, onRendered: () => void capture(), runner, tasks, preview, hub, backup, reviews, usage, exportSession: (id, format) => (reader ? exportSession(window, reader, id, format) : Promise.reject(new Error('The index is still loading'))), workspace, terminals, dataDir: userData, board, automations, browser });
+  registerIpc({ info: appInfo, bots, settings, onSettingsChanged, reader: () => reader, progress: () => progress, onRendered: () => void capture(), runner, tasks, preview, hub, backup, reviews, usage, exportSession: (id, format) => (reader ? exportSession(window, reader, id, format) : Promise.reject(new Error('The index is still loading'))), workspace, terminals, voice: new Voice(secrets, userData), dataDir: userData, board, automations, browser });
   startIndexer(join(userData, 'index.db'), backup.root(), (source) => usage.touch(source));
   backup.start();
   const menuLocale = () => settings.get().locale ?? matchLocale(app.getLocale());

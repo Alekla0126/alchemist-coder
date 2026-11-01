@@ -7,6 +7,8 @@ import { openMenu, promptText, toast } from '../ui';
 import { errorText } from './Bots';
 import { Chip } from './ComposerChips';
 import { Icon } from './Icon';
+import { VoiceButton } from './VoiceButton';
+import { appendSpoken } from '../voice';
 
 /** --org-goal (screenshots) was already given in this launch. */
 let shotSent = false;
@@ -195,6 +197,15 @@ export function OrgComposer({ coordinator, examples: showExamples }: { coordinat
           </button>
           <span className="composer-sp" />
           {why && <span className="composer-note" title={why}>{why}</span>}
+          <VoiceButton
+            owner="org:goal"
+            onText={(text) => {
+              const next = appendSpoken(useStore.getState().orgGoal, text);
+              setGoal(next);
+              requestAnimationFrame(() => (box.current?.focus(), box.current?.setSelectionRange(next.length, next.length)));
+            }}
+            focus={() => box.current?.focus()}
+          />
           <button className="btn-send" disabled={!ready || busy} onClick={() => void start()} title={why || t('org.homeLead')}>
             {busy ? <span className="spin" /> : '⚗'} {t('bots.start')} ↵
           </button>
