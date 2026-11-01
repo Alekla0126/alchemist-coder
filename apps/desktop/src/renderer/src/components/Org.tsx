@@ -923,10 +923,17 @@ function OrgHome() {
     localStorage.setItem(ORG_MAP_KEY, to === 'map' ? '1' : '0');
   };
   const views = <ViewSwitch shown={office ? 'office' : shown} onView={view} />;
-  // What needs you, from the office: the detailed view, where it's answered.
+  // What needs you, from the office: the chart for now (your saved view stays the office), scrolled to
+  // the inbox once it's drawn.
+  const toInbox = useRef(false);
+  useEffect(() => {
+    if (office || !toInbox.current) return;
+    toInbox.current = false;
+    document.getElementById('org-inbox')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }, [office]);
   const showInbox = () => {
-    view('chart');
-    setTimeout(() => document.getElementById('org-inbox')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 60);
+    toInbox.current = true;
+    useStore.setState({ orgOffice: false, orgLive: false, orgMap: false });
   };
   if (office)
     return (
