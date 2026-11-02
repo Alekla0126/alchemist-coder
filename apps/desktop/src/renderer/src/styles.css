@@ -1352,10 +1352,11 @@ code.md-path:hover { color: var(--accent-2); }
 .org-side .sec { position: sticky; top: 0; z-index: 2; background: var(--bg-side); display: flex; align-items: center; justify-content: space-between; }
 .org-top { display: flex; flex-direction: column; gap: 6px; padding: 10px 10px 2px; }
 /* The organization's name with the organization you look at (one business, client or side project) beside it. */
-.org-top-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.org-top-row > .org-name, .org-top-row > .org-name-input { flex: 1; min-width: 0; }
-.org-groups { display: inline-flex; align-items: center; gap: 2px; flex: none; max-width: 55%; }
-.org-group-select { width: auto; min-width: 0; max-width: 100%; }
+.org-top-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.org-top-row > .org-name, .org-top-row > .org-name-input { flex: 1 1 100%; min-width: 0; }
+/* The organization menu and «📁 Folders» on their own row under the name, whole names. */
+.org-groups { display: flex; align-items: center; gap: 4px; flex: 1 1 100%; min-width: 0; }
+.org-group-select { width: auto; flex: 1 1 auto; min-width: 0; padding-right: 22px; }
 .org-group-empty { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 8px; border: 1px dashed var(--line-2); border-radius: 8px; font-size: 12px; color: var(--fg); }
 .org-callout { margin: 0 10px 6px; padding: 6px 10px; border-radius: 8px; text-align: left; font-size: 12px; font-weight: 600; color: var(--amber); border: 1px solid color-mix(in srgb, var(--amber) 45%, var(--line-2)); background: color-mix(in srgb, var(--amber) 8%, transparent); }
 .org-callout:hover { background: color-mix(in srgb, var(--amber) 14%, transparent); }
@@ -2840,7 +2841,8 @@ body { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; 
 .ofc-chip-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ofc-chip-n { flex: none; font-variant-numeric: tabular-nums; color: var(--fg-2); }
 /* A lesson's pin: faint until pinned. */
-.org-lesson-pin { opacity: 0.45; filter: grayscale(1); }
+/* Unpinned: faint but still 3:1 against the column. */
+.org-lesson-pin { opacity: 0.7; filter: grayscale(1); }
 .org-lesson-pin.on, .org-lesson-pin:hover, .org-lesson-pin:focus-visible { opacity: 1; filter: none; }
 /* Both filters on and nothing left in the sidebar. */
 .org-filter-empty { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 2px 6px; font-size: 12px; color: var(--fg); }
@@ -2848,7 +2850,9 @@ body { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; 
 .ofc-focus-bar > button { flex: none; white-space: nowrap; }
 /* The strip's words: the office's secondary text, readable on the strip (see org-office-contrast.test). */
 .ofc-elsewhere .composer-note { margin: 0; font-size: 12px; color: var(--fg-2); }
-.ofc-chip .org-dot { width: 7px; height: 7px; }
+.ofc-chip .org-dot { display: inline-block; vertical-align: middle; width: 7px; height: 7px; }
 /* An organization with no folders, on the floor: no box inside the box. */
 .ofc-empty .org-group-empty { border: 0; padding: 0; flex-direction: column; font-size: 13px; }
-.org-group-folders { width: auto; padding: 0 6px; font-size: 12px; white-space: nowrap; }
+.org-group-folders { flex: none; width: auto; padding: 0 6px; font-size: 12px; white-space: nowrap; color: var(--fg-2); }
+/* On hover --fg: --fg-2 on --bg-hl falls to 4.2:1 in GitHub Light. */
+.org-group-folders:hover, .org-group-folders:focus-visible { color: var(--fg); }

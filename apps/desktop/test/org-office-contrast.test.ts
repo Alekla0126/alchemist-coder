@@ -42,7 +42,9 @@ const SURFACES = ['--bg', '--bg-side', '--bg-hl', '--bg-input', '--bg-card'];
  * was --fg-3 (4.40:1 in the dark theme); now it's --ofc-muted (--fg-2 inside .ofc).
  */
 const STRIP: Array<[string, string]> = [['--ofc-muted', '--bg-side'], ['--fg', '--bg-input'], ['--ofc-muted', '--bg-input'], ['--fg', '--bg-hl']];
-const PAIRS: Array<[string, string]> = [...SURFACES.flatMap((b) => [['--fg', b] as [string, string], ['--ofc-muted', b] as [string, string]]), ...STRIP];
+/** In the sidebar beside the office: «📁 Folders» (--fg-2) on the column (--bg-side); on hover it turns --fg (--fg-2 on --bg-hl is 4.2:1 in GitHub Light). */
+const SIDEBAR: Array<[string, string]> = [['--fg-2', '--bg-side'], ['--fg', '--bg-hl']];
+const PAIRS: Array<[string, string]> = [...SURFACES.flatMap((b) => [['--fg', b] as [string, string], ['--ofc-muted', b] as [string, string]]), ...STRIP, ...SIDEBAR];
 /** Themes whose own text is under 4.5:1 on their own background: the whole app reads like that there, not only the office. */
 const FAINT = ['tokyo-night', 'solarized-light'];
 
