@@ -34,6 +34,7 @@ import { Workspace } from './workspace';
 import { KeychainSecretStore } from './secrets';
 import { Voice } from './voice';
 import { checkoutLink, loadPersonalModule, loadProModule } from './extensions';
+import { ProAccountFlow } from './pro-account';
 import workerPath from './indexer-worker?modulePath';
 
 registerPreviewScheme();
@@ -52,6 +53,8 @@ let personalBuild = false;
 /** Whether this copy carries the Pro module (licensed or not), and where «Buy Pro» goes. */
 let proBundled = false;
 let proCheckout: string | null = null;
+let proAccount: ProAccountFlow | null = null;
+let proAccountAvailable = false;
 /** This launch is the app's first on this computer. */
 let firstRun = false;
 
@@ -73,6 +76,7 @@ function appInfo(): AppInfo {
     firstRun,
     proModule: proBundled,
     proCheckout,
+    proAccount: proAccountAvailable,
     platform: process.platform,
     systemLocale: app.getLocale(),
     home: app.getPath('home'),
@@ -266,7 +270,19 @@ function createWindow(onClosed: () => void) {
 }
 
 if (!app.requestSingleInstanceLock() && !capturePath) app.quit();
-app.on('second-instance', () => {
+const acceptProCallback = (url: string) => {
+  if (!proAccount || !url.startsWith('alchemistcoder:')) return;
+  void proAccount.accept(url).then((result) => {
+    if (result) {
+      send(Channels.proAccountResult, result);
+      if (window?.isMinimized()) window.restore();
+      window?.focus();
+    }
+  });
+};
+app.on('open-url', (event, url) => { event.preventDefault(); acceptProCallback(url); });
+app.on('second-instance', (_event, argv) => {
+  for (const url of argv) acceptProCallback(url);
   if (window?.isMinimized()) window.restore();
   window?.focus();
 });
@@ -282,6 +298,9 @@ void app.whenReady().then(async () => {
   const pro = loadProModule(process.resourcesPath);
   proBundled = !!pro;
   proCheckout = checkoutLink(pro);
+  proAccount = new ProAccountFlow(pro, userData);
+  proAccountAvailable = !!(pro?.accountUrl?.() && pro.deviceId && pro.activate);
+  if (app.isPackaged && proAccountAvailable) app.setAsDefaultProtocolClient('alchemistcoder');
   edition = pro && (await pro.isPro({ userData, secrets }).catch(() => false)) ? 'pro' : 'community';
   const own = loadPersonalModule(process.resourcesPath);
   personalBuild = !!own;
@@ -420,7 +439,12 @@ void app.whenReady().then(async () => {
     if ('autopilot' in patch) autopilotChanged();
     else if ('locale' in patch) buildMenu();
   };
-registerIpc({ info: appInfo, bots, starterGroups, settings, onSettingsChanged, reader: () => reader, progress: () => progress, onRendered: () => void capture(), runner, tasks, preview, hub, backup, reviews, usage, exportSession: (id, format) => (reader ? exportSession(window, reader, id, format) : Promise.reject(new Error('The index is still loading'))), workspace, terminals, voice: new Voice(secrets, userData), dataDir: userData, board, automations, browser, proActivate: pro?.activate ? (code) => pro.activate!({ userData }, code) : undefined });
+  registerIpc({ info: appInfo, bots, starterGroups, settings, onSettingsChanged, reader: () => reader, progress: () => progress, onRendered: () => void capture(), runner, tasks, preview, hub, backup, reviews, usage, exportSession: (id, format) => (reader ? exportSession(window, reader, id, format) : Promise.reject(new Error('The index is still loading'))), workspace, terminals, voice: new Voice(secrets, userData), dataDir: userData, board, automations, browser, proActivate: pro?.activate ? (code) => pro.activate!({ userData }, code) : undefined, proAccountStart: async () => {
+    const url = proAccount?.start();
+    if (!url) return false;
+    await shell.openExternal(url);
+    return true;
+  } });
   startIndexer(join(userData, 'index.db'), backup.root(), (source) => usage.touch(source));
   backup.start();
   const menuLocale = () => settings.get().locale ?? matchLocale(app.getLocale());

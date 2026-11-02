@@ -374,16 +374,28 @@ const KEY_ERRORS = ['malformed', 'signature', 'expired', 'device', 'revoked'];
  * (when the build has one), and the license key that arrives by email, or a beta invitation, is
  * pasted below. The edition is decided at launch, so once the key is kept it asks for a restart.
  */
-function ProCode({ checkout }: { checkout: string | null | undefined }) {
+function ProCode({ checkout, account }: { checkout: string | null | undefined; account?: boolean }) {
   const t = useT();
   const locale = useStore((s) => s.locale);
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ProActivation | null>(null);
+  const [waiting, setWaiting] = useState(false);
+  useEffect(() => window.alchemist.onProAccountResult((r) => { setResult(r); setWaiting(false); }), []);
+  const openAccount = async () => {
+    setResult(null);
+    try {
+      const opened = await window.alchemist.proAccountStart();
+      setWaiting(opened);
+      if (!opened) setResult({ ok: false, reason: 'other' });
+    } catch { setWaiting(false); setResult({ ok: false, reason: 'other' }); }
+  };
   const activate = async () => {
     setBusy(true);
     try {
       setResult(await window.alchemist.proActivate(code));
+    } catch {
+      setResult({ ok: false, reason: 'other' });
     } finally {
       setBusy(false);
     }
@@ -391,7 +403,8 @@ function ProCode({ checkout }: { checkout: string | null | undefined }) {
   const until = result?.expiresAt ? new Date(result.expiresAt).toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' }) : '';
   return (
     <>
-      {checkout && (
+      {account && <div className="set-row"><div><b>{t('pro.account')}</b><p>{t('pro.accountHint')}</p>{waiting && <p role="status">{t('pro.accountWaiting')}</p>}</div><button className="btn-send small" onClick={() => void openAccount()}>{t('pro.accountOpen')}</button></div>}
+      {checkout && !account && (
         <div className="set-row">
           <div>
             <b>{t('pro.buyTitle')}</b>
@@ -441,7 +454,7 @@ function About() {
         <b>{t('settings.edition')}</b>
         <span>{info?.edition === 'pro' ? 'Pro' : t('status.edition')}</span>
       </div>
-      {info?.proModule && info.edition !== 'pro' && <ProCode checkout={info.proCheckout} />}
+      {info?.proModule && <ProCode checkout={info.proCheckout} account={info.proAccount} />}
       <div className="set-row">
         <b>{t('settings.license')}</b>
         <a href="https://github.com/Alekla0126/alchemist-coder" target="_blank" rel="noreferrer">

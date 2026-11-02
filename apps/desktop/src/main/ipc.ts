@@ -81,6 +81,7 @@ export interface IpcDeps {
   browser: BrowserHost;
   /** Takes a pasted Pro license key or invitation; absent when this copy has no Pro module. */
   proActivate?: (code: string) => Promise<ProActivation>;
+  proAccountStart?: () => Promise<boolean>;
 }
 
 /** Every handler validates its arguments: the renderer is treated as untrusted. */
@@ -309,6 +310,7 @@ export function registerIpc(deps: IpcDeps): void {
     if (typeof code !== 'string' || code.length > 8192) return { ok: false, reason: 'malformed' };
     return deps.proActivate(code).catch(() => ({ ok: false, reason: 'other' }));
   });
+  ipcMain.handle(Channels.proAccountStart, () => deps.proAccountStart?.().catch(() => false) ?? false);
   // The edition is decided at launch: a kept license needs a fresh start.
   ipcMain.handle(Channels.relaunch, () => {
     app.relaunch();

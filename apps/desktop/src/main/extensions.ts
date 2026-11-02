@@ -12,6 +12,9 @@ export interface ProModule {
   activate?(host: { userData: string }, code: string): Promise<ProActivation>;
   /** Where «Buy Pro» goes: the payment link the official build was made with, if any. */
   checkoutUrl?(): string | null;
+  /** Account page and opaque installation id for browser-based activation and renewal. */
+  accountUrl?(): string | null;
+  deviceId?(host: { userData: string }): string;
 }
 
 /**

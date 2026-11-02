@@ -181,6 +181,8 @@ export interface AppInfo {
   proModule?: boolean;
   /** Where «Buy Pro» goes (a payment link), when this copy has one. */
   proCheckout?: string | null;
+  /** This module supports browser-based sign-in and device-bound license renewal. */
+  proAccount?: boolean;
   platform: string;
   systemLocale: string;
   /** The user's home folder (where a first project goes by default). */
@@ -1165,6 +1167,8 @@ export interface AlchemistApi {
   copyText(text: string): Promise<void>;
   /** Checks a pasted Pro license key or beta invitation and keeps it; Pro starts on the next launch. */
   proActivate(code: string): Promise<ProActivation>;
+  proAccountStart(): Promise<boolean>;
+  onProAccountResult(listener: (result: ProActivation) => void): () => void;
   /** Quits and opens the app again. */
   relaunch(): Promise<void>;
   /** Subscription plans and recent usage (Claude, Codex) from local data; `refresh` skips the one-minute cache. */
@@ -1408,6 +1412,8 @@ export const Channels = {
   revealPath: 'shell:reveal',
   copyText: 'clipboard:copy',
   proActivate: 'pro:activate',
+  proAccountStart: 'pro:account-start',
+  proAccountResult: 'pro:account-result',
   relaunch: 'app:relaunch',
   reviews: 'reviews:list',
   reviewFile: 'reviews:file',
