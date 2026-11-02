@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { commitAll, createWorktree, git, headCommit, listChanges, repoRoot } from '@alchemist-coder/arena';
 import type { Autopilot, SessionMcpServer } from '@alchemist-coder/core';
 import { ABOUT_MAX, type AgentChoice, type BotConfig, type RosterChange, type StarterAgent, type BotMember, type BotStatus, type BotTeam, type OrgGroup, type OrgLesson, type OrgSettings, type PermissionMode, type PlannedBot, type RunnerEventMessage, type StartTeamRequest, type TeamEventKind, type TeamOrigin, type TeamPlan } from '../shared/api';
@@ -744,8 +744,8 @@ export class BotManager {
 
   /** Whether an agent works in the project at `cwd` (no projects = all of them). */
   private inProject(c: BotConfig, cwd: string) {
-    const here = cwd.replace(/\/+$/, '');
-    return !c.projects?.length || c.projects.some((p) => here === p || here.startsWith(`${p}/`) || p.startsWith(`${here}/`));
+    const contains = (root: string, path: string) => { const rel = relative(root, path); return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel)); };
+    return !c.projects?.length || c.projects.some(p => contains(p, cwd) || contains(cwd, p));
   }
 
   saveConfig(input: unknown): BotConfig {
@@ -771,7 +771,7 @@ export class BotManager {
       kind: c.kind === 'coordinator' ? 'coordinator' : 'member',
       ...(c.executorId === 'local' || c.executorId === 'vps' ? { executorId: c.executorId } : {}),
       ...(typeof c.contextRole === 'string' && /^[a-z][a-z0-9-]{0,39}$/.test(c.contextRole) ? { contextRole: c.contextRole } : {}),
-      projects: Array.isArray(c.projects) ? c.projects.filter((p): p is string => typeof p === 'string' && p.startsWith('/')).slice(0, 50).map((p) => p.replace(/\/+$/, '').slice(0, 1000)) : [],
+      projects: Array.isArray(c.projects) ? c.projects.filter((p): p is string => typeof p === 'string' && isAbsolute(p)).slice(0, 50).map((p) => p.replace(/[\\/]+$/, '').slice(0, 1000)) : [],
       proposed: c.proposed === true,
       avatar: avatarOf(c.avatar),
     };
