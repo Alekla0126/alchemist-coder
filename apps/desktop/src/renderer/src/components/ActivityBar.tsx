@@ -85,7 +85,8 @@ function doingLabel(doing: Doing, t: T): string {
     case 'starting':
       return t('run.starting');
     case 'waiting':
-      return t('attention.waiting');
+      // The same words as the organization's office: someone needs you.
+      return t('org.status.waiting');
     case 'plan':
       return t('bots.planWaiting');
     case 'elsewhere':
