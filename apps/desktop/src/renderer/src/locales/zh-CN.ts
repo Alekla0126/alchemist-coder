@@ -1851,4 +1851,5 @@ export const zhCN: Messages = {
   "org.office.search": "搜索智能体、项目或任务…",
   "org.office.noMatches": "此视图中没有智能体",
   "org.office.noMatchesHint": "更改筛选条件以查看最近的任务。",
+  "org.office.directTask": "直接用此智能体启动任务。",
 };

@@ -1851,4 +1851,5 @@ export const fr: Messages = {
   "org.office.search": "Rechercher un agent, projet ou mission…",
   "org.office.noMatches": "Aucun agent dans cette vue",
   "org.office.noMatchesHint": "Changez le filtre pour voir les missions récentes.",
+  "org.office.directTask": "Lance une mission directement avec cet agent.",
 };

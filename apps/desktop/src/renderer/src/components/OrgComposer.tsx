@@ -20,7 +20,7 @@ let shotSent = false;
  * One box to give the organization work: you write what you need once and the coordinator hands it
  * out. The project, a template, a spending cap and the plan review are chips, already set to sensible values.
  */
-export function OrgComposer({ coordinator, examples: showExamples }: { coordinator: BotConfig | undefined; examples: boolean }) {
+export function OrgComposer({ coordinator, recipient, examples: showExamples }: { coordinator: BotConfig | undefined; recipient?: BotConfig; examples: boolean }) {
   const t = useT();
   const orgProject = useStore((s) => s.orgProject);
   const activeProject = useStore((s) => s.projects.find((p) => p.id === s.settings.activeProjectId));
@@ -133,18 +133,21 @@ export function OrgComposer({ coordinator, examples: showExamples }: { coordinat
     setBudget(Number.isFinite(n) && n > 0 ? String(n) : '');
   };
 
-  const ready = !!goal.trim() && !!cwd && !!coordinator;
+  const target = recipient ?? coordinator;
+  const ready = !!goal.trim() && !!cwd && !!target;
   const catalog = useStore((s) => s.catalog);
-  const why = !coordinator ? (catalog && !defaultChoice(catalog) ? t('org.office.noAgent') : t('org.setup')) : !cwd ? t('org.pickProject') : '';
+  const why = !target ? (catalog && !defaultChoice(catalog) ? t('org.office.noAgent') : t('org.setup')) : !cwd ? t('org.pickProject') : '';
   const start = async () => {
-    if (!ready || !coordinator || busy) return;
-    if (isDemo(coordinator.id)) return void toast(t('org.office.demoNoSend'), undefined, 3000);
+    if (!ready || !target || busy) return;
+    if (isDemo(target.id)) return void toast(t('org.office.demoNoSend'), undefined, 3000);
     setBusy(true);
     try {
-      const team = await window.alchemist.startTeam({ goal, cwd, configId: coordinator.id, budgetUsd: Number(budget) || null, approvePlan: reviewPlan, guidance });
+      const team = recipient
+        ? await window.alchemist.startAgentTask({ task: goal, cwd, configId: recipient.id })
+        : await window.alchemist.startTeam({ goal, cwd, configId: target.id, budgetUsd: Number(budget) || null, approvePlan: reviewPlan, guidance });
       useStore.getState().upsertTeam(team);
       // You stay on the chart: it shows who gets what as the coordinator hands the work out.
-      useStore.setState({ orgFocusTeamId: team.id });
+      useStore.setState({ orgFocusTeamId: team.id, ...(onOffice ? { officeTeamId: team.id } : {}) });
       setGoal('');
     } catch (e) {
       toast(errorText(e), undefined, 10_000);
@@ -202,12 +205,13 @@ export function OrgComposer({ coordinator, examples: showExamples }: { coordinat
         />
         <div className="composer-bar">
           <Chip icon="folder" label={projectName} title={t('org.project')} fixed={open.length < 2 && !!cwd} onClick={() => void pickProject()} />
-          <Chip glyph="⚗" label={current?.name ?? t('bots.templates')} title={t('bots.templates')} className={current ? 'on' : ''} onClick={() => void pickTemplate()} />
+          {!recipient && <><Chip glyph="⚗" label={current?.name ?? t('bots.templates')} title={t('bots.templates')} className={current ? 'on' : ''} onClick={() => void pickTemplate()} />
           <Chip icon="gauge" label={budget ? t('org.budgetChip', { cap: budget }) : t('bots.budgetNone')} title={t('bots.budget')} className={budget ? 'on' : ''} onClick={() => void pickBudget()} />
           <button className={`cchip toggle ${reviewPlan ? 'on' : ''}`} aria-pressed={reviewPlan} title={t('bots.reviewPlanHint')} onClick={() => setReviewPlan(!reviewPlan)}>
             {reviewPlan && <Icon name="check" size={12} />}
             <span className="cchip-label">{t('bots.reviewPlan')}</span>
           </button>
+          </>}
           <span className="composer-sp" />
           {why && <span className="composer-note" title={why}>{why}</span>}
           <VoiceButton
@@ -219,12 +223,12 @@ export function OrgComposer({ coordinator, examples: showExamples }: { coordinat
             }}
             focus={() => box.current?.focus()}
           />
-          <button className="btn-send" disabled={!ready || busy} onClick={() => void start()} title={why || t('org.homeLead')}>
+          <button className="btn-send" disabled={!ready || busy} onClick={() => void start()} title={why || (recipient ? recipient.name : t('org.homeLead'))}>
             {busy ? <span className="spin" /> : '⚗'} {t('bots.start')} ↵
           </button>
         </div>
       </div>
-      {guidance && (
+      {!recipient && guidance && (
         <details className="org-guidance">
           <summary>
             <Icon name="chevronRight" size={12} />

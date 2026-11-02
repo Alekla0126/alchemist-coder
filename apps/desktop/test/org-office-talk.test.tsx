@@ -90,7 +90,7 @@ vi.mock('../src/renderer/src/store', () => {
   return { useStore, useT: () => (key: never, vars?: Record<string, string | number>) => translate('en', key, vars), useOpenProjects: () => state.projects };
 });
 // The boxes themselves have tests of their own; here only which one shows.
-vi.mock('../src/renderer/src/components/OrgComposer', () => ({ OrgComposer: () => <div className="composer-stub" /> }));
+vi.mock('../src/renderer/src/components/OrgComposer', () => ({ OrgComposer: ({ recipient }: { recipient?: BotConfig }) => <div className="composer-stub" data-recipient={recipient?.id ?? "coordinator"} /> }));
 vi.mock('../src/renderer/src/components/OrgChat', () => ({ OrgChat: () => <div className="chat-stub" /> }));
 vi.mock('../src/renderer/src/components/OrgLive', () => ({ CardWrite: ({ bot: b }: { bot: BotMember }) => <div className={`card-write-stub to-${b.id}`} /> }));
 
@@ -134,6 +134,8 @@ describe('the box’s «To»', () => {
     expect(selected(html)).toBe('writer');
     expect(state.orgGoal).toBe('Ask Writer to ');
     expect(html).toContain('composer-stub');
+    expect(html).toContain('data-recipient="writer"');
+    expect(html).toContain('Starts a task directly with this agent.');
   });
 
   it('changes only its own start when you pick someone else, keeping what you added', () => {

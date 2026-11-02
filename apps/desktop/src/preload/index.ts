@@ -138,6 +138,7 @@ const api: AlchemistApi = {
   renewStaff: (agent, starters, instructions, apply) => ipcRenderer.invoke(Channels.renewStaff, agent, starters, instructions, apply),
   botTeams: () => ipcRenderer.invoke(Channels.botTeams),
   startTeam: (request) => ipcRenderer.invoke(Channels.startTeam, request),
+  startAgentTask: (request) => ipcRenderer.invoke(Channels.startAgentTask, request),
   messageBot: (teamId, botId, text) => ipcRenderer.invoke(Channels.messageBot, teamId, botId, text),
   stopBot: (teamId, botId) => ipcRenderer.invoke(Channels.stopBot, teamId, botId),
   deleteTeam: (teamId) => ipcRenderer.invoke(Channels.deleteTeam, teamId),

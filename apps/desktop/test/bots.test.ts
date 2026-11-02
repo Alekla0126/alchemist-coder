@@ -716,3 +716,22 @@ describe('bots with their own copy', { timeout: 30_000 }, () => {
     rmSync(plain, { recursive: true, force: true });
   });
 });
+
+
+it('starts separate Codex office agents with their saved model and permissions, without the Claude coordinator', async () => {
+  const { fake, bots } = setup();
+  await bots.start();
+  try {
+    bots.saveConfig({ name: 'Claude coordinator', kind: 'coordinator', role: 'Coordinate', agent, permissionMode: 'acceptEdits', canSpawn: true });
+    const codex = bots.saveConfig({ name: 'Codex office test', role: 'Only test the conversation', agent: { harnessId: 'codex', providerId: 'openai', model: 'default' }, permissionMode: 'plan', canSpawn: false });
+    const first = await bots.startSolo({ configId: codex.id, cwd: '/test-office', task: 'Remember Solar Cedar' });
+    const second = await bots.startSolo({ configId: codex.id, cwd: '/test-office', task: 'Remember Lunar Oak' });
+    expect(first.id).not.toBe(second.id);
+    expect(first.bots[0]).toMatchObject({ configId: codex.id, agent: { harnessId: 'codex', providerId: 'openai' }, permissionMode: 'plan', canSpawn: false });
+    expect(fake.started).toHaveLength(2);
+    expect(fake.started.every((r) => r.model === 'default' && r.permissionMode === 'plan')).toBe(true);
+    fake.play(first.bots[0]!.runId!, 'Solar Cedar');
+    await bots.message(first.id, first.bots[0]!.id, 'Repeat the name');
+    expect(fake.sent).toContainEqual([first.bots[0]!.runId, 'Repeat the name']);
+  } finally { bots.stopAll(); }
+});

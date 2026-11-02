@@ -1850,4 +1850,5 @@ export const en = {
   "org.office.search": "Search agent, project or assignment…",
   "org.office.noMatches": "No agents in this view",
   "org.office.noMatchesHint": "Change the filter to see recent assignments.",
+  "org.office.directTask": "Starts a task directly with this agent.",
 };

@@ -1851,4 +1851,5 @@ export const ja: Messages = {
   "org.office.search": "エージェント、プロジェクト、タスクを検索…",
   "org.office.noMatches": "この表示にエージェントはいません",
   "org.office.noMatchesHint": "フィルターを変更して最近のタスクを表示します。",
+  "org.office.directTask": "このエージェントで直接タスクを開始します。",
 };

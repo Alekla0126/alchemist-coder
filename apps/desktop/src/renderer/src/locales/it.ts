@@ -1851,4 +1851,5 @@ export const it: Messages = {
   "org.office.search": "Cerca agente, progetto o incarico…",
   "org.office.noMatches": "Nessun agente in questa vista",
   "org.office.noMatchesHint": "Cambia filtro per vedere gli incarichi recenti.",
+  "org.office.directTask": "Avvia un incarico direttamente con questo agente.",
 };

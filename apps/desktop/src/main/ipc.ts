@@ -365,6 +365,11 @@ export function registerIpc(deps: IpcDeps): void {
   ipcMain.handle(Channels.deleteBotConfig, (_e, id: unknown) => deps.bots.deleteConfig(text(id, 'config id', 60)));
   ipcMain.handle(Channels.botTeams, () => deps.bots.listTeams());
   ipcMain.handle(Channels.startTeam, (_e, request: unknown) => deps.bots.startTeam(request));
+  ipcMain.handle(Channels.startAgentTask, (_e, request: unknown) => {
+    if (!request || typeof request !== 'object') throw new Error('Invalid agent task');
+    const r = request as Record<string, unknown>;
+    return deps.bots.startSolo({ configId: text(r.configId, 'config id', 60), cwd: text(r.cwd, 'project folder', 4096), task: text(r.task, 'task', 20_000) });
+  });
   ipcMain.handle(Channels.messageBot, (_e, teamId: unknown, botId: unknown, value: unknown) => deps.bots.message(text(teamId, 'team id', 60), text(botId, 'bot id', 20), String(value ?? '')));
   ipcMain.handle(Channels.stopBot, (_e, teamId: unknown, botId: unknown) => deps.bots.stop(text(teamId, 'team id', 60), typeof botId === 'string' ? text(botId, 'bot id', 20) : undefined));
   ipcMain.handle(Channels.botChanges, (_e, teamId: unknown, botId: unknown) => deps.bots.changesOf(text(teamId, 'team id', 60), text(botId, 'bot id', 20)));

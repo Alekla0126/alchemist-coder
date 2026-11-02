@@ -1851,4 +1851,5 @@ export const ptBR: Messages = {
   "org.office.search": "Buscar agente, projeto ou tarefa…",
   "org.office.noMatches": "Nenhum agente nesta visualização",
   "org.office.noMatchesHint": "Mude o filtro para ver as tarefas recentes.",
+  "org.office.directTask": "Inicia uma tarefa diretamente com este agente.",
 };

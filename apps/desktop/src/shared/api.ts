@@ -1233,6 +1233,8 @@ export interface AlchemistApi {
   renewStaff(agent: AgentChoice, starters: Record<string, StarterAgent>, instructions: string, apply: boolean): Promise<RosterChange>;
   botTeams(): Promise<BotTeam[]>;
   startTeam(request: StartTeamRequest): Promise<BotTeam>;
+  /** Gives the chosen organization agent a task using its own saved runtime and permissions. */
+  startAgentTask(request: { configId: string; cwd: string; task: string }): Promise<BotTeam>;
   /** Sends a message to one bot of a team (you, not the coordinator). */
   messageBot(teamId: string, botId: string, text: string): Promise<void>;
   /** Stops a bot and the bots it created; no bot id = the whole team. */
@@ -1423,6 +1425,7 @@ export const Channels = {
   renewStaff: 'bots:renewStaff',
   botTeams: 'bots:teams',
   startTeam: 'bots:startTeam',
+  startAgentTask: 'bots:startAgentTask',
   messageBot: 'bots:message',
   stopBot: 'bots:stop',
   deleteTeam: 'bots:deleteTeam',

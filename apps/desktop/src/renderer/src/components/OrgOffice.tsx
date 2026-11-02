@@ -352,9 +352,9 @@ function Talk({ to, setTo, configs, teams, floor, departments, coordinator }: { 
             ))}
           </div>
         )}
-        <span className="composer-note ofc-to-note">{member ? (channel ? t('org.office.inAssignment', { title: channel.team.title || channel.team.goal }) : desk ? t('org.office.onButVia', { title: desk.team.title || desk.team.goal }) : t('org.office.viaCoordinator')) : chat ? '' : t('org.office.toCoordinator')}</span>
+        <span className="composer-note ofc-to-note">{member ? (channel ? t('org.office.inAssignment', { title: channel.team.title || channel.team.goal }) : desk ? t('org.office.onButVia', { title: desk.team.title || desk.team.goal }) : t('org.office.directTask')) : chat ? '' : t('org.office.toCoordinator')}</span>
       </div>
-      {member && channel ? <CardWrite key={channel.bot.id} team={channel.team} bot={channel.bot} /> : chat ? <OrgChat team={latest} /> : <OrgComposer coordinator={coordinator} examples={!allTeams.length} />}
+      {member && channel ? <CardWrite key={channel.bot.id} team={channel.team} bot={channel.bot} /> : chat ? <OrgChat team={latest} /> : <OrgComposer coordinator={coordinator} recipient={member} examples={!member && !allTeams.length} />}
     </section>
   );
 }

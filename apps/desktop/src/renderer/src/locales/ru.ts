@@ -2047,4 +2047,5 @@ export const ru: Messages = {
   "org.office.search": "Поиск агента, проекта или задания…",
   "org.office.noMatches": "В этом виде нет агентов",
   "org.office.noMatchesHint": "Смените фильтр для просмотра недавних заданий.",
+  "org.office.directTask": "Запускает задание напрямую с этим агентом.",
 };

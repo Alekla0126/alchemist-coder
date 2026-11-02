@@ -1851,4 +1851,5 @@ export const ko: Messages = {
   "org.office.search": "에이전트, 프로젝트 또는 작업 검색…",
   "org.office.noMatches": "이 보기에 에이전트가 없습니다",
   "org.office.noMatchesHint": "필터를 바꿔 최근 작업을 확인하세요.",
+  "org.office.directTask": "이 에이전트로 작업을 직접 시작합니다.",
 };
