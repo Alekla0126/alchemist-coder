@@ -85,8 +85,14 @@ const state = {
   messageBot: async () => {},
   automations: [],
   orgDrafts: {},
+  activeTeamId: null,
+  activeMemberId: null,
+  activeAutomationId: null,
+  orgOffice: true,
+  runs: {},
 };
-const memory = new Map<string, string>();
+// The sidebar folded (the office then has its own project menu); SSR reads the stores' first state.
+const memory = new Map<string, string>([['alchemist.layout', JSON.stringify({ sideHidden: true })]]);
 vi.stubGlobal('localStorage', { getItem: (k: string) => memory.get(k) ?? null, setItem: (k: string, v: string) => void memory.set(k, v) });
 vi.mock('../src/renderer/src/store', () => {
   const useStore = Object.assign((pick: (s: unknown) => unknown) => pick(state), { getState: () => state, setState: () => {} });
@@ -94,6 +100,7 @@ vi.mock('../src/renderer/src/store', () => {
 });
 
 const { OrgOffice } = await import('../src/renderer/src/components/OrgOffice');
+const { OrgSidebar } = await import('../src/renderer/src/components/Org');
 const { OrgGroupPicker } = await import('../src/renderer/src/components/OrgGroups');
 const render = () => renderToStaticMarkup(<OrgOffice title="Studio" editor={() => <form />} views={null} callout={null} />);
 const depts = (html: string) => html.slice(html.indexOf('class="ofc-depts"'));
@@ -151,6 +158,46 @@ describe('the office filtered by organization', () => {
     state.orgGroup = 'gone';
     expect(renderToStaticMarkup(<OrgGroupPicker />)).toContain('<option value="" selected="">All</option>');
     state.orgGroup = '';
+  });
+
+  it('with the sidebar folded, has the project menu on the office, with the organization’s folders only', () => {
+    const header = (html: string) => html.slice(html.indexOf('class="ofc-head"'), html.indexOf('class="ofc-main"'));
+    expect(header(render())).toContain('<option value="/p/komodo">Komodo</option>');
+    state.orgSettings = { ...state.orgSettings, groups: [{ ...coder, projects: ['/p/coder', '/p/coder2'] }, linkedin] };
+    state.projects = [...state.projects, { id: 3, cwd: '/p/coder2', name: 'Coder 2' }];
+    state.orgGroup = 'claude-coder';
+    const mine = header(render());
+    expect(mine).toContain('Coder 2');
+    expect(mine).not.toContain('Komodo');
+    state.projects = state.projects.slice(0, 2);
+    state.orgSettings = { ...state.orgSettings, groups: [coder, linkedin] };
+    state.orgGroup = '';
+  });
+
+  it('starts the box on the focused assignment’s folder, else on the organization’s first', () => {
+    const chip = (html: string) => /title="Project"[^>]*>(?:<[^>]+>)*([^<]+)</.exec(html.slice(html.indexOf('class="ofc-talk"')))?.[1];
+    state.officeTeamId = 'VPN work';
+    expect(chip(render())).toBe('Komodo');
+    state.officeTeamId = null;
+    state.orgSettings = { ...state.orgSettings, groups: [coder, { ...linkedin, projects: ['/p/komodo'] }] };
+    state.orgGroup = 'linkedin';
+    expect(chip(render())).toBe('Komodo');
+    state.orgSettings = { ...state.orgSettings, groups: [coder, linkedin] };
+    state.orgGroup = '';
+    expect(chip(render())).toBe('Coder');
+  });
+
+  it('says so when the organization and the project leave the sidebar empty', () => {
+    state.orgSettings = { ...state.orgSettings, groups: [{ ...coder, projects: ['/p/coder', '/p/komodo'] }, linkedin] };
+    state.orgGroup = 'claude-coder';
+    state.orgProject = '/p/empty';
+    const side = renderToStaticMarkup(<OrgSidebar />);
+    expect(side).toContain('No assignments of empty in Claude Coder.');
+    state.orgProject = '/p/coder';
+    expect(renderToStaticMarkup(<OrgSidebar />)).not.toContain('No assignments of');
+    state.orgProject = '';
+    state.orgGroup = '';
+    state.orgSettings = { ...state.orgSettings, groups: [coder, linkedin] };
   });
 
   it('has its texts in Spanish', () => {

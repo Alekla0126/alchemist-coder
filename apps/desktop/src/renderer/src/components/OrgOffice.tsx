@@ -14,7 +14,7 @@ import { doingText } from './Bots';
 import { OrgChat } from './OrgChat';
 import { OrgComposer } from './OrgComposer';
 import { OrgGroupEmpty } from './OrgGroups';
-import { groupOf, memberInGroup, teamInGroup } from '../org-groups';
+import { folderInGroup, groupOf, memberInGroup, teamInGroup } from '../org-groups';
 import { CardWrite } from './OrgLive';
 
 type T = ReturnType<typeof useT>;
@@ -364,7 +364,13 @@ function Talk({ to, setTo, configs, teams, floor, departments, coordinator }: { 
 function ProjectFilter() {
   const t = useT();
   const orgProject = useStore((s) => s.orgProject);
-  const open = useOpenProjects();
+  const group = useStore((s) => groupOf(s.orgSettings, s.orgGroup));
+  // The sidebar beside the office has the same menu: one is enough.
+  const narrow = useViewport((v) => v.narrow);
+  const sideHidden = useLayout((l) => l.sideHidden);
+  const sideShown = !narrow && !sideHidden;
+  const open = useOpenProjects().filter((p) => folderInGroup(p.cwd, group));
+  if (sideShown && open.length > 1) return null;
   const set = (orgProject: string) => useStore.setState({ orgProject });
   const name = open.find((p) => p.cwd === orgProject)?.name ?? (orgProject ? baseName(orgProject) : '');
   if (open.length > 1)

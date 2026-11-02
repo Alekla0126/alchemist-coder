@@ -935,6 +935,7 @@ export const ja: Messages = {
   'org.allProjects': 'すべてのプロジェクト',
   'org.groups.label': '組織',
   'org.groups.all': 'すべて',
+  'org.groups.nothingHere': '{org} に {project} の依頼はありません。',
   'org.groups.another': '別の組織',
   'org.groups.new': '+ 新規…',
   'org.groups.newTitle': '新しい組織',

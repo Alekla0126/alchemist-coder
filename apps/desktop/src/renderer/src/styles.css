@@ -2843,3 +2843,5 @@ body { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; 
 /* A lesson's pin: faint until pinned. */
 .org-lesson-pin { opacity: 0.45; filter: grayscale(1); }
 .org-lesson-pin.on, .org-lesson-pin:hover, .org-lesson-pin:focus-visible { opacity: 1; filter: none; }
+/* Both filters on and nothing left in the sidebar. */
+.org-filter-empty { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 2px 6px; font-size: 12px; color: var(--fg); }

@@ -1049,6 +1049,7 @@ export const ru: Messages = {
   'org.allProjects': 'Все проекты',
   'org.groups.label': 'Организация',
   'org.groups.all': 'Все',
+  'org.groups.nothingHere': 'В «{org}» нет заданий {project}.',
   'org.groups.another': 'другой организации',
   'org.groups.new': '+ Новая…',
   'org.groups.newTitle': 'Новая организация',

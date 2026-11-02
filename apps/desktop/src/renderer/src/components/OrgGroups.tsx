@@ -1,5 +1,5 @@
 import type { OrgGroup } from '@shared/api';
-import { groupOf, newGroupId, ORG_GROUP_KEY, toggleFolder } from '../org-groups';
+import { folderInGroup, groupOf, newGroupId, ORG_GROUP_KEY, toggleFolder } from '../org-groups';
 import { baseName } from '../paths';
 import { useOpenProjects, useStore, useT } from '../store';
 import { confirmAction, openMenu, promptText, toast } from '../ui';
@@ -12,7 +12,10 @@ const NEW = '__new';
 
 /** Looks at the organization by one of its organizations ('' = all), kept between launches. */
 export function setOrgGroup(id: string) {
-  useStore.setState({ orgGroup: id });
+  const st = useStore.getState();
+  // A project filter outside the new organization would leave nothing: it goes.
+  const project = st.orgProject && !folderInGroup(st.orgProject, groupOf(st.orgSettings, id)) ? '' : st.orgProject;
+  useStore.setState({ orgGroup: id, orgProject: project });
   try {
     localStorage.setItem(ORG_GROUP_KEY, id);
   } catch {

@@ -935,6 +935,7 @@ export const ko: Messages = {
   'org.allProjects': '모든 프로젝트',
   'org.groups.label': '조직',
   'org.groups.all': '전체',
+  'org.groups.nothingHere': '{org}에 {project}의 작업이 없습니다.',
   'org.groups.another': '다른 조직',
   'org.groups.new': '+ 새로 만들기…',
   'org.groups.newTitle': '새 조직',

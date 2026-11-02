@@ -19,7 +19,7 @@ import { OrgMap } from './OrgMap';
 import { OrgOffice } from './OrgOffice';
 import { OrgChat } from './OrgChat';
 import { OrgGroupEmpty, OrgGroupPicker } from './OrgGroups';
-import { groupOf, hiddenWhere, memberInGroup, needsYouText, teamInGroup } from '../org-groups';
+import { folderInGroup, groupOf, hiddenWhere, memberInGroup, needsYouText, teamInGroup } from '../org-groups';
 import { ROSTER, ROSTER_DEPARTMENTS, rosterOf, tierModels } from '../org-roster';
 import { AutomationList, AutomationView, NewAutomationDialog } from './Automations';
 import { PermissionCard } from './LiveRun';
@@ -597,6 +597,9 @@ export function OrgSidebar() {
   // An assignment open from elsewhere (e.g. from "needs you") still shows in the list.
   const elsewhere = allTeams.filter((x) => x.id === current && !teams.includes(x));
   const projectName = orgProject ? (open.find((p) => p.cwd === orgProject)?.name ?? folderName(orgProject)) : '';
+  const inGroup = open.filter((p) => folderInGroup(p.cwd, group));
+  // Both filters on and no assignment left: say so, with the way back to the organization's projects.
+  const filteredEmpty = !!(group?.projects.length && orgProject) && !teams.length && !elsewhere.length;
   const { items: inbox, urgent, suggested, text: needsYou } = useNeedsYou(proposed);
   // With an assignment open, its agents stand out in the chart: those in it, and those its pending plan names.
   const activeTeam = allTeams.find((x) => x.id === current);
@@ -635,10 +638,12 @@ export function OrgSidebar() {
           <OrgGroupPicker />
         </div>
         {group && !group.projects.length && <OrgGroupEmpty group={group} />}
-        {open.length > 1 && (
+
+        {/* The projects of the organization you look at. */}
+        {inGroup.length > 1 && (
           <select className="org-filter" value={orgProject} aria-label={t('org.project')} onChange={(e) => useStore.setState({ orgProject: e.target.value })}>
             <option value="">{t('org.allProjects')}</option>
-            {open.map((p) => (
+            {inGroup.map((p) => (
               <option key={p.id} value={p.cwd}>
                 {p.name}
               </option>
@@ -687,7 +692,16 @@ export function OrgSidebar() {
         </button>
       </div>
       <div className="tree bots-teams" role="list">
-        {teams.length === 0 && !elsewhere.length && <p className="empty">{orgProject ? t('org.noAssignmentsIn', { project: projectName }) : t('bots.noTeams')}</p>}
+        {filteredEmpty ? (
+          <div className="org-filter-empty" role="status">
+            <span>{t('org.groups.nothingHere', { org: group!.name, project: projectName })}</span>
+            <button className="link small" onClick={() => useStore.setState({ orgProject: '' })}>
+              {t('org.allProjects')}
+            </button>
+          </div>
+        ) : (
+          teams.length === 0 && !elsewhere.length && <p className="empty">{orgProject ? t('org.noAssignmentsIn', { project: projectName }) : t('bots.noTeams')}</p>
+        )}
         {[...teams, ...elsewhere].map((team) => (
           <div
             key={team.id}

@@ -935,6 +935,7 @@ export const zhCN: Messages = {
   'org.allProjects': '所有项目',
   'org.groups.label': '组织',
   'org.groups.all': '全部',
+  'org.groups.nothingHere': '{org} 中没有 {project} 的任务。',
   'org.groups.another': '另一个组织',
   'org.groups.new': '+ 新建…',
   'org.groups.newTitle': '新组织',

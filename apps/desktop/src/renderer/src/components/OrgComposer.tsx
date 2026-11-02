@@ -3,6 +3,8 @@ import type { BotConfig } from '@shared/api';
 import { defaultTemplate, HOUSE_TEMPLATE, loadTemplates, saveTemplates, setDefaultTemplate, starterTemplates, type Template } from '../org-templates';
 import { baseName } from '../paths';
 import { useOpenProjects, useStore, useT } from '../store';
+import { folderInGroup, groupOf } from '../org-groups';
+import { projectOf } from '../org-office';
 import { isDemo } from '../org-office';
 import { openMenu, promptText, toast } from '../ui';
 import { errorText } from './Bots';
@@ -28,7 +30,12 @@ export function OrgComposer({ coordinator, examples: showExamples }: { coordinat
   const open = useOpenProjects();
   // The project you picked on the chip; until then (or once it's closed) the one you're in, so switching projects in the rail takes the box with you.
   const [picked, setPicked] = useState<string | null>(null);
-  const cwd = (picked && open.some((p) => p.cwd === picked) ? picked : '') || orgProject || activeProject?.cwd || open[0]?.cwd || '';
+  // Then the project of the assignment the office is focused on, the filter's project, the first open folder of the organization you look at.
+  const focusCwd = useStore((s) => s.botTeams.find((x) => x.id === s.officeTeamId)?.cwd);
+  const group = useStore((s) => groupOf(s.orgSettings, s.orgGroup));
+  const focusProject = focusCwd ? projectOf(focusCwd, open).cwd : '';
+  const groupFirst = group ? open.find((p) => folderInGroup(p.cwd, group))?.cwd : undefined;
+  const cwd = (picked && open.some((p) => p.cwd === picked) ? picked : '') || focusProject || orgProject || groupFirst || activeProject?.cwd || open[0]?.cwd || '';
   const [templates, setTemplates] = useState<Template[]>(loadTemplates);
   const all = [...starterTemplates(t), ...templates];
   // The box starts from the default template: The Alchemist Code's way of working, unless you made another one the default.
@@ -40,7 +47,7 @@ export function OrgComposer({ coordinator, examples: showExamples }: { coordinat
   const [tplId, setTplId] = useState<string | null>(first?.id ?? null);
   const box = useRef<HTMLTextAreaElement>(null);
   // Filtering the organization to a project is picking it.
-  useEffect(() => setPicked(null), [orgProject]);
+  useEffect(() => setPicked(null), [orgProject, focusProject, group?.id]);
   // A goal started elsewhere ("Give <agent> a task"): the cursor goes after it, ready to type.
   useEffect(() => {
     const el = box.current;

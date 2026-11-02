@@ -935,6 +935,7 @@ export const hi: Messages = {
   'org.allProjects': 'सभी प्रोजेक्ट',
   'org.groups.label': 'संगठन',
   'org.groups.all': 'सभी',
+  'org.groups.nothingHere': '{org} में {project} का कोई काम नहीं।',
   'org.groups.another': 'दूसरे संगठन',
   'org.groups.new': '+ नया…',
   'org.groups.newTitle': 'नया संगठन',

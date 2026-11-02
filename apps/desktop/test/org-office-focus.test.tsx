@@ -129,6 +129,11 @@ describe('the focused office, rendered', () => {
     state.officeTeamId = null;
   });
 
+  it('leaves the project menu to the sidebar while it shows', () => {
+    const html = render();
+    expect(html.slice(html.indexOf('class="ofc-head"'), html.indexOf('class="ofc-main"'))).not.toContain('All projects');
+  });
+
   it('has its texts in Spanish', () => {
     expect(translate('es', 'org.office.allOffice')).toBe('Toda la oficina');
     expect(translate('es', 'org.office.noDepartment')).toBe('Sin departamento');

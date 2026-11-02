@@ -935,6 +935,7 @@ export const ptBR: Messages = {
   'org.allProjects': 'Todos os projetos',
   'org.groups.label': 'Organização',
   'org.groups.all': 'Todas',
+  'org.groups.nothingHere': 'Nenhuma tarefa de {project} em {org}.',
   'org.groups.another': 'outra organização',
   'org.groups.new': '+ Nova…',
   'org.groups.newTitle': 'Nova organização',

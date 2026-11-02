@@ -934,6 +934,7 @@ export const en = {
   'org.allProjects': 'All projects',
   'org.groups.label': 'Organization',
   'org.groups.all': 'All',
+  'org.groups.nothingHere': 'No assignments of {project} in {org}.',
   'org.groups.another': 'another organization',
   'org.groups.new': '+ New…',
   'org.groups.newTitle': 'New organization',

@@ -935,6 +935,7 @@ export const es: Messages = {
   'org.allProjects': 'Todos los proyectos',
   'org.groups.label': 'Organización',
   'org.groups.all': 'Todas',
+  'org.groups.nothingHere': 'No hay encargos de {project} en {org}.',
   'org.groups.another': 'otra organización',
   'org.groups.new': '+ Nueva…',
   'org.groups.newTitle': 'Nueva organización',

@@ -27,6 +27,9 @@ export function newGroupId(name: string, groups: OrgGroup[]): string {
   return id;
 }
 
+/** Whether a project folder belongs to an organization (inside one of its folders, or holding one); with none chosen, every one does. */
+export const folderInGroup = (cwd: string, group: OrgGroup | null) => !group || group.projects.some((g) => isInside(cwd, g) || isInside(g, cwd));
+
 /** The organizations with `cwd` added to or taken out of one of them. */
 export const toggleFolder = (groups: OrgGroup[], id: string, cwd: string): OrgGroup[] =>
   groups.map((g) => (g.id !== id ? g : { ...g, projects: g.projects.includes(cwd) ? g.projects.filter((p) => p !== cwd) : [...g.projects, cwd] }));
