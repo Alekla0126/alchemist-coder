@@ -18,7 +18,7 @@ const { OrgOffice } = await import('../src/renderer/src/components/OrgOffice');
 
 describe('the office on a mid-size window', () => {
   it('starts with its departments folded, the tab on the edge to bring them back, instead of stacking them', () => {
-    const html = renderToStaticMarkup(<OrgOffice title="Studio" editor={() => <form />} views={null} callout={null} />);
+    const html = renderToStaticMarkup(<OrgOffice title="Studio" views={null} callout={null} />);
     expect(html).toMatch(/class="ofc[^"]*depts-off/);
     expect(html).toContain('class="ofc-depts-tab"');
   });

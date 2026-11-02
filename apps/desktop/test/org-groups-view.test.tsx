@@ -40,7 +40,7 @@ const state = {
   activeTeamId: null as string | null,
   activeMemberId: null,
   activeAutomationId: null,
-  orgOffice: true,
+  orgPage: 'work', orgOffice: true,
   runs: {},
 };
 const memory = new Map<string, string>([['alchemist.layout', JSON.stringify({ sideHidden: true })]]);
@@ -50,7 +50,7 @@ vi.mock('../src/renderer/src/store', () => {
   return { useStore, useT: () => (key: never, vars?: Record<string, string | number>) => translate('en', key, vars), useOpenProjects: () => state.projects };
 });
 
-const { OrgSidebar } = await import('../src/renderer/src/components/Org');
+const { OrgSidebar, OrgView } = await import('../src/renderer/src/components/Org');
 const { OrgOffice } = await import('../src/renderer/src/components/OrgOffice');
 const { OrgComposer } = await import('../src/renderer/src/components/OrgComposer');
 const side = () => renderToStaticMarkup(<OrgSidebar />);
@@ -99,12 +99,12 @@ describe('what needs you, whatever the organization you look at', () => {
 describe('a focused assignment that is deleted', () => {
   it('leaves the office whole and no row marked as current in the sidebar', () => {
     state.officeTeamId = 'Coder work';
-    const focused = renderToStaticMarkup(<OrgOffice title="Studio" editor={() => <form />} views={null} callout={null} />);
+    const focused = renderToStaticMarkup(<OrgOffice title="Studio" views={null} callout={null} />);
     expect(focused).toContain('ofc-focus');
     expect(rows(side())).toContain('true');
     // Deleted (it's gone from the list), the id still in the store.
     state.botTeams = [vpnWaiting];
-    const office = renderToStaticMarkup(<OrgOffice title="Studio" editor={() => <form />} views={null} callout={null} />);
+    const office = renderToStaticMarkup(<OrgOffice title="Studio" views={null} callout={null} />);
     expect(office).not.toContain('ofc-focus');
     expect(office).not.toContain('← Whole office');
     expect(office).toContain('📁 Komodo');
@@ -163,5 +163,29 @@ describe('the folder the assignment box starts on', () => {
   it('starts on the project you are in with no organization chosen, over another organization’s folder', () => {
     reset();
     expect(chipOf()).toBe('Coder');
+  });
+});
+
+
+describe('organization configuration is separate from its working views', () => {
+  it('opens a dedicated configuration destination and preserves the office selection', () => {
+    state.orgPage = 'settings';
+    state.officeTeamId = 'Coder work';
+    const html = renderToStaticMarkup(<OrgView />);
+    expect(html).toContain('Organization settings');
+    expect(html).toContain('class="org-instructions"');
+    expect(html).toContain('class="org-staff"');
+    expect(html).not.toContain('class="ofc-main"');
+    expect(state.officeTeamId).toBe('Coder work');
+    state.orgPage = 'work';
+  });
+  it('keeps the office operational, with configuration reachable separately', () => {
+    state.officeTeamId = null;
+    const html = renderToStaticMarkup(<OrgView />);
+    expect(html).toContain('class="ofc-main"');
+    expect(html).toContain('Organization settings');
+    expect(html).not.toContain('class="org-instructions"');
+    expect(html).not.toContain('class="org-staff"');
+    expect(html).not.toContain('class="om-editor"');
   });
 });

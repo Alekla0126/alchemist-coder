@@ -49,7 +49,7 @@ vi.mock('../src/renderer/src/store', () => {
 });
 
 const { OrgOffice } = await import('../src/renderer/src/components/OrgOffice');
-const render = () => renderToStaticMarkup(<OrgOffice title="Studio" editor={() => <form className="editor-stub" />} views={<nav className="views-stub" />} callout={null} />);
+const render = () => renderToStaticMarkup(<OrgOffice title="Studio" views={<nav className="views-stub" />} callout={null} />);
 
 describe('the office on one screen', () => {
   const html = render();
@@ -98,8 +98,8 @@ describe('the office on one screen', () => {
     state.botTeams = [];
     const empty = render();
     state.botTeams = [team];
-    expect(empty).toContain('Nobody is working right now');
-    expect(empty).toContain('No projects with work yet');
+    expect(empty).toContain('No agents in this view');
+    expect(empty).toContain('Change the filter to see recent assignments.');
     expect(empty).not.toContain('ofc-room');
   });
 

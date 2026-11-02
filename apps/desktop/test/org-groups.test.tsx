@@ -88,7 +88,7 @@ const state = {
   activeTeamId: null,
   activeMemberId: null,
   activeAutomationId: null,
-  orgOffice: true,
+  orgPage: 'work', orgOffice: true,
   runs: {},
 };
 // The sidebar folded (the office then has its own project menu); SSR reads the stores' first state.
@@ -101,9 +101,9 @@ vi.mock('../src/renderer/src/store', () => {
 
 const { OrgOffice } = await import('../src/renderer/src/components/OrgOffice');
 const { OrgSidebar } = await import('../src/renderer/src/components/Org');
-const { OrgGroupPicker } = await import('../src/renderer/src/components/OrgGroups');
+const { OrgGroupPicker, OrgGroupSettings } = await import('../src/renderer/src/components/OrgGroups');
 const { OrgComposer } = await import('../src/renderer/src/components/OrgComposer');
-const render = () => renderToStaticMarkup(<OrgOffice title="Studio" editor={() => <form />} views={null} callout={null} />);
+const render = () => renderToStaticMarkup(<OrgOffice title="Studio" views={null} callout={null} />);
 const depts = (html: string) => html.slice(html.indexOf('class="ofc-depts"'));
 
 describe('the office filtered by organization', () => {
@@ -148,13 +148,14 @@ describe('the office filtered by organization', () => {
     state.orgGroup = '';
   });
 
-  it('offers All, each organization and a new one beside the name, and the folders of the chosen one', () => {
+  it('uses the picker only as a filter and edits folders in configuration', () => {
     state.orgGroup = '';
     const picker = renderToStaticMarkup(<OrgGroupPicker />);
-    expect(picker).toMatch(/<option value="" selected="">All organizations<\/option><option value="mobile">Mobile<\/option><option value="clients">Clients<\/option><option value="__new">\+ New…<\/option>/);
+    expect(picker).toMatch(/<option value="" selected="">All organizations<\/option><option value="mobile">Mobile<\/option><option value="clients">Clients<\/option>/);
     expect(picker).not.toContain('Folders of');
     state.orgGroup = 'clients';
-    expect(renderToStaticMarkup(<OrgGroupPicker />)).toContain('aria-label="Folders of Clients"');
+    expect(renderToStaticMarkup(<OrgGroupPicker />)).not.toContain('Folders of Clients');
+    expect(renderToStaticMarkup(<OrgGroupSettings />)).toContain('Folders →');
     // One deleted elsewhere: back to All.
     state.orgGroup = 'gone';
     expect(renderToStaticMarkup(<OrgGroupPicker />)).toContain('<option value="" selected="">All organizations</option>');
@@ -222,7 +223,7 @@ describe('the office filtered by organization', () => {
 
   it('names the folders button in words, says «no folders» on the floor only while on the office, and counts the organization’s automations', () => {
     state.orgGroup = 'clients';
-    expect(renderToStaticMarkup(<OrgGroupPicker />)).toContain('📁 Folders</button>');
+    expect(renderToStaticMarkup(<OrgGroupPicker />)).not.toContain('📁 Folders</button>');
     expect(renderToStaticMarkup(<OrgSidebar />)).not.toContain('Assign folders to this organization');
     state.orgOffice = false;
     expect(renderToStaticMarkup(<OrgSidebar />)).toContain('Assign folders to this organization');
@@ -235,12 +236,12 @@ describe('the office filtered by organization', () => {
     state.automations = [];
   });
 
-  it('offers only «+ New…» in the Community edition, with no organizations saved', () => {
+  it('keeps the empty organization filter read-only in Community', () => {
     const saved = state.orgSettings;
     state.orgSettings = { ...saved, groups: undefined };
     const picker = renderToStaticMarkup(<OrgGroupPicker />);
     state.orgSettings = saved;
-    expect(picker).toMatch(/<select[^>]*><option value="" selected="">All organizations<\/option><option value="__new">\+ New…<\/option><\/select>/);
+    expect(picker).toMatch(/<select[^>]*><option value="" selected="">All organizations<\/option><\/select>/);
   });
 
   it('has its texts in Spanish', () => {

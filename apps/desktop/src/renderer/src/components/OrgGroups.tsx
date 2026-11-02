@@ -4,12 +4,10 @@ import { folderInGroup, groupOf, newGroupId, ORG_GROUP_KEY, toggleFolder } from 
 import { baseName } from '../paths';
 import { useOpenProjects, useStore, useT } from '../store';
 import { confirmAction, openMenu, promptText, toast } from '../ui';
+import { openOrgSettings } from '../actions/org';
 import { errorText } from './Bots';
 
 type T = ReturnType<typeof useT>;
-
-/** The "+ New…" entry of the menu. */
-const NEW = '__new';
 
 /** Looks at the organization by one of its organizations ('' = all), kept between launches. */
 export function setOrgGroup(id: string) {
@@ -91,7 +89,7 @@ export function OrgGroupPicker() {
         className="org-filter org-group-select"
         value={group ? group.id : ''}
         aria-label={t('org.groups.label')}
-        onChange={(e) => (e.target.value === NEW ? void createGroup(t) : setOrgGroup(e.target.value))}
+        onChange={(e) => setOrgGroup(e.target.value)}
       >
         <option value="">{t('org.groups.all')}</option>
         {groups.map((g) => (
@@ -99,13 +97,8 @@ export function OrgGroupPicker() {
             {g.name}
           </option>
         ))}
-        <option value={NEW}>{t('org.groups.new')}</option>
       </select>
-      {group && (
-        <button className="icon-btn ic-btn org-group-folders" onClick={() => void groupMenu(group, open, t)} title={t('org.groups.folders', { name: group.name })} aria-label={t('org.groups.folders', { name: group.name })}>
-          📁 {t('org.groups.foldersShort')}
-        </button>
-      )}
+
     </span>
   );
 }
@@ -113,13 +106,24 @@ export function OrgGroupPicker() {
 /** An organization with no folders yet shows nothing: say so, with the way to give it some. */
 export function OrgGroupEmpty({ group }: { group: OrgGroup }) {
   const t = useT();
-  const open = useOpenProjects();
   return (
     <div className="org-group-empty" role="status">
       <span>{t('org.groups.empty')}</span>
-      <button className="btn-ghost small" onClick={() => void groupMenu(group, open, t)}>
+      <button className="btn-ghost small" onClick={() => openOrgSettings()}>
         📁 {t('org.groups.assign')}
       </button>
     </div>
   );
+}
+
+/** Organization folders are edited here, apart from the view filter. */
+export function OrgGroupSettings() {
+  const t = useT();
+  const groups = useStore((s) => s.orgSettings?.groups ?? []);
+  const open = useOpenProjects();
+  return <section className="org-config-groups">
+    <h3>{t('org.groups.label')}</h3>
+    {groups.map((group) => <div key={group.id} className="org-config-group"><b>{group.name}</b><span className="composer-note">{group.projects.map(baseName).join(' · ') || t('org.groups.empty')}</span><button className="btn-ghost small" onClick={() => void groupMenu(group, open, t)}>{t('org.groups.foldersShort')} →</button></div>)}
+    <button className="btn-ghost small" onClick={() => void createGroup(t)}>{t('org.groups.new')}</button>
+  </section>;
 }

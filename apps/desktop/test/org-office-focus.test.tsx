@@ -88,7 +88,7 @@ vi.mock('../src/renderer/src/store', () => {
 });
 
 const { OrgOffice } = await import('../src/renderer/src/components/OrgOffice');
-const render = () => renderToStaticMarkup(<OrgOffice title="Studio" editor={() => <form />} views={null} callout={null} />);
+const render = () => renderToStaticMarkup(<OrgOffice title="Studio" views={null} callout={null} />);
 
 describe('the focused office, rendered', () => {
   it('shows the whole office with nothing in focus, then only that assignment, live, by department', () => {

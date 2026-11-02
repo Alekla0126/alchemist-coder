@@ -11,14 +11,14 @@ import { AgentPicker, defaultChoice } from './AgentPicker';
 import { confirmDeleteTeam, doingText, errorText, teamActive, teamCost, teamState, TeamView } from './Bots';
 import { aboutOf, activityOf, inFolder, inProject, resultIn, type Focus, type Need } from '../org-model';
 import { AgentAvatar } from './AgentAvatar';
-import { addToTeam, approvePlan, saveConfig, askPlanChanges, changeAvatar, dismissMember, giveTask, keepMember, openAssignment, removeMember, renameMember, setLead, showOnChart } from '../actions/org';
+import { addToTeam, approvePlan, saveConfig, askPlanChanges, changeAvatar, dismissMember, giveTask, keepMember, openAssignment, removeMember, renameMember, setLead, showOnChart, openOrgSettings } from '../actions/org';
 import { OrgChart } from './OrgChart';
 import { LivePick, OrgLive } from './OrgLive';
 import { OrgComposer } from './OrgComposer';
 import { OrgMap } from './OrgMap';
 import { OrgOffice } from './OrgOffice';
 import { OrgChat } from './OrgChat';
-import { OrgGroupEmpty, OrgGroupPicker } from './OrgGroups';
+import { OrgGroupEmpty, OrgGroupPicker, OrgGroupSettings } from './OrgGroups';
 import { folderInGroup, groupOf, hiddenWhere, memberInGroup, needsYouText, teamInGroup } from '../org-groups';
 import { ROSTER, ROSTER_DEPARTMENTS, rosterOf, tierModels } from '../org-roster';
 import { AutomationList, AutomationView, NewAutomationDialog } from './Automations';
@@ -334,7 +334,7 @@ function AddAgentDialog({ leadId, onClose }: { leadId: string | null; onClose: (
     try {
       const saved = await saveConfig({ ...draft, agent: draft.agent, kind: 'member', leadId });
       await useStore.getState().loadBots();
-      useStore.setState({ activeMemberId: saved.id, activeTeamId: null, activeBotId: null });
+      useStore.setState({ orgPage: 'work', activeMemberId: saved.id, activeTeamId: null, activeBotId: null });
       toast(leadName ? t('org.joinedTeam', { name: saved.name, lead: leadName }) : t('org.joined', { name: saved.name }), undefined, 3000);
       onClose();
     } catch (e) {
@@ -407,7 +407,7 @@ function MemberRow({ member, depth, teams, compact, focus }: { member: BotConfig
   const orgAutopilot = useStore((s) => s.orgSettings?.autopilot === true);
   const role = aboutOf(member).slice(0, 90);
   const scope = member.projects?.length ? `${folderName(member.projects[0]!)}${member.projects.length > 1 ? ` +${member.projects.length - 1}` : ''}` : '';
-  const select = () => useStore.setState({ activeMemberId: member.id, activeTeamId: null, activeBotId: null });
+  const select = () => useStore.setState({ orgPage: 'work', activeMemberId: member.id, activeTeamId: null, activeBotId: null });
   const need = a.needs[0];
   const status = t(`org.status.${a.status}`);
   return (
@@ -555,6 +555,7 @@ export function OrgSidebar() {
   const configs = useStore((s) => s.botConfigs);
   const allTeams = useStore((s) => s.botTeams);
   const orgProject = useStore((s) => s.orgProject);
+  const orgName = useStore((s) => s.orgSettings?.name);
   const activeTeamId = useStore((s) => s.activeTeamId);
   const open = useOpenProjects();
   const [loaded, setLoaded] = useState(false);
@@ -590,7 +591,7 @@ export function OrgSidebar() {
   const compact = members.length > COMPACT_AT;
   const teams = allTeams.filter((x) => (!orgProject || inFolder(x, orgProject)) && teamInGroup(x, group));
   // On the office an assignment focuses it (its room and agents, live); elsewhere it opens in detail.
-  const onOffice = useStore((s) => s.orgOffice && !s.activeTeamId && !s.activeMemberId && !s.activeAutomationId);
+  const onOffice = useStore((s) => s.orgPage === 'work' && s.orgOffice && !s.activeTeamId && !s.activeMemberId && !s.activeAutomationId);
   const officeTeamId = useStore((s) => s.officeTeamId);
   const current = onOffice ? officeTeamId : activeTeamId;
   // An assignment open from elsewhere (e.g. from "needs you") still shows in the list.
@@ -616,7 +617,7 @@ export function OrgSidebar() {
     showOnChart();
     setTimeout(() => document.getElementById('org-inbox')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 60);
   };
-  const openTeam = (team: BotTeam) => (onOffice ? useStore.setState({ officeTeamId: team.id }) : useStore.setState({ activeTeamId: team.id, activeBotId: team.bots[0]?.id ?? null, activeMemberId: null }));
+  const openTeam = (team: BotTeam) => (onOffice ? useStore.setState({ officeTeamId: team.id }) : useStore.setState({ orgPage: 'work', activeTeamId: team.id, activeBotId: team.bots[0]?.id ?? null, activeMemberId: null }));
   const teamMenu = (team: BotTeam) =>
     contextMenu(
       () => [...(teamActive(team) ? [{ id: 'stop', label: t('bots.stopTeam') }] : []), { id: 'delete', label: t('bots.deleteTeam') }],
@@ -633,8 +634,9 @@ export function OrgSidebar() {
     <aside className="side bots-list org-side">
       <div className="org-top">
         <div className="org-top-row">
-          <OrgName />
+          <span className="org-name">{orgNameOf(orgName, t)}</span>
           <OrgGroupPicker />
+          <button className="btn-ghost small org-config-entry" onClick={() => openOrgSettings()}><Icon name="settings" size={14} /> {t('org.config.title')}</button>
         </div>
         {/* On the office it says so on the floor, once. */}
         {group && !group.projects.length && !onOffice && <OrgGroupEmpty group={group} />}
@@ -980,7 +982,7 @@ function OrgHome() {
     localStorage.setItem(ORG_LIVE_KEY, to === 'live' ? '1' : '0');
     localStorage.setItem(ORG_MAP_KEY, to === 'map' ? '1' : '0');
   };
-  const views = <ViewSwitch shown={office ? 'office' : shown} onView={view} />;
+  const views = <div className="org-view-nav"><ViewSwitch shown={office ? 'office' : shown} onView={view} /><button className="btn-ghost small org-config-entry" aria-label={t('org.config.title')} onClick={() => openOrgSettings()}><Icon name="settings" size={14} />{t('org.config.short')}</button></div>;
   // What needs you, from the office: the chart for now (your saved view stays the office), scrolled to
   // the inbox once it's drawn.
   const toInbox = useRef(false);
@@ -997,7 +999,6 @@ function OrgHome() {
     return (
       <OrgOffice
         title={orgNameOf(org?.name, t)}
-        editor={(member) => <MapEditor key={member.id} member={member} />}
         views={views}
         callout={
           urgent > 0 && (
@@ -1014,15 +1015,13 @@ function OrgHome() {
     <div className="org-home">
       <header className="org-home-head">
         <h2>{orgNameOf(org?.name, t)}</h2>
+        {views}
         {coordinator && (
           <p className="composer-note">
             ⚗ {coordinator.name} · {sourceOf(coordinator.agent.harnessId).label} · {modelName(t, coordinator.agent.model)} · {t('org.agentsN', { n: agents })}
           </p>
         )}
       </header>
-      <OrgComposer coordinator={coordinator} examples={!allTeams.length} />
-      {/* The conversation with the organization: what you asked and what it answered, without leaving the chart. */}
-      <OrgChat team={focus ?? latestOf(teams)} />
       {/* What blocks an agent goes first; suggestions can wait under the chart. */}
       {urgent > 0 && <Inbox items={inbox} title={needsYou} placeOf={placeOf} />}
       <section className="oc-wrap" aria-label={t('org.chart')}>
@@ -1030,7 +1029,6 @@ function OrgHome() {
           <h3>{shown === 'live' ? t('org.live.title') : shown === 'map' ? t('org.map.title') : t('org.chart')}</h3>
           <span className="composer-note">{shown === 'live' ? t('org.live.hint') : shown === 'map' ? t('org.map.hint') : t('org.chartHint')}</span>
           <span className="composer-sp" />
-          {views}
           {coordinator && (
             <button className="btn-ghost small" onClick={() => useStore.setState({ botConfigDialog: true })}>
               + {t('org.addAgent')}
@@ -1039,7 +1037,7 @@ function OrgHome() {
         </div>
         {shown !== 'map' && <ChartFocus teams={teams} focus={focus} />}
         {shown === 'map' ? (
-          <OrgMap cwd={orgProject} editor={(member) => <MapEditor key={member.id} member={member} />} />
+          <OrgMap cwd={orgProject} editor={(member) => <button className="btn-ghost small" onClick={() => openOrgSettings(member.id)}>{t('org.config.agent')} →</button>} />
         ) : shown === 'chart' ? (
           <OrgChart cwd={orgProject} focus={focus} />
         ) : focus ? (
@@ -1049,8 +1047,11 @@ function OrgHome() {
         )}
       </section>
       {urgent === 0 && <Inbox items={inbox} title={needsYou} placeOf={placeOf} />}
-      <StaffTemplate />
-      <OrgInstructions />
+      <OrgComposer coordinator={coordinator} examples={!allTeams.length} />
+      <details className="org-chat-fold">
+        <summary>{t('org.chat.title')} · {(focus ?? latestOf(teams))?.title || t('org.wholeOrg')}</summary>
+        <OrgChat team={focus ?? latestOf(teams)} />
+      </details>
     </div>
   );
 }
@@ -1098,7 +1099,7 @@ function MapEditor({ member }: { member: BotConfig }) {
       toast(errorText(e));
     }
   };
-  const open = () => useStore.setState({ activeMemberId: member.id, activeTeamId: null, activeBotId: null });
+  const open = () => { showOnChart(); useStore.setState({ activeMemberId: member.id }); };
   return (
     <div className="om-editor">
       <MemberForm draft={draft} set={set} coordinator={member.kind === 'coordinator'} />
@@ -1275,10 +1276,10 @@ function MemberPanel({ member }: { member: BotConfig }) {
         {lead ? (
           <>
             <p className="composer-note">{t('org.coordinatorHint')}</p>
-            <CoordinatorAutopilot />
+            <button className="btn-ghost small" onClick={() => openOrgSettings(member.id)}>{t('org.config.agent')} →</button>
           </>
         ) : (
-          <TeamSection member={member} coordinatorName={coordinator?.name ?? ''} />
+          <button className="btn-ghost small" onClick={() => openOrgSettings(member.id)}>{t('org.config.agent')} →</button>
         )}
         {a.status === 'working' && a.doing && <p className="org-doing">◐ {doingText(a.doing, t).text}</p>}
         <div className="org-stats" role="list" aria-label={t('org.record')}>
@@ -1312,30 +1313,7 @@ function MemberPanel({ member }: { member: BotConfig }) {
             <p className="empty">{t('org.noMemberAssignments')}</p>
           )}
         </section>
-        <section className="org-form" aria-label={t('org.settings')}>
-          <h4>{t('org.settings')}</h4>
-          <MemberForm key={member.id} draft={draft} set={set} coordinator={lead} />
-          <div className="bots-actions">
-            {!lead && !member.proposed && (
-              <button className="btn-ghost small danger" onClick={() => void remove()}>
-                {t('org.deleteAgent')}
-              </button>
-            )}
-            {dirty && (
-              <button className="btn-ghost small" onClick={clear}>
-                {t('dialog.cancel')}
-              </button>
-            )}
-            <span className="composer-sp" />
-            {dirty && <span className="composer-note">{t('org.unsaved')}</span>}
-            <button className="btn-send" disabled={!dirty || !draft.name.trim() || !draft.agent} onClick={() => void save()}>
-              {t('org.save')}
-            </button>
-          </div>
-        </section>
-        {lead ? (
-          <OrgInstructions />
-        ) : (
+        {!lead && (
           <details className="org-also">
             <summary>
               <span>{t('org.receives', { name: draft.name || member.name })}</span>
@@ -1344,7 +1322,7 @@ function MemberPanel({ member }: { member: BotConfig }) {
             <div className="org-receives">
               <h5>
                 {t('org.instructions')}
-                <button className="link small" onClick={() => useStore.setState({ activeMemberId: coordinator?.id ?? null })}>
+                <button className="link small" onClick={() => openOrgSettings()}>
                   {t('org.edit')}
                 </button>
               </h5>
@@ -1367,7 +1345,7 @@ function TeamSection({ member, coordinatorName }: { member: BotConfig; coordinat
   const configs = useStore((s) => s.botConfigs);
   const lead = member.leadId ? configs.find((c) => c.id === member.leadId) : undefined;
   const team = configs.filter((c) => c.leadId === member.id && !c.proposed);
-  const open = (c: BotConfig) => useStore.setState({ activeMemberId: c.id, activeTeamId: null, activeBotId: null });
+  const open = (c: BotConfig) => openOrgSettings(c.id);
   if (member.proposed) return coordinatorName ? <p className="composer-note">{t('org.reportsTo', { name: coordinatorName })}</p> : null;
   if (lead)
     return (
@@ -1408,16 +1386,55 @@ function TeamSection({ member, coordinatorName }: { member: BotConfig; coordinat
   );
 }
 
+/** The only home for organization-wide instructions, staff and agent configuration. */
+function OrganizationSettings() {
+  const t = useT();
+  const configs = useStore((s) => s.botConfigs);
+  const selected = useStore((s) => s.orgSettingsMemberId);
+  const member = configs.find((c) => c.id === selected);
+  return (
+    <section className="org-config-page" aria-label={t('org.config.title')}>
+      <header className="org-config-head">
+        <button className="btn-ghost small" onClick={() => showOnChart()}>← {t('org.config.back')}</button>
+        <h2>{t('org.config.title')}</h2>
+        <p className="composer-note">{t('org.config.hint')}</p>
+      </header>
+      <div className="org-config-layout">
+        <nav className="org-config-nav" aria-label={t('org.config.title')}>
+          <button className={`f ${!member ? 'on' : ''}`} aria-current={!member ? 'page' : undefined} onClick={() => useStore.setState({ orgSettingsMemberId: null })}>{t('settings.general')}</button>
+          <h3>{t('org.agents')}</h3>
+          {configs.map((c) => <button key={c.id} className={`f ${c.id === selected ? 'on' : ''}`} aria-current={c.id === selected ? 'page' : undefined} onClick={() => useStore.setState({ orgSettingsMemberId: c.id })}><AgentAvatar name={c.name} avatar={c.avatar} size={24} /><span>{c.name}</span></button>)}
+          <button className="btn-ghost small" onClick={() => useStore.setState({ botConfigDialog: true })}>+ {t('org.addAgent')}</button>
+        </nav>
+        <div className="org-config-body">
+          {member ? <section key={member.id} className="org-form">
+            <header className="org-config-agent"><button className="av-edit" onClick={() => void changeAvatar(member)} aria-label={t('avatar.change')}><AgentAvatar name={member.name} avatar={member.avatar} size={40} /></button><h3>{member.name}</h3></header>
+            <MapEditor member={member} />
+            {member.kind !== 'coordinator' && <><TeamSection member={member} coordinatorName={configs.find((c) => c.kind === 'coordinator')?.name ?? ''} /><button className="btn-ghost small danger" onClick={() => void removeMember(member)}>{t('org.deleteAgent')}</button></>}
+          </section> : <>
+            <section className="org-config-name"><h3>{t('org.rename')}</h3><OrgName /></section>
+            <OrgGroupSettings />
+            <OrgInstructions />
+            <CoordinatorAutopilot />
+            <StaffTemplate />
+          </>}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function OrgView() {
   const team = useStore((s) => s.botTeams.find((x) => x.id === s.activeTeamId));
   const member = useStore((s) => s.botConfigs.find((c) => c.id === s.activeMemberId));
   const automation = useStore((s) => s.automations.find((x) => x.automation.id === s.activeAutomationId));
   const newAutomation = useStore((s) => s.automationDialog);
+  const configuration = useStore((s) => s.orgPage === 'settings');
   // Opened from the sidebar or from the chart; with a lead, the new agent goes on that lead's team.
   const adding = useStore((s) => s.botConfigDialog);
   return (
     <>
-      {team ? <TeamView team={team} /> : member ? <MemberPanel key={member.id} member={member} /> : automation ? <AutomationView state={automation} /> : <OrgHome />}
+      {configuration && !team && !member && !automation ? <OrganizationSettings /> : team ? <TeamView team={team} /> : member ? <MemberPanel key={member.id} member={member} /> : automation ? <AutomationView state={automation} /> : <OrgHome />}
       {newAutomation && <NewAutomationDialog />}
       {adding && <AddAgentDialog leadId={typeof adding === 'object' ? adding.leadId : null} onClose={() => useStore.setState({ botConfigDialog: false })} />}
     </>

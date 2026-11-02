@@ -40,6 +40,7 @@ const PATHS = {
     </>
   ),
   // Actions
+  settings: <><path d="M4 6h16M4 12h16M4 18h16" /><circle cx="8" cy="6" r="2" fill="var(--bg-card)" /><circle cx="16" cy="12" r="2" fill="var(--bg-card)" /><circle cx="10" cy="18" r="2" fill="var(--bg-card)" /></>,
   goto: <path d="M4.5 12h11M11.5 7.5l4.5 4.5-4.5 4.5M19.5 5v14" />,
   open: <path d="M14 4h6v6M20 4l-8.5 8.5M18 14v4.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10" />,
   close: <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />,

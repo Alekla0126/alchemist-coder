@@ -133,6 +133,22 @@ export function countsOf(projects: OfficeProject[]): Record<OfficeState, number>
   return out;
 }
 
+/** Filter desks and counts together, keeping only assignments represented by visible desks. */
+export function filterOfficeProjects(projects: OfficeProject[], filter: 'active' | 'attention' | 'recent', query = ''): OfficeProject[] {
+  const needle = query.trim().toLocaleLowerCase();
+  return projects.flatMap((p) => {
+    const agents = p.agents.filter((a) =>
+      (filter === 'recent' || (filter === 'active' ? a.state === 'working' || a.state === 'waiting' : a.state === 'waiting' || a.state === 'failed')) &&
+      (!needle || `${p.name} ${a.name} ${a.task} ${a.team.title} ${a.team.goal}`.toLocaleLowerCase().includes(needle)),
+    );
+    if (!agents.length) return [];
+    const counts: Record<OfficeState, number> = { working: 0, waiting: 0, done: 0, failed: 0 };
+    for (const a of agents) counts[a.state]++;
+    const ids = new Set(agents.map((a) => a.team.id));
+    return [{ ...p, agents, counts, teams: p.teams.filter((t) => ids.has(t.id)) }];
+  });
+}
+
 /** An organization agent in its department, with how it is doing across its assignments. */
 export interface OfficeMember {
   member: BotConfig;

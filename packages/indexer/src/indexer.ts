@@ -505,7 +505,9 @@ export class Indexer {
   /** `source`: the CLI that wrote (its usage may have changed too). */
   watch(onChange: (sessionIds: string[], source: string) => void, debounceMs = 800): void {
     const schedule = (task: SessionTask) => {
-      clearTimeout(this.timers.get(task.key));
+      // A streaming Codex rollout can be written several times a second. A trailing debounce
+      // would postpone indexing until it stopped: coalesce writes within a bounded window.
+      if (this.timers.has(task.key)) return;
       this.timers.set(
         task.key,
         setTimeout(() => {

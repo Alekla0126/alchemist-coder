@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { BotConfig, BotTeam } from '@shared/api';
-import { dismissMember, keepMember, openAssignment } from '../actions/org';
+import { dismissMember, keepMember, openAssignment, openOrgSettings } from '../actions/org';
 import { relativeTime } from '../format';
 import { toggleDepts, useLayout, useViewport } from '../layout';
 import { baseName, isInside } from '../paths';
 import { aboutOf, inFolder, teamState } from '../org-model';
-import { agentsIn, channelOf, countsOf, noAgentCause, waitingBot, departmentsIn, departmentsOf, latestTeam, projectOf, projectsOf, runningElsewhere, type Department, type ElsewhereTeam, type OfficeAgent, type OfficeMember, type OfficeProject, type OfficeState } from '../org-office';
+import { agentsIn, filterOfficeProjects, channelOf, countsOf, noAgentCause, waitingBot, departmentsIn, departmentsOf, latestTeam, projectOf, projectsOf, runningElsewhere, type Department, type ElsewhereTeam, type OfficeAgent, type OfficeMember, type OfficeProject, type OfficeState } from '../org-office';
 import { useOpenProjects, useStore, useT } from '../store';
-import { confirmAction, useUi } from '../ui';
+import { useUi } from '../ui';
 import { AgentAvatar } from './AgentAvatar';
 import { defaultChoice } from './AgentPicker';
 import { doingText } from './Bots';
@@ -205,7 +205,7 @@ function MemberLine({ m, open, onOpen }: { m: OfficeMember; open: boolean; onOpe
  * An agent's settings in a sheet beside the office: what it is on now, a way to write to it, and
  * the same form as its profile (saved through the same checks).
  */
-function Sheet({ member, floor, editor, onWrite, onClose }: { member: BotConfig; floor: OfficeAgent[]; editor: (member: BotConfig) => ReactNode; onWrite: () => void; onClose: () => void }) {
+function Sheet({ member, floor, onWrite, onClose }: { member: BotConfig; floor: OfficeAgent[]; onWrite: () => void; onClose: () => void }) {
   const t = useT();
   const box = useRef<HTMLElement>(null);
   useEffect(() => box.current?.focus(), [member.id]);
@@ -248,7 +248,7 @@ function Sheet({ member, floor, editor, onWrite, onClose }: { member: BotConfig;
   // Its state says the same as "Now" below: the most telling of its parts on the floor, else available.
   const head = (['waiting', 'working', 'failed', 'done'] as const).find((x) => mine.some((a) => a.state === x));
   return (
-    <aside className="ofc-sheet" role="dialog" aria-label={t('org.office.settingsOf', { name: member.name })} tabIndex={-1} ref={box}>
+    <aside className="ofc-sheet" role="dialog" aria-label={t('org.office.activityOf', { name: member.name })} tabIndex={-1} ref={box}>
       <header className="ofc-sheet-head">
         <AgentAvatar name={member.name} avatar={member.avatar} size={30} />
         <b>{member.name}</b>
@@ -291,8 +291,7 @@ function Sheet({ member, floor, editor, onWrite, onClose }: { member: BotConfig;
             ✎ {t('org.office.writeTo', { name: member.name })}
           </button>
         )}
-        <h5>{t('org.settings')}</h5>
-        {editor(member)}
+        <button className="btn-ghost small" onClick={() => openOrgSettings(member.id)}>{t('org.config.agent')} →</button>
       </div>
     </aside>
   );
@@ -401,7 +400,7 @@ function ProjectFilter() {
  * who waits for you, what's done), the departments beside it with each agent's settings a click
  * away, and under the floor the box to write to the coordinator or to anyone.
  */
-export function OrgOffice({ title, editor, views, callout }: { title: string; editor: (member: BotConfig) => ReactNode; views: ReactNode; callout: ReactNode }) {
+export function OrgOffice({ title, views, callout }: { title: string; views: ReactNode; callout: ReactNode }) {
   const t = useT();
   const everyone = useStore((s) => s.botConfigs);
   const every = useStore((s) => s.botTeams);
@@ -431,6 +430,10 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
   }, []);
   const [sheet, setSheet] = useState<string | null>(null);
   const [to, setTo] = useState(COORDINATOR);
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<'active' | 'attention' | 'recent'>('active');
+  const talkOpen = useStore((s) => s.officeTalkOpen);
+  const setTalkOpen = (open: boolean) => useStore.setState({ officeTalkOpen: open });
   const officeTeamId = useStore((s) => s.officeTeamId);
   const focusTeam = officeTeamId ? every.find((x) => x.id === officeTeamId) : undefined;
   // A focused assignment that was deleted leaves the whole office.
@@ -445,31 +448,13 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
   const opener = useRef<HTMLElement | null>(null);
   const teams = orgProject ? allTeams.filter((x) => inFolder(x, orgProject)) : allTeams;
   const floor = projectsOf(allTeams, everyone, open, now, orgProject);
-  const counts = countsOf(floor);
+  const visibleFloor = filterOfficeProjects(floor, filter, query);
+  const counts = focusTeam ? agentsIn(focusTeam, everyone).reduce((c, a) => (c[a.state]++, c), { working: 0, waiting: 0, done: 0, failed: 0 }) : countsOf(visibleFloor);
   const { coordinator, departments, proposed } = departmentsOf(configs, teams, orgProject);
   const shown = sheet ? everyone.find((c) => c.id === sheet) : undefined;
-  const agents = floor.flatMap((p) => p.agents);
-  // Leaving an agent with unsaved settings (closing, or opening another one) asks first; leaving drops them.
-  const leave = async () => {
-    const id = sheet;
-    const draft = id ? useStore.getState().orgDrafts[id] : undefined;
-    if (!id || !draft) return true;
-    const name = everyone.find((c) => c.id === id)?.name ?? '';
-    const before = document.activeElement as HTMLElement | null;
-    if (!(await confirmAction({ title: t('org.office.discardTitle', { name }), message: t('org.office.discardHint'), confirmLabel: t('org.office.discard'), cancelLabel: t('org.office.keepEditing'), danger: true }))) {
-      // Back where you were editing (or on the sheet), not on the page with nowhere to type.
-      (before?.isConnected && before !== document.body ? before : document.querySelector<HTMLElement>('.ofc-sheet'))?.focus();
-      return false;
-    }
-    useStore.setState((st) => {
-      const drafts = { ...st.orgDrafts };
-      delete drafts[id];
-      return { orgDrafts: drafts };
-    });
-    return true;
-  };
+  const agents = focusTeam ? agentsIn(focusTeam, everyone) : floor.flatMap((p) => p.agents);
+  const matches = (c: BotConfig) => !!focusTeam || !query.trim() || `${c.name} ${c.role}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
   const openSheet = async (member: BotConfig, from: HTMLElement | null) => {
-    if (!(await leave())) return;
     // A second click on the same agent closes it, the focus staying on what you clicked.
     if (sheet === member.id) {
       setSheet(null);
@@ -480,18 +465,17 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
     setSheet(member.id);
   };
   const closeSheet = async () => {
-    if (!(await leave())) return;
     setSheet(null);
     opener.current?.focus();
   };
-  // A desk opens its agent's settings; one the coordinator defined on the spot opens its assignment.
+  // A desk opens its agent's activity; one the coordinator defined on the spot opens its assignment.
   const openDesk = (a: OfficeAgent) => {
     const member = a.configId ? everyone.find((c) => c.id === a.configId) : undefined;
     if (member) void openSheet(member, document.activeElement as HTMLElement | null);
     else openAssignment(a.team, a.botId);
   };
   const writeTo = async (member: BotConfig) => {
-    if (!(await leave())) return;
+    setTalkOpen(true);
     setTo(member.kind === 'coordinator' ? COORDINATOR : member.id);
     setSheet(null);
     requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('.ofc-talk textarea')?.focus());
@@ -523,26 +507,39 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
         {views}
       </header>
       <div className="ofc-main">
-        <section className={`ofc-stage ${floor.length || focusTeam ? '' : 'empty'}`} aria-label={t('org.office.floor')}>
+        <div className="ofc-tools">
+          {focusTeam ? <b>{t('org.office.thisAssignment')}</b> : <>
+            <div className="lv-view" role="group" aria-label={t('org.office.filter')}>
+              {(['active', 'attention', 'recent'] as const).map((f) => <button key={f} aria-pressed={filter === f} className={filter === f ? 'on' : ''} onClick={() => setFilter(f)}>{t(`org.office.filter.${f}`)}</button>)}
+            </div>
+          </>}
+          <input type="search" hidden={!!focusTeam} value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('org.office.search')} aria-label={t('org.office.search')} />
+          <button className="btn-ghost small" aria-expanded={!deptsHidden && !shown} onClick={() => { setSheet(null); if (deptsHidden || !shown) foldDepts(); }}>{t('org.office.departments')}</button>
+        </div>
+        <section className={`ofc-stage ${visibleFloor.length || focusTeam ? '' : 'empty'}`} aria-label={t('org.office.floor')}>
           {group && !group.projects.length && !focusTeam ? (
             <div className="ofc-empty">
               <OrgGroupEmpty group={group} />
             </div>
           ) : focusTeam ? (
             <FocusRoom team={focusTeam} teams={every} configs={everyone} onOpen={openDesk} />
-          ) : floor.length ? (
-            floor.map((p) => <ProjectRoom key={p.cwd} p={p} onOpen={openDesk} />)
+          ) : visibleFloor.length ? (
+            visibleFloor.map((p) => <ProjectRoom key={p.cwd} p={p} onOpen={openDesk} />)
           ) : (
             <div className="ofc-empty">
               <span className="ofc-empty-art" aria-hidden>
                 ☕
               </span>
-              <b>{t('org.office.nobody')}</b>
-              <p className="composer-note">{allTeams.length ? t('org.office.nobodyHint') : t('org.office.noProjects')}</p>
+              <b>{t('org.office.noMatches')}</b>
+              <p className="composer-note">{t('org.office.noMatchesHint')}</p>
+              <button className="btn-ghost small" onClick={() => {setFilter('recent');setQuery('');}}>{t('org.office.filter.recent')}</button>
             </div>
           )}
         </section>
-        <Talk to={to} setTo={setTo} configs={everyone} teams={teams} floor={agents} departments={departments} coordinator={coordinator?.member} />
+        <details className="ofc-talk-fold" open={talkOpen} onToggle={(e) => setTalkOpen(e.currentTarget.open)}>
+          <summary>{t('org.office.talk')}</summary>
+          <Talk to={to} setTo={setTo} configs={everyone} teams={teams} floor={agents} departments={departments} coordinator={coordinator?.member} />
+        </details>
       </div>
       <aside className="ofc-depts" aria-label={t('org.office.departments')}>
         <h3>
@@ -563,7 +560,7 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
           ) : (
             <p className="empty">{t('org.setup')}</p>
           ))}
-        {coordinator && (
+        {coordinator && matches(coordinator.member) && (
           <ul className="ofc-dept-list">
             <MemberLine m={coordinator} open={sheet === coordinator.member.id} onOpen={openSheet} />
           </ul>
@@ -571,7 +568,9 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
         {/* Each folds; the ones with someone at work (or waiting for you) start open. */}
         {departments.map((d) => {
           const busy = d.working > 0 || d.waiting > 0;
-          const isOpen = unfolded[d.id] ?? busy;
+          const isOpen = query.trim() ? true : unfolded[d.id] ?? busy;
+          const members = d.members.filter((m) => matches(m.member));
+          if (!members.length) return null;
           const name = d.lead?.name ?? t('org.office.noDepartment');
           return (
             <section key={d.id} className={`ofc-dept ${isOpen ? 'open' : ''}`} aria-label={name}>
@@ -584,7 +583,7 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
               </h4>
               {isOpen && (
                 <ul className="ofc-dept-list">
-                  {d.members.map((m) => (
+                  {members.map((m) => (
                     <MemberLine key={m.member.id} m={m} open={sheet === m.member.id} onOpen={openSheet} />
                   ))}
                 </ul>
@@ -606,12 +605,12 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
         )}
       </aside>
       {/* Folded away, the departments leave a tab on the edge to bring them back. */}
-      {deptsHidden && (
+      {deptsHidden && !shown && (
         <button className="ofc-depts-tab" onClick={foldDepts} aria-label={t('org.office.showDepts')} title={t('org.office.showDepts')}>
           ‹ {t('org.office.departments')}
         </button>
       )}
-      {shown && <Sheet key={shown.id} member={shown} floor={agents} editor={editor} onWrite={() => void writeTo(shown)} onClose={() => void closeSheet()} />}
+      {shown && <Sheet key={shown.id} member={shown} floor={agents} onWrite={() => void writeTo(shown)} onClose={() => void closeSheet()} />}
     </div>
   );
 }

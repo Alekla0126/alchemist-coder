@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BotConfig, BotMember, BotTeam } from '../src/shared/api';
-import { agentsIn, channelOf, countsOf, departmentsOf, latestTeam, onFloor, projectOf, projectsOf, RECENT_MS } from '../src/renderer/src/org-office';
+import { agentsIn, filterOfficeProjects, channelOf, countsOf, departmentsOf, latestTeam, onFloor, projectOf, projectsOf, RECENT_MS } from '../src/renderer/src/org-office';
 
 const agent = { harnessId: 'claude-code', providerId: 'anthropic', model: 'sonnet' };
 const config = (id: string, extra: Partial<BotConfig> = {}): BotConfig => ({ id, name: id, role: '', agent, permissionMode: 'acceptEdits', canSpawn: false, kind: 'member', ...extra });
@@ -191,5 +191,23 @@ describe('why no agent can run', () => {
     expect(noAgentCause({ harnesses: [harness(true)], providers: [provider({ credential: { label: 'API key', placeholder: null, isSet: false, optional: false } })] })).toEqual({ kind: 'credential', provider: 'Anthropic', label: 'API key' });
     expect(noAgentCause({ harnesses: [harness(true)], providers: [provider({ available: false, detail: ' Sign in with `claude login` ' })] })).toEqual({ kind: 'detail', text: 'Sign in with `claude login`' });
     expect(noAgentCause({ harnesses: [harness(true)], providers: [provider({})] })).toBeNull();
+  });
+});
+
+
+describe('office navigation filters', () => {
+  const floor = projectsOf([team('Mixed', { updatedAt: NOW, bots: [lead(), bot('b2', { configId: 'coder', status: 'waiting' }), bot('b3', { configId: 'tester', status: 'done' }), bot('b4', { configId: 'finance', status: 'error' })] })], configs, projects, NOW);
+  it('prioritizes ongoing work and keeps counts consistent with visible desks', () => {
+    const visible = filterOfficeProjects(floor, 'active');
+    expect(visible[0]!.agents.map((a) => a.state)).toEqual(['waiting', 'working']);
+    expect(countsOf(visible)).toEqual({ waiting: 1, working: 1, done: 0, failed: 0 });
+    expect(floor[0]!.agents).toHaveLength(4);
+  });
+  it('finds an agent or assignment, keeps attention separate and can show finished work', () => {
+    expect(filterOfficeProjects(floor, 'attention')[0]!.agents.map((a) => a.state)).toEqual(['waiting', 'failed']);
+    expect(filterOfficeProjects(floor, 'recent', ' tester ')[0]!.agents.map((a) => a.name)).toEqual(['Tester']);
+    expect(filterOfficeProjects(floor, 'recent', 'Mixed')[0]!.agents).toHaveLength(4);
+    expect(filterOfficeProjects(floor, 'active', 'Tester')).toEqual([]);
+    expect(filterOfficeProjects(floor, 'recent', 'nonexistent')).toEqual([]);
   });
 });

@@ -157,6 +157,10 @@ interface State {
   /** The organization agent whose profile is open (a configuration id). */
   activeMemberId: string | null;
   orgSettings: OrgSettings | null;
+  /** Organization configuration is a separate destination from its working views. */
+  orgPage: 'work' | 'settings';
+  orgSettingsMemberId: string | null;
+  officeTalkOpen: boolean;
   /** The project the organization view is filtered to ('' = all). */
   orgProject: string;
   /** The organization (a group of project folders) the sidebar and the office show ('' = all); kept between launches. It never changes who can talk to whom. */
@@ -344,6 +348,9 @@ export const useStore = create<State>((set, get) => ({
   activeBotId: null,
   activeMemberId: null,
   orgSettings: null,
+  orgPage: 'work',
+  orgSettingsMemberId: null,
+  officeTalkOpen: false,
   orgProject: '',
   orgGroup: localStorage.getItem(ORG_GROUP_KEY) ?? '',
   orgFocusTeamId: null,

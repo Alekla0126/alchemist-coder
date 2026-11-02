@@ -2856,3 +2856,55 @@ body { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; 
 .org-group-folders { flex: none; width: auto; padding: 0 6px; font-size: 12px; white-space: nowrap; color: var(--fg-2); }
 /* On hover --fg: --fg-2 on --bg-hl falls to 4.2:1 in GitHub Light. */
 .org-group-folders:hover, .org-group-folders:focus-visible { color: var(--fg); }
+
+/* Working views keep their navigation visible. Configuration has its own scrollable destination. */
+.org-home-head { position: sticky; top: -22px; z-index: 12; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 16px; padding: 12px 0; background: var(--bg); border-bottom: 1px solid var(--line); }
+.org-home-head > .composer-note { flex-basis: 100%; margin: 0; }
+.org-home-head .org-view-nav { margin-left: auto; }
+.org-view-nav { display: flex; align-items: center; gap: 10px; min-width: 0; flex-wrap: wrap; }
+.org-view-nav > .org-config-entry { border-left: 1px solid var(--line-2); border-radius: 0; padding-left: 12px; }
+.org-config-entry { display: inline-flex; align-items: center; gap: 6px; }
+.org-top-row > .org-config-entry { width: 100%; justify-content: flex-start; margin-top: 4px; }
+.org-chat-fold, .ofc-talk-fold { border: 1px solid var(--line); border-radius: 10px; background: var(--bg-card); min-width: 0; }
+.org-chat-fold > summary, .ofc-talk-fold > summary { padding: 10px 12px; cursor: pointer; font-weight: 600; font-size: 12px; }
+.org-chat-fold > .org-chat { margin: 0 12px 12px; }
+.org-config-page { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; padding: 18px 22px; gap: 16px; }
+.org-config-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; }
+.org-config-head h2 { font-size: 19px; }
+.org-config-head p { flex-basis: 100%; margin: 0; }
+.org-config-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(160px, 220px) minmax(0, 1fr); gap: 18px; }
+.org-config-nav { overflow-y: auto; display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding-right: 12px; border-right: 1px solid var(--line); }
+.org-config-nav h3 { margin: 14px 8px 4px; font-size: 11px; color: var(--fg-2); text-transform: uppercase; }
+.org-config-nav > button { display: flex; align-items: center; gap: 8px; min-height: 36px; text-align: left; flex: none; }
+.org-config-nav > button > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.org-config-body { overflow-y: auto; min-width: 0; padding: 0 8px 20px 0; display: flex; flex-direction: column; gap: 18px; }
+.org-config-body > * { flex: none; }
+.org-config-body .org-form { display: flex; flex-direction: column; gap: 16px; }
+.org-config-agent { display: flex; gap: 12px; align-items: center; }
+.org-config-name, .org-config-groups { padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-card); }
+.org-config-name h3, .org-config-groups h3 { margin-bottom: 10px; font-size: 14px; }
+.org-config-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
+.org-config-group > b { min-width: 120px; }
+.org-config-group > .composer-note { flex: 1; min-width: 100px; }
+.ofc-main { grid-template-rows: auto minmax(0, 1fr) auto; }
+.ofc-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.ofc-tools > input { min-width: 130px; width: 220px; flex: 1; padding: 7px 10px; font-size: 12px; }
+.ofc-tools .lv-view { flex: none; }
+.ofc-tools > button { margin-left: auto; }
+.ofc-talk-fold { max-height: 42vh; overflow-y: auto; }
+.ofc-talk-fold > .ofc-talk { padding: 0 12px 12px; }
+.ofc.with-sheet { grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); }
+.ofc.with-sheet > .ofc-depts { display: none; }
+.ofc-sheet { position: static; grid-column: 2; grid-row: 2; width: auto; min-height: 0; border: 1px solid var(--line-2); border-radius: 12px; box-shadow: none; }
+@media (max-width: 900px) {
+  .ofc.with-sheet { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) minmax(140px, 38%); }
+  .ofc.with-sheet > .ofc-sheet { grid-column: 1; grid-row: 3; }
+  .org-config-page { padding: 12px; }
+  .org-config-layout { grid-template-columns: 150px minmax(0, 1fr); gap: 12px; }
+}
+@media (max-width: 620px) {
+  .org-config-layout { display: flex; flex-direction: column; }
+  .org-config-nav { flex-direction: row; max-height: 78px; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 0 0 8px; }
+  .org-config-nav h3 { display: none; }
+  .org-config-nav > button { max-width: 180px; }
+}
