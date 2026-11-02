@@ -139,27 +139,73 @@ export interface OfficeMember {
   status: 'working' | 'waiting' | 'idle';
 }
 
-/** A department: a top-level agent and its team, the lead first. */
+/** The department of the agents without a lead (and leading no team): one for all of them. */
+export const NO_DEPARTMENT = 'none';
+
+/** A department: a top-level agent and its team, the lead first; or (lead null) the agents with no department. */
 export interface Department {
-  lead: BotConfig;
+  id: string;
+  lead: BotConfig | null;
   members: OfficeMember[];
   working: number;
   waiting: number;
 }
 
 /**
- * The organization by department (the chart's leads, each with its team), the coordinator apart and
- * the proposed agents last. `cwd` keeps the agents that work in that project.
+ * The organization by department (the chart's leads with a team), the agents with no department
+ * together after them, the coordinator apart and the proposed agents last. `cwd` keeps the agents
+ * that work in that project.
  */
 export function departmentsOf(configs: BotConfig[], teams: BotTeam[], cwd = ''): { coordinator: OfficeMember | null; departments: Department[]; proposed: BotConfig[] } {
   const { coordinator, leads, proposed } = chartOf(configs, cwd);
   const of = (member: BotConfig): OfficeMember => ({ member, status: activityOf(member, teams).status });
-  const departments = leads.map(({ member, team }) => {
-    const members = [of(member), ...team.map(of)];
-    return { lead: member, members, working: members.filter((m) => m.status === 'working').length, waiting: members.filter((m) => m.status === 'waiting').length };
-  });
-  // Departments with a team first (as on the chart's map), each group in the chart's order.
-  return { coordinator: coordinator ? of(coordinator) : null, departments: [...departments.filter((d) => d.members.length > 1), ...departments.filter((d) => d.members.length === 1)], proposed };
+  const department = (id: string, lead: BotConfig | null, members: OfficeMember[]): Department => ({ id, lead, members, working: members.filter((m) => m.status === 'working').length, waiting: members.filter((m) => m.status === 'waiting').length });
+  // Departments with a team (as on the chart's map), each in the chart's order; then everyone on their own.
+  const departments = leads.filter((l) => l.team.length).map(({ member, team }) => department(member.id, member, [of(member), ...team.map(of)]));
+  const alone = leads.filter((l) => !l.team.length).map((l) => of(l.member));
+  if (alone.length) departments.push(department(NO_DEPARTMENT, null, alone));
+  return { coordinator: coordinator ? of(coordinator) : null, departments, proposed };
+}
+
+/** The department an agent is in: its lead's, its own when it leads a team, else none. */
+export function departmentOf(configId: string | null, configs: BotConfig[]): string {
+  const config = configId ? configs.find((c) => c.id === configId) : undefined;
+  if (!config) return NO_DEPARTMENT;
+  const lead = config.leadId ? configs.find((c) => c.id === config.leadId && c.kind !== 'coordinator' && !c.proposed) : undefined;
+  if (lead) return lead.id;
+  return configs.some((c) => c.leadId === config.id) ? config.id : NO_DEPARTMENT;
+}
+
+/** One assignment's agents by department: the coordinator apart, then each department as its agents come (who needs you first), the ones with none last. */
+export function departmentsIn(team: BotTeam, configs: BotConfig[]): { coordinator: OfficeAgent[]; groups: Array<{ id: string; lead: BotConfig | null; agents: OfficeAgent[] }> } {
+  const agents = agentsIn(team, configs);
+  const groups = new Map<string, OfficeAgent[]>();
+  for (const a of agents.filter((x) => !x.coordinator)) {
+    const id = departmentOf(a.configId, configs);
+    groups.set(id, [...(groups.get(id) ?? []), a]);
+  }
+  const ids = [...groups.keys()].sort((a, b) => Number(a === NO_DEPARTMENT) - Number(b === NO_DEPARTMENT));
+  return { coordinator: agents.filter((a) => a.coordinator), groups: ids.map((id) => ({ id, lead: id === NO_DEPARTMENT ? null : (configs.find((c) => c.id === id) ?? null), agents: groups.get(id)! })) };
+}
+
+const atWork = (s: OfficeState | null) => s === 'working' || s === 'waiting';
+
+/** An assignment in progress in another project than the one in focus: where, and how many of its agents are at work. */
+export interface ElsewhereTeam {
+  team: BotTeam;
+  project: string;
+  active: number;
+}
+
+/** The assignments in progress (working or waiting for you) in projects other than `focus`'s: the ones that need you first, then the latest. */
+export function runningElsewhere(teams: BotTeam[], focus: BotTeam, projects: Array<{ cwd: string; name: string }>): ElsewhereTeam[] {
+  const here = projectOf(focus.cwd, projects).cwd;
+  return teams
+    .filter((x) => x.id !== focus.id && (teamState(x) === 'working' || teamState(x) === 'waiting'))
+    .map((team) => ({ team, where: projectOf(team.cwd, projects) }))
+    .filter((x) => x.where.cwd !== here)
+    .map(({ team, where }) => ({ team, project: where.name, active: team.bots.filter((b) => atWork(officeStateOf(team, b))).length }))
+    .sort((a, b) => Number(teamState(b.team) === 'waiting') - Number(teamState(a.team) === 'waiting') || b.team.updatedAt - a.team.updatedAt);
 }
 
 /** Whether a bot can still hear from you: a live run, or a conversation to continue. */

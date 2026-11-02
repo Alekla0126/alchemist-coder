@@ -94,9 +94,9 @@ describe('departments', () => {
     const { coordinator, departments, proposed } = departmentsOf(configs, [t]);
     expect(coordinator?.member.id).toBe('coord');
     expect(coordinator?.status).toBe('working');
-    expect(departments.map((d) => [d.lead.name, d.members.map((m) => `${m.member.name}:${m.status}`)])).toEqual([
+    expect(departments.map((d) => [d.lead?.name ?? null, d.members.map((m) => `${m.member.name}:${m.status}`)])).toEqual([
       ['Planner', ['Planner:idle', 'Coder:waiting', 'Tester:idle']],
-      ['Finance', ['Finance:idle']],
+      [null, ['Finance:idle']],
     ]);
     expect(departments[0]!.waiting).toBe(1);
     expect(proposed.map((c) => c.id)).toEqual(['scout']);

@@ -5,7 +5,7 @@ import { relativeTime } from '../format';
 import { toggleDepts, useLayout, useViewport } from '../layout';
 import { baseName, isInside } from '../paths';
 import { aboutOf, inFolder, teamState } from '../org-model';
-import { channelOf, countsOf, noAgentCause, waitingBot, departmentsOf, latestTeam, projectsOf, type Department, type OfficeAgent, type OfficeMember, type OfficeProject, type OfficeState } from '../org-office';
+import { agentsIn, channelOf, countsOf, noAgentCause, waitingBot, departmentsIn, departmentsOf, latestTeam, projectOf, projectsOf, runningElsewhere, type Department, type ElsewhereTeam, type OfficeAgent, type OfficeMember, type OfficeProject, type OfficeState } from '../org-office';
 import { useOpenProjects, useStore, useT } from '../store';
 import { confirmAction, useUi } from '../ui';
 import { AgentAvatar } from './AgentAvatar';
@@ -102,6 +102,81 @@ function ProjectRoom({ p, onOpen }: { p: OfficeProject; onOpen: (a: OfficeAgent)
         ))}
       </ul>
     </section>
+  );
+}
+
+/** "Also running in other projects: 2", each a chip (project · title · agents at work) that focuses the office on it. */
+function Elsewhere({ list }: { list: ElsewhereTeam[] }) {
+  const t = useT();
+  if (!list.length) return null;
+  return (
+    <div className="ofc-elsewhere" role="group" aria-label={t('org.office.alsoRunning', { n: list.length })}>
+      <span className="composer-note">{t('org.office.alsoRunning', { n: list.length })}</span>
+      {list.map((x) => (
+        <button key={x.team.id} className={`ofc-chip ts-${teamState(x.team)}`} onClick={() => useStore.setState({ officeTeamId: x.team.id })} title={[x.team.goal, t('org.office.activeAgents', { n: x.active })].join(' · ')}>
+          <span className="ofc-chip-project">📁 {x.project}</span>
+          <span className="ofc-chip-title">{x.team.title || x.team.goal}</span>
+          <span className="ofc-chip-n" aria-label={t('org.office.activeAgents', { n: x.active })}>
+            ● {x.active}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The office focused on one assignment: back to the whole office, its detail a click away, what
+ * runs in other projects, and its agents live, department by department.
+ */
+function FocusRoom({ team, configs, onOpen }: { team: BotTeam; configs: BotConfig[]; onOpen: (a: OfficeAgent) => void }) {
+  const t = useT();
+  const allTeams = useStore((s) => s.botTeams);
+  const open = useOpenProjects();
+  const { coordinator, groups } = departmentsIn(team, configs);
+  const counts: Record<OfficeState, number> = { working: 0, waiting: 0, done: 0, failed: 0 };
+  for (const a of agentsIn(team, configs)) counts[a.state]++;
+  const where = projectOf(team.cwd, open);
+  return (
+    <div className="ofc-focus">
+      <Elsewhere list={runningElsewhere(allTeams, team, open)} />
+      <div className="ofc-focus-bar">
+        <button className="btn-ghost small" onClick={() => useStore.setState({ officeTeamId: null })}>
+          ← {t('org.office.allOffice')}
+        </button>
+        <span className={`team-state ts-${teamState(team)}`}>{t(`bots.team.${teamState(team)}`)}</span>
+        <b className="ofc-focus-title" title={team.goal}>
+          {team.title || team.goal}
+        </b>
+        <span className="composer-sp" />
+        <button className="btn-ghost small" onClick={() => openAssignment(team, waitingBot(team)?.id)}>
+          {t('org.office.openDetail')} →
+        </button>
+      </div>
+      <section className="ofc-room" aria-label={team.title || team.goal}>
+        <header className="ofc-room-head">
+          <h4 title={where.cwd}>📁 {where.name}</h4>
+          <span className="composer-note">{countText(counts, t) || t('org.office.nobody')}</span>
+        </header>
+        {coordinator.length > 0 && (
+          <div className="ofc-desks">
+            {coordinator.map((a) => (
+              <FloorDesk key={a.key} a={a} onOpen={onOpen} />
+            ))}
+          </div>
+        )}
+        {groups.map((g) => (
+          <div key={g.id} className="ofc-focus-dept">
+            <h5>{g.lead?.name ?? t('org.office.noDepartment')}</h5>
+            <div className="ofc-desks">
+              {g.agents.map((a) => (
+                <FloorDesk key={a.key} a={a} onOpen={onOpen} />
+              ))}
+            </div>
+          </div>
+        ))}
+      </section>
+    </div>
   );
 }
 
@@ -258,7 +333,7 @@ function Talk({ to, setTo, configs, teams, floor, departments, coordinator }: { 
         <select id="ofc-to" value={to} onChange={(e) => setTo(e.target.value)}>
           <option value={COORDINATOR}>⚗ {coordinator?.name ?? t('org.kindCoordinator')}</option>
           {departments.map((d) => (
-            <optgroup key={d.lead.id} label={d.lead.name}>
+            <optgroup key={d.id} label={d.lead?.name ?? t('org.office.noDepartment')}>
               {d.members.map((m) => (
                 <option key={m.member.id} value={m.member.id}>
                   {m.member.name}
@@ -337,6 +412,12 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
   }, []);
   const [sheet, setSheet] = useState<string | null>(null);
   const [to, setTo] = useState(COORDINATOR);
+  const officeTeamId = useStore((s) => s.officeTeamId);
+  const focusTeam = officeTeamId ? allTeams.find((x) => x.id === officeTeamId) : undefined;
+  // A focused assignment that was deleted leaves the whole office.
+  useEffect(() => {
+    if (officeTeamId && !focusTeam) useStore.setState({ officeTeamId: null });
+  }, [officeTeamId, focusTeam]);
   const [unfolded, setUnfolded] = useState<Record<string, boolean>>({});
   // An agent that left the organization (deleted, dismissed) is no longer one to write to or look at.
   useEffect(() => {
@@ -422,8 +503,10 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
         {views}
       </header>
       <div className="ofc-main">
-        <section className={`ofc-stage ${floor.length ? '' : 'empty'}`} aria-label={t('org.office.floor')}>
-          {floor.length ? (
+        <section className={`ofc-stage ${floor.length || focusTeam ? '' : 'empty'}`} aria-label={t('org.office.floor')}>
+          {focusTeam ? (
+            <FocusRoom team={focusTeam} configs={configs} onOpen={openDesk} />
+          ) : floor.length ? (
             floor.map((p) => <ProjectRoom key={p.cwd} p={p} onOpen={openDesk} />)
           ) : (
             <div className="ofc-empty">
@@ -464,13 +547,14 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
         {/* Each folds; the ones with someone at work (or waiting for you) start open. */}
         {departments.map((d) => {
           const busy = d.working > 0 || d.waiting > 0;
-          const isOpen = unfolded[d.lead.id] ?? busy;
+          const isOpen = unfolded[d.id] ?? busy;
+          const name = d.lead?.name ?? t('org.office.noDepartment');
           return (
-            <section key={d.lead.id} className={`ofc-dept ${isOpen ? 'open' : ''}`} aria-label={d.lead.name}>
+            <section key={d.id} className={`ofc-dept ${isOpen ? 'open' : ''}`} aria-label={name}>
               <h4>
-                <button className="ofc-dept-fold" aria-expanded={isOpen} onClick={() => setUnfolded((u) => ({ ...u, [d.lead.id]: !isOpen }))}>
+                <button className="ofc-dept-fold" aria-expanded={isOpen} onClick={() => setUnfolded((u) => ({ ...u, [d.id]: !isOpen }))}>
                   <span aria-hidden>{isOpen ? '▾' : '▸'}</span>
-                  <span className="ofc-dept-name">{d.lead.name}</span>
+                  <span className="ofc-dept-name">{name}</span>
                   <small>{busy ? countText({ working: d.working, waiting: d.waiting, done: 0, failed: 0 }, t) : t('org.agentsN', { n: d.members.length })}</small>
                 </button>
               </h4>

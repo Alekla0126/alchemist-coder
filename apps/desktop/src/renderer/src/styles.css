@@ -2822,3 +2822,15 @@ body { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; 
 /* The project menu and «Automations» stand the same height side by side. */
 .ofc-head .ofc-filter, .ofc-head .ofc-auto { box-sizing: border-box; height: 28px; }
 .ofc-head .ofc-auto { display: inline-flex; align-items: center; }
+/* The office focused on one assignment: across the floor, what runs elsewhere on top, its agents by department. */
+.ofc-focus { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.ofc-focus-bar { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ofc-focus-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; color: var(--fg); }
+.ofc-focus-dept h5 { margin: 6px 2px 4px; font-size: 11px; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-2); }
+.ofc-elsewhere { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 8px; border: 1px dashed var(--line-2); border-radius: 10px; background: var(--bg-side); }
+.ofc-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 320px; padding: 2px 8px; border: 1px solid var(--line-2); border-radius: 999px; font-size: 12px; color: var(--fg); background: var(--bg-input); }
+.ofc-chip:hover { background: var(--bg-hl); }
+.ofc-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ofc-chip-project { flex: none; color: var(--fg-2); }
+.ofc-chip-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ofc-chip-n { flex: none; font-variant-numeric: tabular-nums; color: var(--fg-2); }

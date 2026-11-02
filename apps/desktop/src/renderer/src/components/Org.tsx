@@ -563,13 +563,17 @@ export function OrgSidebar() {
   const proposed = members.filter((c) => c.proposed);
   const compact = members.length > COMPACT_AT;
   const teams = orgProject ? allTeams.filter((x) => inFolder(x, orgProject)) : allTeams;
+  // On the office an assignment focuses it (its room and agents, live); elsewhere it opens in detail.
+  const onOffice = useStore((s) => s.orgOffice && !s.activeTeamId && !s.activeMemberId && !s.activeAutomationId);
+  const officeTeamId = useStore((s) => s.officeTeamId);
+  const current = onOffice ? officeTeamId : activeTeamId;
   // An assignment open from elsewhere (e.g. from "needs you") still shows in the list.
-  const elsewhere = allTeams.filter((x) => x.id === activeTeamId && !teams.includes(x));
+  const elsewhere = allTeams.filter((x) => x.id === current && !teams.includes(x));
   const projectName = orgProject ? (open.find((p) => p.cwd === orgProject)?.name ?? folderName(orgProject)) : '';
   const inbox = useInbox(teams, proposed);
   const { urgent, suggested } = inboxGroups(inbox);
   // With an assignment open, its agents stand out in the chart: those in it, and those its pending plan names.
-  const activeTeam = allTeams.find((x) => x.id === activeTeamId);
+  const activeTeam = allTeams.find((x) => x.id === current);
   const planned = new Set(
     activeTeam?.plan?.status === 'pending' ? activeTeam.plan.bots.map((b) => (b.config || b.name).trim().toLowerCase()) : [],
   );
@@ -584,7 +588,7 @@ export function OrgSidebar() {
     showOnChart();
     setTimeout(() => document.getElementById('org-inbox')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 60);
   };
-  const openTeam = (team: BotTeam) => useStore.setState({ activeTeamId: team.id, activeBotId: team.bots[0]?.id ?? null, activeMemberId: null });
+  const openTeam = (team: BotTeam) => (onOffice ? useStore.setState({ officeTeamId: team.id }) : useStore.setState({ activeTeamId: team.id, activeBotId: team.bots[0]?.id ?? null, activeMemberId: null }));
   const teamMenu = (team: BotTeam) =>
     contextMenu(
       () => [...(teamActive(team) ? [{ id: 'stop', label: t('bots.stopTeam') }] : []), { id: 'delete', label: t('bots.deleteTeam') }],
@@ -660,8 +664,8 @@ export function OrgSidebar() {
             role="listitem"
             tabIndex={0}
             data-row
-            aria-current={team.id === activeTeamId}
-            className={`task-row${team.id === activeTeamId ? ' sel' : ''}${elsewhere.includes(team) ? ' elsewhere' : ''}`}
+            aria-current={team.id === current}
+            className={`task-row${team.id === current ? ' sel' : ''}${elsewhere.includes(team) ? ' elsewhere' : ''}`}
             onClick={() => openTeam(team)}
             onKeyDown={(e) => rowKeys(e, () => openTeam(team))}
             onContextMenu={teamMenu(team)}

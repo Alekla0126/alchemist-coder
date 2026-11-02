@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BotConfig, BotMember, BotTeam } from '../src/shared/api';
-import { agentsIn, channelOf, countsOf, departmentsOf, projectsOf, RECENT_MS } from '../src/renderer/src/org-office';
+import { agentsIn, channelOf, countsOf, departmentsOf, NO_DEPARTMENT, projectsOf, RECENT_MS } from '../src/renderer/src/org-office';
 
 // The cases the model tests leave out: same names, empty floors, plans, the day's window, errors, leadless agents.
 const agent = { harnessId: 'claude-code', providerId: 'anthropic', model: 'sonnet' };
@@ -48,9 +48,10 @@ describe('agents with the same name', () => {
   });
 
   it('show in their own project’s departments when the office is filtered', () => {
-    expect(departmentsOf(configs, [], '/p/a').departments.map((d) => d.lead.id)).toEqual(['coder-a']);
-    expect(departmentsOf(configs, [], '/p/b').departments.map((d) => d.lead.id)).toEqual(['coder-b']);
-    expect(departmentsOf(configs, []).departments.map((d) => d.lead.id)).toEqual(['coder-a', 'coder-b']);
+    const ids = (cwd?: string) => departmentsOf(configs, [], cwd).departments.flatMap((d) => d.members.map((m) => m.member.id));
+    expect(ids('/p/a')).toEqual(['coder-a']);
+    expect(ids('/p/b')).toEqual(['coder-b']);
+    expect(ids()).toEqual(['coder-a', 'coder-b']);
   });
 });
 
@@ -147,19 +148,24 @@ describe('an error', () => {
 });
 
 describe('departments of agents with no lead', () => {
-  it('makes each one its own department, those with a team first', () => {
+  it('puts them all in one «No department», after the departments with a team (AC-012: it was one department each)', () => {
     const solo = [coord, config('x', { name: 'X' }), config('y', { name: 'Y' }), config('lead', { name: 'Lead' }), config('m', { name: 'M', leadId: 'lead' })];
     const { departments } = departmentsOf(solo, []);
-    expect(departments.map((d) => [d.lead.id, d.members.map((m) => m.member.id)])).toEqual([
-      ['lead', ['lead', 'm']],
-      ['x', ['x']],
-      ['y', ['y']],
+    expect(departments.map((d) => [d.id, d.lead?.id ?? null, d.members.map((m) => m.member.id)])).toEqual([
+      ['lead', 'lead', ['lead', 'm']],
+      [NO_DEPARTMENT, null, ['x', 'y']],
     ]);
   });
 
-  it('keeps an agent whose lead was deleted, or is the coordinator, as a department of its own', () => {
+  it('keeps an agent whose lead was deleted, or is the coordinator, with no department', () => {
     const orphans = [coord, config('o', { name: 'Orphan', leadId: 'deleted' }), config('c', { name: 'UnderCoord', leadId: 'coord' })];
-    expect(departmentsOf(orphans, []).departments.map((d) => d.lead.id)).toEqual(['o', 'c']);
+    expect(departmentsOf(orphans, []).departments.map((d) => [d.id, d.members.map((m) => m.member.id)])).toEqual([[NO_DEPARTMENT, ['o', 'c']]]);
+  });
+
+  it('counts who works and who waits in «No department» too', () => {
+    const org = [coord, config('a'), config('b')];
+    const t = team('t', { bots: [lead(), bot('b2', { configId: 'a', status: 'working' }), bot('b3', { configId: 'b', status: 'waiting' })] });
+    expect(departmentsOf(org, [t]).departments).toMatchObject([{ id: NO_DEPARTMENT, working: 1, waiting: 1 }]);
   });
 
   it('counts who works and who waits in each department', () => {

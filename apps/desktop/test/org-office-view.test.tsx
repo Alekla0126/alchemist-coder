@@ -70,11 +70,14 @@ describe('the office on one screen', () => {
     const side = html.slice(html.indexOf('class="ofc-depts"'));
     expect(side.indexOf('Coordinator')).toBeLessThan(side.indexOf('Planner'));
     expect(side.indexOf('Planner')).toBeLessThan(side.indexOf('Coder'));
-    expect(side.indexOf('Finance')).toBeLessThan(side.indexOf('Proposed agents'));
+    // An agent with no lead (and no team) goes under «No department», after the departments, before the proposed ones.
+    expect(side.indexOf('No department')).toBeGreaterThan(side.indexOf('Planner'));
+    expect(side.indexOf('No department')).toBeLessThan(side.indexOf('Proposed agents'));
     expect(side).toContain('Sales');
     // A department with someone at work starts open; a quiet one starts folded, saying how many it has.
     expect(side).toMatch(/aria-expanded="true"[^>]*>.*Planner/);
-    expect(side).toMatch(/aria-expanded="false"[^>]*>.*Finance.*1 agent/);
+    expect(side).toMatch(/aria-expanded="false"[^>]*>.*No department.*1 agent/);
+    expect(side).not.toContain('>Finance<');
   });
 
   it('writes to the coordinator by default, with every agent to pick from by department', () => {

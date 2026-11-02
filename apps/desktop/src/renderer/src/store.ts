@@ -159,6 +159,8 @@ interface State {
   orgProject: string;
   /** The assignment showing on the organization chart (who does what in it); null = the organization as a whole. */
   orgFocusTeamId: string | null;
+  /** The assignment the office is focused on (its room and agents, live); null = the whole office. */
+  officeTeamId: string | null;
   /** The chart shows the chosen assignment live (departments and messages) instead of the organization; kept between visits. */
   orgLive: boolean;
   /** The chart shows the whole company as a map of tokens (who spent what and handed whom how much); kept between visits. */
@@ -338,6 +340,7 @@ export const useStore = create<State>((set, get) => ({
   orgSettings: null,
   orgProject: '',
   orgFocusTeamId: null,
+  officeTeamId: null,
   orgLive: localStorage.getItem(ORG_LIVE_KEY) === '1',
   orgMap: localStorage.getItem(ORG_MAP_KEY) === '1',
   // The office unless you chose a detailed view last time.
