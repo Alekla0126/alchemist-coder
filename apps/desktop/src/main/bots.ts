@@ -656,6 +656,8 @@ export class BotManager {
   }
 
   queueSnapshot() { return this.queue.snapshot(); }
+  /** Metadata may explain why VPS work waits; it can never enable an unimplemented executor. */
+  blockVps(reason: 'executor_unavailable' | 'capacity_exhausted') { this.queue.setExecutorAvailable('vps', false, reason); }
   resumeQueueJob(id: string) { this.queue.resume(id); }
   cancelQueueJob(id: string) {
     const job = this.queue.snapshot().jobs.find(j => j.id === id);

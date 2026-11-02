@@ -57,3 +57,13 @@ La siguiente integración conservará un único núcleo de Organización reutili
 ## Estado del incremento
 
 Hay plantilla, selección de contexto por rol, cola integrada al motor existente, controles de UI, eventos seguros y pruebas con ejecutores simulados. No se ejecutó una inferencia real nueva, no se activó Autopilot, no se publicaron mensajes y no se desplegó nada. Los siguientes pasos son validar el relay con el responsable del Dashboard y aprobar recursos/host antes de habilitar ejecución remota. No se cambia la visibilidad de repositorios ni las guardas de licencia; el código del IDE conserva AGPL-3.0-only.
+
+## Dashboard y VPS: configuración y estado real
+
+En **Ajustes → Dashboard y VPS** puedes guardar el origen HTTPS de cada destino, sin usuario/contraseña, query, fragmento ni rutas de API. HTTP se admite solo en loopback para desarrollo. Son preferencias locales en `runtime-connections.json`, no credenciales ni una conexión persistente. Guardar no hace solicitudes, no instala servicios, no transmite eventos y no concede acceso. La revisión de concurrencia impide pisar otra configuración; un borrador sucio conserva su revisión anterior y muestra conflicto si otro escritor la cambió.
+
+La sección lee la secuencia y número de eventos retenidos del outbox real. Si la cola es ilegible, esos valores son desconocidos, no cero. La confirmación remota y última sincronización siguen desconocidas: **todavía no hay transporte desplegado hacia el Dashboard ni adaptador de ejecución VPS**. Una URL guardada no cambia esos estados a conectado. El Dashboard debe desplegarse y acordar un transporte autenticado/versionado antes de afirmar sincronización real; seis eventos simulados solo validan el contrato.
+
+El host VPS exacto y sus recursos deben confirmarse antes de conectar o desplegar. La opción «Host sin capacidad disponible» es una declaración del operador, no una medición; mantiene la cola bloqueada por `capacity_exhausted`. De lo contrario el ejecutor remoto sigue `executor_unavailable` porque el adaptador aún falta. No se sustituye silenciosamente por el Mac. No se abren SSH ni puertos, no se crean grants y no se cambian VPN, sandbox o licencia. Las tareas locales independientes continúan.
+
+Los paquetes locales verificados pueden incluir una etiqueta de build en «Acerca de» y en el pie para distinguir revisiones de la misma versión. Un paquete sin esa etiqueta conserva su versión normal; no se inventa un identificador.

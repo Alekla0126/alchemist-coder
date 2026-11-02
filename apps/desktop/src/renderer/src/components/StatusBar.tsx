@@ -54,7 +54,7 @@ export function StatusBar() {
         </button>
       )}
       <span className="sp" />
-      {info && <span className="l">v{info.version}</span>}
+      {info && <span className="l">v{info.version}{info.buildLabel && ` · ${info.buildLabel}`}</span>}
     </footer>
   );
 }

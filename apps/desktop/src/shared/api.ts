@@ -172,6 +172,7 @@ export interface ProActivation {
 
 export interface AppInfo {
   version: string;
+  buildLabel?: string;
   edition: 'community' | 'pro';
   /** The owner's own build (never distributed): Claude sign-in and Claude's usage percentages. */
   personal: boolean;
@@ -452,6 +453,14 @@ export interface BotConfig {
 export interface PortableOrgEntry { roleId: string; name: string; state: 'ready' | 'missing' | 'ambiguous' | 'out_of_scope'; configId?: string; configName?: string }
 export interface PortableOrgState { roles: Record<string, string>; revision: string; rollbackId?: string }
 export interface PortableOrgPreview { names: string[]; entries: PortableOrgEntry[]; applied: boolean; revision: string; state: PortableOrgState }
+
+export interface ConnectionConfig { dashboardUrl: string | null; vpsUrl: string | null; vpsCapacity: 'unknown' | 'exhausted' }
+export interface ConnectionState {
+  config: ConnectionConfig | null; revision: string | null; error: 'config_unreadable' | null;
+  dashboard: { connected: false; transportSupported: false; reason: 'config_unreadable' | 'endpoint_required' | 'transport_unavailable'; lastAcknowledgedSequence: null; lastSyncAt: null };
+  vps: { connected: false; executionSupported: false; reason: 'config_unreadable' | 'host_required' | 'capacity_exhausted' | 'adapter_unavailable'; checkedAt: null };
+  outbox: { contract: 'ac.integration.v1'; sequence: number | null; retainedEvents: number | null; error: string | null };
+}
 
 /**
  * One agent of a staff template (the house one is The Alchemist Code's, in org-roster.ts), in the
@@ -1297,6 +1306,8 @@ export interface AlchemistApi {
   portableOrg(cwd: string, agent: AgentChoice, apply: boolean, revision?: string): Promise<PortableOrgPreview>;
   portableOrgState(cwd: string): Promise<PortableOrgState>;
   rollbackPortableOrg(cwd: string, changeId: string, revision: string): Promise<PortableOrgState>;
+  runtimeConnections(): Promise<ConnectionState>;
+  saveRuntimeConnections(config: ConnectionConfig, revision: string): Promise<ConnectionState>;
   orgQueue(): Promise<OrgQueueSnapshot>;
   resumeOrgJob(jobId: string): Promise<void>;
   cancelOrgJob(jobId: string): Promise<void>;
@@ -1499,6 +1510,8 @@ export const Channels = {
   portableOrg: 'org:portable',
   portableOrgState: 'org:portable-state',
   rollbackPortableOrg: 'org:portable-rollback',
+  runtimeConnections: 'runtime:connections',
+  saveRuntimeConnections: 'runtime:connections-save',
   orgQueue: 'org:queue',
   resumeOrgJob: 'org:queue:resume',
   cancelOrgJob: 'org:queue:cancel',

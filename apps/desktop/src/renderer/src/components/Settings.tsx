@@ -15,10 +15,12 @@ import { AutomationSettingsCard } from './Automations';
 import { VOICE_ENGINES, WHISPER_MODELS, type VoiceStatus } from '@shared/api';
 import { loadVoicePrefs, saveVoicePrefs, type VoicePrefs } from '../voice';
 import { engineName, voiceStatus } from './VoiceButton';
+import { RuntimeConnectionsCard } from './RuntimeConnections';
 
-type Section = 'general' | 'agents' | 'voice' | 'automations' | 'usage' | 'backup' | 'shortcuts' | 'about';
+type Section = 'general' | 'connections' | 'agents' | 'voice' | 'automations' | 'usage' | 'backup' | 'shortcuts' | 'about';
 const SECTIONS: Array<[Section, string]> = [
   ['general', '⚙'],
+  ['connections', '⇄'],
   ['agents', '🧩'],
   ['voice', '🎤'],
   ['automations', '⚡'],
@@ -448,7 +450,7 @@ function About() {
     <>
       <div className="set-row">
         <b>{t('settings.version')}</b>
-        <span>v{info?.version}</span>
+        <span>v{info?.version}{info?.buildLabel && ` · ${info.buildLabel}`}</span>
       </div>
       <div className="set-row">
         <b>{t('settings.edition')}</b>
@@ -506,6 +508,7 @@ export function Settings() {
             </button>
           </div>
           {section === 'general' && <General />}
+          {section === 'connections' && <RuntimeConnectionsCard />}
           {section === 'agents' && <Agents />}
           {section === 'voice' && <VoiceSettings />}
           {section === 'automations' && <AutomationSettingsCard />}

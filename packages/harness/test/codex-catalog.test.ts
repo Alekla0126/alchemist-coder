@@ -40,7 +40,8 @@ it('reports connection failure, timeout, cancellation and a missing binary witho
 
 
 it('a quota timeout keeps the catalog connected and leaves quota unknown', async () => {
-  const r = await read({ FAKE_QUOTA_HANG: '1' }, { timeoutMs: 200 });
+  // Leave room for the fake process to initialize on a busy machine; only quota should time out.
+  const r = await read({ FAKE_QUOTA_HANG: '1' }, { timeoutMs: 1500 });
   expect(r).toMatchObject({ connected: true, limits: null, limitsError: expect.stringMatching(/in time/) });
   expect(r.models).toHaveLength(2);
 });

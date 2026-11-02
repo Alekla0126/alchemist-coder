@@ -10,6 +10,7 @@ import type { IndexProgress } from '@alchemist-coder/core';
 import { Channels, isLocale, matchLocale, type AppInfo, type Locale, type Mode } from '../shared/api';
 import { registerIpc } from './ipc';
 import { SettingsStore } from './settings';
+import { RuntimeConnections, packagedBuildLabel } from './runtime-connections';
 import { appAutopilot } from './autopilot';
 import { mainWords } from './locales';
 import { RunnerManager } from './runner';
@@ -71,6 +72,7 @@ function appInfo(): AppInfo {
   const [harnessId, providerId, model, permissionMode] = (arg('run') ?? '').split(',');
   return {
     version: app.getVersion(),
+    buildLabel: packagedBuildLabel(join(app.getAppPath(), 'package.json')),
     edition,
     personal: personalBuild,
     firstRun,
@@ -371,6 +373,8 @@ void app.whenReady().then(async () => {
     // The organization's runs also follow the coordinator's own switch.
     pilotFor,
   );
+  const connections = new RuntimeConnections(join(userData, 'runtime-connections.json'), reason => bots.blockVps(reason));
+  connections.refreshGate();
   await bots.start();
   // The built-in browser: one page view over its pane, and tools any agent run can drive it with.
   const browser = new BrowserHost(() => window, { command: process.execPath, script: writeBrowserBridge(userData) }, (state) => send(Channels.browserChanged, state));
@@ -439,7 +443,7 @@ void app.whenReady().then(async () => {
     if ('autopilot' in patch) autopilotChanged();
     else if ('locale' in patch) buildMenu();
   };
-  registerIpc({ info: appInfo, bots, starterGroups, settings, onSettingsChanged, reader: () => reader, progress: () => progress, onRendered: () => void capture(), runner, tasks, preview, hub, backup, reviews, usage, exportSession: (id, format) => (reader ? exportSession(window, reader, id, format) : Promise.reject(new Error('The index is still loading'))), workspace, terminals, voice: new Voice(secrets, userData), dataDir: userData, board, automations, browser, proActivate: pro?.activate ? (code) => pro.activate!({ userData }, code) : undefined, proAccountStart: async () => {
+  registerIpc({ info: appInfo, bots, connections, starterGroups, settings, onSettingsChanged, reader: () => reader, progress: () => progress, onRendered: () => void capture(), runner, tasks, preview, hub, backup, reviews, usage, exportSession: (id, format) => (reader ? exportSession(window, reader, id, format) : Promise.reject(new Error('The index is still loading'))), workspace, terminals, voice: new Voice(secrets, userData), dataDir: userData, board, automations, browser, proActivate: pro?.activate ? (code) => pro.activate!({ userData }, code) : undefined, proAccountStart: async () => {
     const url = proAccount?.start();
     if (!url) return false;
     await shell.openExternal(url);

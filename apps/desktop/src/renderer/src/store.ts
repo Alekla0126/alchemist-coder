@@ -224,7 +224,7 @@ interface State {
   /** The Settings screen is showing. */
   settingsOpen: boolean;
   /** Which Settings section opens next. */
-  settingsSection: 'general' | 'agents' | 'voice' | 'automations' | 'usage' | 'backup' | 'shortcuts' | 'about' | null;
+  settingsSection: 'general' | 'connections' | 'agents' | 'voice' | 'automations' | 'usage' | 'backup' | 'shortcuts' | 'about' | null;
   /** The ⌘K command palette is showing. */
   paletteOpen: boolean;
   /** ⌘W in Code/Split: the editor closes its active tab (asking about unsaved edits). */

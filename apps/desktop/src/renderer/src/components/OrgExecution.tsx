@@ -56,6 +56,7 @@ export function OrgExecution({ cwd, agent }: { cwd: string; agent: AgentChoice }
     </div>}
     <p className="composer-note">{t('org.queue.hint')}</p>
     <button className="btn-ghost small" disabled={!cwd || busy} onClick={() => void importTemplate()}>{t('org.queue.import')}</button>
+    <button className="btn-ghost small" onClick={() => useStore.setState({ settingsOpen: true, settingsSection: 'connections' })}>{t('settings.connections')}</button>
     {!!bindings && Object.keys(bindings.roles).length > 0 && <p className="composer-note">{t('org.queue.linked', { count: Object.keys(bindings.roles).length })}</p>}
     {bindings?.rollbackId && <button className="btn-ghost small" disabled={busy} onClick={() => void rollback()}>{t('org.queue.rollback')}</button>}
     {!!bindingError && <p role="alert">{t('org.codex.unavailable')} · {bindingError}</p>}
