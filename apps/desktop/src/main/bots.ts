@@ -656,6 +656,15 @@ export class BotManager {
   }
 
   queueSnapshot() { return this.queue.snapshot(); }
+  /** Safe metadata source for the opt-in project relay; never prompts, replies, paths or sessions. */
+  dashboardSource(cwd: string) {
+    const project = canonicalProject(this.resolveProject(cwd));
+    const teams = this.teams.filter(t => canonicalProject(t.cwd) === project);
+    const ids = new Set(teams.map(t => t.id));
+    const queue = this.queue.snapshot();
+    const agents = teams.flatMap(t => t.bots.map(b => ({ teamId: t.id, botId: b.id, state: b.status, hasReply: !!b.lastReply })));
+    return { queue: { ...queue, jobs: queue.jobs.filter(j => ids.has(j.teamId)), events: queue.events.filter(e => ids.has(e.teamId)) }, firstRetainedSequence: queue.events[0]?.sequence ?? queue.sequence+1, agents };
+  }
   /** Metadata may explain why VPS work waits; it can never enable an unimplemented executor. */
   blockVps(reason: 'executor_unavailable' | 'capacity_exhausted') { this.queue.setExecutorAvailable('vps', false, reason); }
   resumeQueueJob(id: string) { this.queue.resume(id); }

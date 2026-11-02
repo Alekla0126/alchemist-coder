@@ -9,7 +9,7 @@ Encargo + proyecto + motor/permisos guardados + presupuesto
     → create_bot con perfiles del proyecto / líderes → subagentes
     → cola local persistente → RunnerManager → Codex u otro motor
     → resultados/checkpoints/estados → coordinador revisa → finish_team
-    → snapshot y outbox ac.integration.v1 → futuro relay → Dashboard
+    → snapshot y outbox → relay ac.dashboard.v1 → receptor/proyección Dashboard
 ```
 
 ## Configuración reproducible
@@ -48,7 +48,7 @@ Los MD solo contienen instrucciones. Cuentas de marketing, activos y credenciale
 
 [Dashboard](https://dashboard.thealchemistcode.org/) es un proyecto separado. La versión inicial produce un snapshot/outbox seguro mediante `orgQueue()` en el preload del IDE; `resumeOrgJob()` y `cancelOrgJob()` pasan por IPC y las guardas del mismo motor. Estas son interfaces internas Electron, no una API pública de Internet. Los eventos exportables no contienen prompts, respuestas, rutas, sesiones, credenciales ni informes financieros. El contrato está en [org-events-v1.schema.json](contracts/org-events-v1.schema.json).
 
-No hay todavía relay conectado, API HTTP externa, servidor MCP de control general ni ejecutor remoto. El MCP `alchemist_bots` existente usa un token privado por agente y un puerto loopback; controla descendientes de ese agente, no sirve como API pública de administración. Los flags `--team`/`--org-goal` están bajo el modo de captura/QA y no son una CLI de producción.
+El relay de estados y su receptor HTTP están implementados y probados en loopback; todavía no están desplegados ni conectados al Dashboard productivo. No existe servidor MCP de control general ni ejecutor remoto. El MCP `alchemist_bots` existente usa un token privado por agente y un puerto loopback; controla descendientes de ese agente, no sirve como API pública de administración. Los flags `--team`/`--org-goal` están bajo el modo de captura/QA y no son una CLI de producción.
 
 La siguiente integración conservará un único núcleo de Organización reutilizado por el IDE y un host sin interfaz, con cola/outbox duraderos, leases, deduplicación y cursor/snapshot del lado servidor. El Mac podrá ejecutar código, render/video y compilaciones según sus capacidades. SEO/monitorización solo irán a un host remoto aprobado y disponible. **El VPS actual de Komodo en Estonia está bloqueado por capacidad: no se despliega ni se ejecuta nada allí.** No se toca VPN, SSH, producción ni grants.
 
@@ -56,13 +56,13 @@ La siguiente integración conservará un único núcleo de Organización reutili
 
 ## Estado del incremento
 
-Hay plantilla, selección de contexto por rol, cola integrada al motor existente, controles de UI, eventos seguros y pruebas con ejecutores simulados. No se ejecutó una inferencia real nueva, no se activó Autopilot, no se publicaron mensajes y no se desplegó nada. Los siguientes pasos son validar el relay con el responsable del Dashboard y aprobar recursos/host antes de habilitar ejecución remota. No se cambia la visibilidad de repositorios ni las guardas de licencia; el código del IDE conserva AGPL-3.0-only.
+Hay plantilla, selección de contexto por rol, cola integrada al motor existente, controles de UI, eventos seguros y pruebas con ejecutores simulados. No se ejecutó una inferencia real nueva, no se activó Autopilot, no se publicaron mensajes y no se desplegó nada. El transporte se valida con el receptor local y el contrato [ac.dashboard.v1](dashboard-sync.md); falta adaptar el backend Dashboard y aprobar recursos, TLS y grants antes de conectarlo en producción. La ejecución remota es una fase distinta. No se cambia la visibilidad de repositorios ni las guardas de licencia; el código del IDE conserva AGPL-3.0-only.
 
 ## Dashboard y VPS: configuración y estado real
 
-En **Ajustes → Dashboard y VPS** puedes guardar el origen HTTPS de cada destino, sin usuario/contraseña, query, fragmento ni rutas de API. HTTP se admite solo en loopback para desarrollo. Son preferencias locales en `runtime-connections.json`, no credenciales ni una conexión persistente. Guardar no hace solicitudes, no instala servicios, no transmite eventos y no concede acceso. La revisión de concurrencia impide pisar otra configuración; un borrador sucio conserva su revisión anterior y muestra conflicto si otro escritor la cambió.
+En **Ajustes → Dashboard y VPS** puedes guardar el origen HTTPS de cada destino, sin usuario/contraseña, query, fragmento ni rutas de API. HTTP se admite solo en loopback para desarrollo. Son preferencias locales en `runtime-connections.json`; guardar solamente una URL no envía datos ni concede acceso. Una opción adicional permite activar expresamente la sincronización de un proyecto registrado y sus referencias opacas. Ese opt-in inicia el relay de estados, sin instalar servicios ni permitir ejecución remota. Las credenciales se guardan por separado mediante el almacén cifrado del sistema. La revisión de concurrencia impide pisar otra configuración; un borrador sucio conserva su revisión anterior y muestra conflicto si otro escritor la cambió.
 
-La sección lee la secuencia y número de eventos retenidos del outbox real. Si la cola es ilegible, esos valores son desconocidos, no cero. La confirmación remota y última sincronización siguen desconocidas: **todavía no hay transporte desplegado hacia el Dashboard ni adaptador de ejecución VPS**. Una URL guardada no cambia esos estados a conectado. El Dashboard debe desplegarse y acordar un transporte autenticado/versionado antes de afirmar sincronización real; seis eventos simulados solo validan el contrato.
+La sección lee la secuencia y número de eventos retenidos del outbox real. Si la cola es ilegible, esos valores son desconocidos, no cero. El relay solo muestra Sincronizado después de un ack exacto y reciente de la generación actual. Cuenta con outbox privado, deduplicación, reintentos acotados y cobertura histórica explícitamente parcial. Está probado en loopback con receptor durable; **no se ha desplegado hacia el Dashboard ni existe adaptador de ejecución VPS**. Una URL guardada o seis eventos simulados no acreditan sincronización productiva. El contrato, configuración y aprobación pendiente se explican en [dashboard-sync.md](dashboard-sync.md).
 
 El host VPS exacto y sus recursos deben confirmarse antes de conectar o desplegar. La opción «Host sin capacidad disponible» es una declaración del operador, no una medición; mantiene la cola bloqueada por `capacity_exhausted`. De lo contrario el ejecutor remoto sigue `executor_unavailable` porque el adaptador aún falta. No se sustituye silenciosamente por el Mac. No se abren SSH ni puertos, no se crean grants y no se cambian VPN, sandbox o licencia. Las tareas locales independientes continúan.
 

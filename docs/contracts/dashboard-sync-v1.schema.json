@@ -1,0 +1,403 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:thealchemist:dashboard:sync:v1",
+  "title": "Coder Dashboard snapshot batch v1",
+  "$ref": "#/$defs/batch",
+  "$defs": {
+    "job": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "taskRef",
+        "teamRef",
+        "botRef",
+        "executor",
+        "state",
+        "attempt",
+        "verification",
+        "reason"
+      ],
+      "properties": {
+        "taskRef": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "teamRef": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "botRef": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "executor": {
+          "enum": [
+            "local",
+            "vps"
+          ]
+        },
+        "state": {
+          "enum": [
+            "queued",
+            "running",
+            "waiting",
+            "blocked",
+            "interrupted",
+            "completed",
+            "failed",
+            "cancelled"
+          ]
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5
+        },
+        "verification": {
+          "enum": [
+            "not_run",
+            "reported",
+            "verified"
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-z_]{1,80}$"
+        }
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "taskRef",
+        "teamRef",
+        "botRef",
+        "executor",
+        "state",
+        "attempt",
+        "verification",
+        "reason",
+        "eventRef",
+        "sourceSequence",
+        "type",
+        "occurredAt"
+      ],
+      "properties": {
+        "taskRef": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "teamRef": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "botRef": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "executor": {
+          "enum": [
+            "local",
+            "vps"
+          ]
+        },
+        "state": {
+          "enum": [
+            "queued",
+            "running",
+            "waiting",
+            "blocked",
+            "interrupted",
+            "completed",
+            "failed",
+            "cancelled"
+          ]
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5
+        },
+        "verification": {
+          "enum": [
+            "not_run",
+            "reported",
+            "verified"
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-z_]{1,80}$"
+        },
+        "eventRef": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "sourceSequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "type": {
+          "enum": [
+            "org.job.queued",
+            "org.job.started",
+            "org.job.waiting",
+            "org.job.blocked",
+            "org.job.interrupted",
+            "org.job.checkpointed",
+            "org.job.completed",
+            "org.job.failed",
+            "org.job.retry_scheduled",
+            "org.job.cancelled"
+          ]
+        },
+        "occurredAt": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "agent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "teamRef",
+        "botRef",
+        "state",
+        "verification"
+      ],
+      "properties": {
+        "teamRef": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "botRef": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "state": {
+          "enum": [
+            "starting",
+            "working",
+            "waiting",
+            "idle",
+            "done",
+            "stopped",
+            "error"
+          ]
+        },
+        "verification": {
+          "enum": [
+            "not_run",
+            "reported"
+          ]
+        }
+      }
+    },
+    "projection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "available",
+        "sourceSequence",
+        "historyCoverage",
+        "jobs",
+        "agents",
+        "events"
+      ],
+      "properties": {
+        "available": {
+          "type": "boolean"
+        },
+        "sourceSequence": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "historyCoverage": {
+          "const": "partial"
+        },
+        "jobs": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "array",
+              "maxItems": 601,
+              "items": {
+                "$ref": "#/$defs/job"
+              }
+            }
+          ]
+        },
+        "agents": {
+          "type": "array",
+          "maxItems": 2000,
+          "items": {
+            "$ref": "#/$defs/agent"
+          }
+        },
+        "events": {
+          "type": "array",
+          "maxItems": 1000,
+          "items": {
+            "$ref": "#/$defs/event"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "available": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "jobs": {
+                "type": "array"
+              },
+              "sourceSequence": {
+                "type": "integer"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "jobs": {
+                "type": "null"
+              },
+              "sourceSequence": {
+                "type": "null"
+              },
+              "events": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      ]
+    },
+    "message": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "orgRef",
+        "projectRef",
+        "streamId",
+        "sequence",
+        "messageId",
+        "createdAt",
+        "kind",
+        "data"
+      ],
+      "properties": {
+        "version": {
+          "const": "ac.dashboard.v1"
+        },
+        "orgRef": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$"
+        },
+        "projectRef": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$"
+        },
+        "streamId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "messageId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$"
+        },
+        "createdAt": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "kind": {
+          "const": "snapshot"
+        },
+        "data": {
+          "$ref": "#/$defs/projection"
+        }
+      }
+    },
+    "batch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "message",
+        "digest"
+      ],
+      "properties": {
+        "message": {
+          "$ref": "#/$defs/message"
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "ack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "orgRef",
+        "projectRef",
+        "streamId",
+        "sequence",
+        "messageId",
+        "digest"
+      ],
+      "properties": {
+        "version": {
+          "const": "ac.dashboard.v1"
+        },
+        "orgRef": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$"
+        },
+        "projectRef": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$"
+        },
+        "streamId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "messageId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$"
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    }
+  }
+}

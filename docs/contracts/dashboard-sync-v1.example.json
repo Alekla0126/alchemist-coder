@@ -1,0 +1,42 @@
+{
+  "message": {
+    "version": "ac.dashboard.v1",
+    "orgRef": "synthetic-org",
+    "projectRef": "synthetic-project",
+    "streamId": "synthetic-stream",
+    "sequence": 1,
+    "messageId": "synthetic-message",
+    "createdAt": 1793654700000,
+    "kind": "snapshot",
+    "data": {
+      "available": true,
+      "sourceSequence": 1,
+      "historyCoverage": "partial",
+      "jobs": [
+        {
+          "taskRef": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "teamRef": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "botRef": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "executor": "local",
+          "state": "completed",
+          "attempt": 1,
+          "verification": "reported",
+          "reason": null
+        },
+        {
+          "taskRef": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "teamRef": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "botRef": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "executor": "local",
+          "state": "completed",
+          "attempt": 1,
+          "verification": "reported",
+          "reason": null
+        }
+      ],
+      "agents": [],
+      "events": []
+    }
+  },
+  "digest": "e88f32defd19d3aab6a33dbc735cd4b69fa6e4fcb8dc26014bb3f57d273b0d1e"
+}

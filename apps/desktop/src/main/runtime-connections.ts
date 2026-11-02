@@ -1,7 +1,9 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import type { ConnectionConfig, ConnectionState, OrgQueueSnapshot } from '../shared/api';
+import type { ConnectionConfig, ConnectionState, DashboardSyncStatus, OrgQueueSnapshot } from '../shared/api';
+import { dashboardRef } from '../shared/dashboard-protocol.ts';
+import { isAbsolute } from 'node:path';
 
 const defaults = (): ConnectionConfig => ({ dashboardUrl: null, vpsUrl: null, vpsCapacity: 'unknown' });
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
@@ -19,13 +21,21 @@ function endpoint(value: unknown): string | null {
 function config(input: unknown): ConnectionConfig {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Invalid connection configuration');
   const value = input as Record<string, unknown>;
-  if (Object.keys(value).some(k => !['dashboardUrl', 'vpsUrl', 'vpsCapacity'].includes(k))) throw new Error('Only endpoint metadata is accepted; credentials and grants are not stored here');
+  if (Object.keys(value).some(k => !['dashboardUrl', 'vpsUrl', 'vpsCapacity','dashboardSync'].includes(k))) throw new Error('Only endpoint metadata is accepted; credentials and grants are not stored here');
   if (value.vpsCapacity !== 'unknown' && value.vpsCapacity !== 'exhausted') throw new Error('Invalid capacity status');
-  return { dashboardUrl: endpoint(value.dashboardUrl), vpsUrl: endpoint(value.vpsUrl), vpsCapacity: value.vpsCapacity };
+  let binding: ConnectionConfig['dashboardSync'];
+  if (value.dashboardSync !== undefined) {
+    const b = value.dashboardSync as Record<string, unknown> | null;
+    if (!b || typeof b !== 'object' || Object.keys(b).length !== 4 || Object.keys(b).some(k => !['enabled','orgRef','projectRef','projectCwd'].includes(k)) || typeof b.enabled !== 'boolean' || !dashboardRef(b.orgRef) || !dashboardRef(b.projectRef) || typeof b.projectCwd !== 'string' || b.projectCwd.length > 2000 || !isAbsolute(b.projectCwd) || /[\x00-\x1f]/.test(b.projectCwd)) throw new Error('Invalid project synchronization scope');
+    binding = { enabled: b.enabled, orgRef: b.orgRef, projectRef: b.projectRef, projectCwd: b.projectCwd };
+  }
+  return { dashboardUrl: endpoint(value.dashboardUrl), vpsUrl: endpoint(value.vpsUrl), vpsCapacity: value.vpsCapacity, ...(binding ? { dashboardSync: binding } : {}) };
 }
 
 export class RuntimeConnections {
-  constructor(private readonly file: string, private readonly blockVps: (reason: 'executor_unavailable' | 'capacity_exhausted') => void = () => {}) {}
+  constructor(private readonly file: string, private readonly blockVps: (reason: 'executor_unavailable' | 'capacity_exhausted') => void = () => {}, private readonly sync?: { status(): DashboardSyncStatus; refresh(): void }) {}
+  configuration(): ConnectionConfig { return this.read().config; }
+  assertRevision(revision: string) { if (this.read().revision !== revision) throw new Error('Connection configuration changed; refresh before storing a credential'); }
   private read() {
     const present = existsSync(this.file);
     if (present && (!statSync(this.file).isFile() || statSync(this.file).size > 8192)) throw new Error('Connection configuration is unreadable');
@@ -44,9 +54,11 @@ export class RuntimeConnections {
     let saved: ReturnType<RuntimeConnections['read']> | null = null;
     try { saved = this.read(); } catch { /* An unreadable config is unknown, never connected or silently reset. */ }
     const c = saved?.config;
+    const sync = this.sync?.status();
     return {
       config: c ?? null, revision: saved?.revision ?? null, error: saved ? null : 'config_unreadable',
-      dashboard: { connected: false, transportSupported: false, reason: !saved ? 'config_unreadable' : c?.dashboardUrl ? 'transport_unavailable' : 'endpoint_required', lastAcknowledgedSequence: null, lastSyncAt: null },
+      dashboard: { connected: sync?.connected ?? false, transportSupported: !!this.sync, reason: !saved ? 'config_unreadable' : !c?.dashboardUrl ? 'endpoint_required' : sync?.reason ?? 'transport_unavailable', lastAcknowledgedSequence: sync?.lastAcknowledgedSequence ?? null, lastSyncAt: sync?.lastSyncAt ?? null },
+      ...(sync ? { sync } : {}),
       vps: { connected: false, executionSupported: false, reason: !saved ? 'config_unreadable' : !c?.vpsUrl ? 'host_required' : c.vpsCapacity === 'exhausted' ? 'capacity_exhausted' : 'adapter_unavailable', checkedAt: null },
       outbox: { contract: 'ac.integration.v1', sequence: queue.error ? null : queue.sequence, retainedEvents: queue.error ? null : queue.events.length, error: queue.error ?? null },
     };
@@ -68,6 +80,7 @@ export class RuntimeConnections {
       }
     } finally { rmSync(temp, { force: true }); closeSync(lock); rmSync(`${this.file}.lock`, { force: true }); }
     this.refreshGate();
+    this.sync?.refresh();
     return this.state(queue);
   }
 }

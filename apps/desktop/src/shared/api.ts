@@ -454,10 +454,17 @@ export interface PortableOrgEntry { roleId: string; name: string; state: 'ready'
 export interface PortableOrgState { roles: Record<string, string>; revision: string; rollbackId?: string }
 export interface PortableOrgPreview { names: string[]; entries: PortableOrgEntry[]; applied: boolean; revision: string; state: PortableOrgState }
 
-export interface ConnectionConfig { dashboardUrl: string | null; vpsUrl: string | null; vpsCapacity: 'unknown' | 'exhausted' }
+export interface DashboardSyncBinding { enabled: boolean; orgRef: string; projectRef: string; projectCwd: string }
+export interface ConnectionConfig { dashboardUrl: string | null; vpsUrl: string | null; vpsCapacity: 'unknown' | 'exhausted'; dashboardSync?: DashboardSyncBinding }
+export interface DashboardSyncStatus {
+  enabled: boolean; connected: boolean;
+  reason: 'sync_disabled' | 'sync_pending' | 'synchronized' | 'sync_stale' | 'authorization_required' | 'outbox_unavailable' | 'outbox_full' | 'project_unavailable' | 'projection_invalid' | 'network_error' | 'server_error' | 'rate_limited' | 'protocol_error' | 'invalid_ack' | 'retry_exhausted' | 'config_unreadable' | 'endpoint_required';
+  pending: number | null; attempts: number; lastAcknowledgedSequence: number | null; lastSyncAt: number | null; grantPresent?: boolean;
+}
 export interface ConnectionState {
   config: ConnectionConfig | null; revision: string | null; error: 'config_unreadable' | null;
-  dashboard: { connected: false; transportSupported: false; reason: 'config_unreadable' | 'endpoint_required' | 'transport_unavailable'; lastAcknowledgedSequence: null; lastSyncAt: null };
+  dashboard: { connected: boolean; transportSupported: boolean; reason: DashboardSyncStatus['reason'] | 'transport_unavailable'; lastAcknowledgedSequence: number | null; lastSyncAt: number | null };
+  sync?: DashboardSyncStatus;
   vps: { connected: false; executionSupported: false; reason: 'config_unreadable' | 'host_required' | 'capacity_exhausted' | 'adapter_unavailable'; checkedAt: null };
   outbox: { contract: 'ac.integration.v1'; sequence: number | null; retainedEvents: number | null; error: string | null };
 }
@@ -1308,6 +1315,8 @@ export interface AlchemistApi {
   rollbackPortableOrg(cwd: string, changeId: string, revision: string): Promise<PortableOrgState>;
   runtimeConnections(): Promise<ConnectionState>;
   saveRuntimeConnections(config: ConnectionConfig, revision: string): Promise<ConnectionState>;
+  retryDashboardSync(): Promise<ConnectionState>;
+  storeDashboardGrant(token: string | null, revision: string): Promise<void>;
   orgQueue(): Promise<OrgQueueSnapshot>;
   resumeOrgJob(jobId: string): Promise<void>;
   cancelOrgJob(jobId: string): Promise<void>;
@@ -1512,6 +1521,8 @@ export const Channels = {
   rollbackPortableOrg: 'org:portable-rollback',
   runtimeConnections: 'runtime:connections',
   saveRuntimeConnections: 'runtime:connections-save',
+  retryDashboardSync: 'runtime:dashboard-retry',
+  storeDashboardGrant: 'runtime:dashboard-grant',
   orgQueue: 'org:queue',
   resumeOrgJob: 'org:queue:resume',
   cancelOrgJob: 'org:queue:cancel',
