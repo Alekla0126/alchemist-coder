@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { basename, dirname, join, sep } from 'node:path';
 import { DatabaseSync, type StatementSync } from 'node:sqlite';
 import type { AgentStatus, IndexProgress, Source } from '@alchemist-coder/core';
-import { parseClaudeFile, type SubagentMeta } from './claude.ts';
+import { readClaudeFile, type ClaudeProgress, type SubagentMeta } from './claude.ts';
 import { parseCodexFile } from './codex.ts';
 import { geminiProjectRoot, grokSessionInfo, parseGeminiFile, parseGrokFile } from './acp-sources.ts';
 import { migrate } from './schema.ts';
@@ -57,6 +57,11 @@ interface ParsedFile {
   mtime: number;
   size: number;
   changed: boolean;
+  /** Its rows are only the ones appended since the last read; the earlier ones are already stored. */
+  appended?: boolean;
+  /** Where a Claude transcript was left, to read only what's appended next time. */
+  progress?: ClaudeProgress;
+  ino?: number;
 }
 
 interface AgentRow {
@@ -124,6 +129,7 @@ export class Indexer {
   private readonly cache = new Map<string, ParsedFile>();
   private readonly watchers: FSWatcher[] = [];
   private readonly timers = new Map<string, ReturnType<typeof setTimeout>>();
+  private readonly pollers: Array<ReturnType<typeof setInterval>> = [];
   private readonly stmt: Record<string, StatementSync>;
 
   constructor(options: IndexerOptions) {
@@ -200,14 +206,20 @@ export class Indexer {
     const mainPath = join(root, projectDir, `${sessionId}.jsonl`);
     if (!existsSync(mainPath)) return null;
     const subagents: SessionFile[] = [];
-    const subDir = join(root, projectDir, sessionId, 'subagents');
-    if (existsSync(subDir)) {
-      for (const file of readdirSync(subDir)) {
+    const addAgents = (dir: string) => {
+      for (const file of readdirSync(dir)) {
         if (!file.startsWith('agent-') || !file.endsWith('.jsonl')) continue;
         const agentId = file.slice('agent-'.length, -'.jsonl'.length);
-        const metaPath = join(subDir, `agent-${agentId}.meta.json`);
-        subagents.push({ agentId, path: join(subDir, file), metaPath: existsSync(metaPath) ? metaPath : null });
+        const metaPath = join(dir, `agent-${agentId}.meta.json`);
+        subagents.push({ agentId, path: join(dir, file), metaPath: existsSync(metaPath) ? metaPath : null });
       }
+    };
+    const subDir = join(root, projectDir, sessionId, 'subagents');
+    if (existsSync(subDir)) {
+      addAgents(subDir);
+      // Agents a workflow ran: subagents/workflows/<run>/agent-*.jsonl, counted with the conversation that ran it.
+      const runs = join(subDir, 'workflows');
+      if (existsSync(runs)) for (const run of readdirSync(runs, { withFileTypes: true })) if (run.isDirectory()) addAgents(join(runs, run.name));
     }
     return {
       key: `claude-code:${sessionId}`,
@@ -323,8 +335,18 @@ export class Indexer {
     const mtime = Math.trunc(st.mtimeMs);
     const cached = this.cache.get(path);
     if (cached && cached.mtime === mtime && cached.size === st.size) return { ...cached, changed: false };
+    if (source === 'claude-code') {
+      // A live transcript only grows: read what was appended, not the whole file again.
+      const grew = !!cached?.progress && cached.ino === st.ino && st.size > cached.size;
+      const progress = readClaudeFile(path, grew ? cached!.progress : undefined);
+      const summary = progress.summary;
+      const parsed = { summary: { ...summary }, mtime, size: st.size, changed: true, appended: grew };
+      summary.rows = [];
+      this.cache.set(path, { summary, mtime, size: st.size, changed: false, progress, ino: st.ino });
+      return parsed;
+    }
     const summary =
-      source === 'codex' ? parseCodexFile(path) : source === 'gemini' ? parseGeminiFile(path).summary : source === 'grok' ? parseGrokFile(path).summary : parseClaudeFile(path);
+      source === 'codex' ? parseCodexFile(path) : source === 'gemini' ? parseGeminiFile(path).summary : parseGrokFile(path).summary;
     const parsed = { summary, mtime, size: st.size, changed: true };
     // Rows are written to the database; the cache keeps only what the agent tree needs.
     this.cache.set(path, { ...parsed, summary: { ...summary, rows: [] } });
@@ -444,7 +466,7 @@ export class Indexer {
       ];
       for (const f of files) {
         if (f.parsed.changed) {
-          this.stmt.deleteMessages!.run(sessionId, f.agentId);
+          if (!f.parsed.appended) this.stmt.deleteMessages!.run(sessionId, f.agentId);
           for (const r of f.parsed.summary.rows) {
             this.stmt.message!.run(sessionId, f.agentId, r.key, r.role, r.ts, r.offset, r.length, r.text);
           }
@@ -458,6 +480,8 @@ export class Indexer {
       this.db.exec('COMMIT');
     } catch (error) {
       this.db.exec('ROLLBACK');
+      // What was read this time never reached the database: next time these files are read whole.
+      for (const path of [task.mainPath, ...task.subagents.map((f) => f.path)]) this.cache.delete(path);
       throw error;
     }
     return sessionId;
@@ -480,9 +504,11 @@ export class Indexer {
   // ---------- live updates ----------
 
   /** `source`: the CLI that wrote (its usage may have changed too). */
-  watch(onChange: (sessionIds: string[], source: string) => void, debounceMs = 800): void {
+  watch(onChange: (sessionIds: string[], source: string) => void, debounceMs = 800, codexPollMs = 2000): void {
     const schedule = (task: SessionTask) => {
-      clearTimeout(this.timers.get(task.key));
+      // A streaming Codex rollout can be written several times a second. A trailing debounce
+      // would postpone indexing until it stopped: coalesce writes within a bounded window.
+      if (this.timers.has(task.key)) return;
       this.timers.set(
         task.key,
         setTimeout(() => {
@@ -548,11 +574,41 @@ export class Indexer {
         }),
       );
     }
+    // Some desktop/session writers don't deliver recursive fs.watch notifications on macOS.
+    // Stat only: unchanged rollouts are never parsed again. This also discovers new date folders
+    // and roots created after the IDE starts, without needing a restart.
+    const seen = new Map<string, string>();
+    for (const row of this.stmt.knownFiles!.all() as Array<{ path: string; mtime: number; size: number }>) {
+      seen.set(row.path, `${row.mtime}:${row.size}`);
+    }
+    const poll = setInterval(() => {
+      for (const base of ['sessions', 'archived_sessions']) {
+        const root = join(this.codexRoot, base);
+        if (!existsSync(root)) continue;
+        try {
+          for (const path of walkRollouts(root)) {
+            const st = statSync(path, { throwIfNoEntry: false });
+            if (!st) continue;
+            const stamp = `${Math.trunc(st.mtimeMs)}:${st.size}`;
+            if (seen.get(path) === stamp) continue;
+            seen.set(path, stamp);
+            const cached = this.cache.get(path);
+            if (cached?.mtime === Math.trunc(st.mtimeMs) && cached.size === st.size) continue;
+            schedule(this.codexTask(path, base === 'archived_sessions'));
+          }
+        } catch (error) {
+          this.onError(error, root);
+        }
+      }
+    }, codexPollMs);
+    poll.unref();
+    this.pollers.push(poll);
   }
 
   close(): void {
     for (const w of this.watchers) w.close();
     for (const t of this.timers.values()) clearTimeout(t);
+    for (const p of this.pollers) clearInterval(p);
     this.db.close();
   }
 }

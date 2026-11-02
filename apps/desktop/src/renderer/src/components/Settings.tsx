@@ -1,6 +1,6 @@
 import { keys as shortcutText } from '../keys';
 import { useEffect, useState } from 'react';
-import { LOCALE_NAMES, LOCALES, isLocale, type PermissionMode } from '@shared/api';
+import { LOCALE_NAMES, LOCALES, isLocale, type PermissionMode, type ProActivation } from '@shared/api';
 import { useStore, useT } from '../store';
 import { toast } from '../ui';
 import { InstallButton } from './MissingAgent';
@@ -12,11 +12,15 @@ import { BackupCard } from './HistoryView';
 import { ThemePicker } from './ThemePicker';
 import { UsageDetails } from './UsageMeter';
 import { AutomationSettingsCard } from './Automations';
+import { VOICE_ENGINES, WHISPER_MODELS, type VoiceStatus } from '@shared/api';
+import { loadVoicePrefs, saveVoicePrefs, type VoicePrefs } from '../voice';
+import { engineName, voiceStatus } from './VoiceButton';
 
-type Section = 'general' | 'agents' | 'automations' | 'usage' | 'backup' | 'shortcuts' | 'about';
+type Section = 'general' | 'agents' | 'voice' | 'automations' | 'usage' | 'backup' | 'shortcuts' | 'about';
 const SECTIONS: Array<[Section, string]> = [
   ['general', '⚙'],
   ['agents', '🧩'],
+  ['voice', '🎤'],
   ['automations', '⚡'],
   ['usage', '📊'],
   ['backup', '🛟'],
@@ -132,6 +136,82 @@ function General() {
         </div>
         <input type="checkbox" className="set-switch" checked={vim} onChange={(e) => setVim(e.target.checked)} />
       </div>
+    </>
+  );
+}
+
+/** The microphone: which engine writes out what you say, Whisper's size, the language you speak, and tidying. */
+function VoiceSettings() {
+  const t = useT();
+  const locale = useStore((s) => s.locale);
+  const [prefs, setPrefs] = useState<VoicePrefs>(loadVoicePrefs);
+  const [status, setStatus] = useState<VoiceStatus | null>(null);
+  useEffect(() => void voiceStatus(true).then(setStatus), [prefs.model]);
+  const save = (next: VoicePrefs) => {
+    setPrefs(next);
+    saveVoicePrefs(next);
+  };
+  const info = (id: (typeof VOICE_ENGINES)[number]) => status?.engines.find((e) => e.id === id);
+  const missing = (id: (typeof VOICE_ENGINES)[number]) => {
+    const e = info(id);
+    return e && !e.available ? ` — ${t(`voice.why.${e.detail || 'missing'}` as never)}` : '';
+  };
+  const chosen = prefs.engine === 'auto' ? status?.auto : prefs.engine;
+  const local = chosen === 'whisper' || chosen === 'whisper-cpp';
+  return (
+    <>
+      <div className="set-row">
+        <div>
+          <b>{t('voice.engineLabel')}</b>
+          <p>{status && !status.auto ? t('voice.noneHint') : t('voice.engineHint')}</p>
+          {prefs.engine === 'auto' && status && <p className="set-path">{status.auto ? t('voice.autoUses', { engine: engineName(t, status.auto) }) : t('voice.noEngine')}</p>}
+        </div>
+        <select value={prefs.engine} aria-label={t('voice.engineLabel')} onChange={(e) => save({ ...prefs, engine: e.target.value as VoicePrefs['engine'] })}>
+          <option value="auto">{engineName(t, 'auto')}</option>
+          {VOICE_ENGINES.filter((id) => id !== 'dictation' || status?.platform === 'darwin').map((id) => (
+            <option key={id} value={id}>
+              {engineName(t, id)}
+              {missing(id)}
+            </option>
+          ))}
+        </select>
+      </div>
+      {local && (
+        <div className="set-row">
+          <div>
+            <b>{t('voice.model')}</b>
+            <p>{t('voice.modelHint')}</p>
+          </div>
+          <select value={prefs.model} aria-label={t('voice.model')} onChange={(e) => save({ ...prefs, model: e.target.value })}>
+            {WHISPER_MODELS.map((m) => (
+              <option key={m} value={m}>
+                {t(`voice.size.${m}` as never)}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      {chosen !== 'dictation' && (
+        <>
+          <div className="set-row">
+            <div>
+              <b>{t('voice.language')}</b>
+              <p>{t('voice.languageHint')}</p>
+            </div>
+            <select value={prefs.language} aria-label={t('voice.language')} onChange={(e) => save({ ...prefs, language: e.target.value as VoicePrefs['language'] })}>
+              <option value="app">{t('voice.languageApp', { language: LOCALE_NAMES[locale] })}</option>
+              <option value="auto">{t('voice.languageAuto')}</option>
+            </select>
+          </div>
+          <div className="set-row">
+            <div>
+              <b>{t('voice.tidy')}</b>
+              <p>{t('voice.tidyHint')}</p>
+            </div>
+            <input type="checkbox" className="set-switch" checked={prefs.tidy} aria-label={t('voice.tidy')} onChange={(e) => save({ ...prefs, tidy: e.target.checked })} />
+          </div>
+        </>
+      )}
     </>
   );
 }
@@ -286,6 +366,81 @@ function Shortcuts() {
   );
 }
 
+/** The reasons a key can be turned down that have their own words; anything else is 'other'. */
+const KEY_ERRORS = ['malformed', 'signature', 'expired', 'device', 'revoked'];
+
+/**
+ * Pro, in a copy that carries the Pro module and isn't Pro yet: «Buy Pro» opens the payment link
+ * (when the build has one), and the license key that arrives by email, or a beta invitation, is
+ * pasted below. The edition is decided at launch, so once the key is kept it asks for a restart.
+ */
+function ProCode({ checkout, account }: { checkout: string | null | undefined; account?: boolean }) {
+  const t = useT();
+  const locale = useStore((s) => s.locale);
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<ProActivation | null>(null);
+  const [waiting, setWaiting] = useState(false);
+  useEffect(() => window.alchemist.onProAccountResult((r) => { setResult(r); setWaiting(false); }), []);
+  const openAccount = async () => {
+    setResult(null);
+    try {
+      const opened = await window.alchemist.proAccountStart();
+      setWaiting(opened);
+      if (!opened) setResult({ ok: false, reason: 'other' });
+    } catch { setWaiting(false); setResult({ ok: false, reason: 'other' }); }
+  };
+  const activate = async () => {
+    setBusy(true);
+    try {
+      setResult(await window.alchemist.proActivate(code));
+    } catch {
+      setResult({ ok: false, reason: 'other' });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const until = result?.expiresAt ? new Date(result.expiresAt).toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+  return (
+    <>
+      {account && <div className="set-row"><div><b>{t('pro.account')}</b><p>{t('pro.accountHint')}</p>{waiting && <p role="status">{t('pro.accountWaiting')}</p>}</div><button className="btn-send small" onClick={() => void openAccount()}>{t('pro.accountOpen')}</button></div>}
+      {checkout && !account && (
+        <div className="set-row">
+          <div>
+            <b>{t('pro.buyTitle')}</b>
+            <p>{t('pro.buyHint')}</p>
+          </div>
+          <a className="btn-send small pro-buy" href={checkout} target="_blank" rel="noreferrer">
+            {t('pro.buy')}
+          </a>
+        </div>
+      )}
+      <div className="set-row pro-code">
+        <div>
+          <b>{t('pro.code')}</b>
+          <p>{t('pro.codeHint')}</p>
+          {result && !result.ok && <p className="pro-code-bad">{t(`pro.error.${KEY_ERRORS.includes(result.reason ?? '') ? result.reason : 'other'}` as never)}</p>}
+          {result?.ok && <p className="pro-code-ok">{t(result.beta ? 'pro.okBeta' : 'pro.ok', { date: until })}</p>}
+        </div>
+        <div className="pro-code-actions">
+          {result?.ok ? (
+            <button className="btn-send small" onClick={() => void window.alchemist.relaunch()}>
+              {t('pro.restart')}
+            </button>
+          ) : (
+            <>
+              <input value={code} placeholder={t('pro.placeholder')} spellCheck={false} onChange={(e) => (setCode(e.target.value), setResult(null))} onKeyDown={(e) => e.key === 'Enter' && code.trim() && void activate()} />
+              <button className="btn-send small" disabled={!code.trim() || busy} onClick={() => void activate()}>
+                {busy ? <span className="spin" /> : t('pro.activate')}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
 function About() {
   const t = useT();
   const info = useStore((s) => s.info);
@@ -299,6 +454,7 @@ function About() {
         <b>{t('settings.edition')}</b>
         <span>{info?.edition === 'pro' ? 'Pro' : t('status.edition')}</span>
       </div>
+      {info?.proModule && (info.edition !== 'pro' || info.proAccount) && <ProCode checkout={info.proCheckout} account={info.proAccount} />}
       <div className="set-row">
         <b>{t('settings.license')}</b>
         <a href="https://github.com/Alekla0126/alchemist-coder" target="_blank" rel="noreferrer">
@@ -314,6 +470,7 @@ function About() {
       <p className="composer-note">
         {t('settings.privacy')}
         {info?.personal && ` ${t('settings.privacyPersonal')}`}
+        {info?.edition === 'pro' && ` ${t('settings.privacyPro')}`}
       </p>
     </>
   );
@@ -350,6 +507,7 @@ export function Settings() {
           </div>
           {section === 'general' && <General />}
           {section === 'agents' && <Agents />}
+          {section === 'voice' && <VoiceSettings />}
           {section === 'automations' && <AutomationSettingsCard />}
           {section === 'usage' && <Usage />}
           {section === 'backup' && <BackupCard />}

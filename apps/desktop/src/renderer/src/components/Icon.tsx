@@ -8,6 +8,12 @@ import type { ReactNode } from 'react';
 const SHIELD = 'M12 3.2c2.3 1.5 4.6 2.2 7 2.3v5.6c0 4.5-2.8 7.9-7 9.7-4.2-1.8-7-5.2-7-9.7V5.5c2.4-.1 4.7-.8 7-2.3z';
 
 const PATHS = {
+  mic: (
+    <>
+      <rect x="9" y="3.5" width="6" height="11" rx="3" />
+      <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5" />
+    </>
+  ),
   // Panels
   sidebarClose: (
     <>
@@ -34,10 +40,12 @@ const PATHS = {
     </>
   ),
   // Actions
+  settings: <><path d="M4 6h16M4 12h16M4 18h16" /><circle cx="8" cy="6" r="2" fill="var(--bg-card)" /><circle cx="16" cy="12" r="2" fill="var(--bg-card)" /><circle cx="10" cy="18" r="2" fill="var(--bg-card)" /></>,
   goto: <path d="M4.5 12h11M11.5 7.5l4.5 4.5-4.5 4.5M19.5 5v14" />,
   open: <path d="M14 4h6v6M20 4l-8.5 8.5M18 14v4.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10" />,
   close: <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />,
   check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
+  pin: <path d="M16 9V3H8v6l-3 3v2h14v-2l-3-3ZM12 14v7" />,
   done: (
     <>
       <circle cx="12" cy="12" r="8.5" />

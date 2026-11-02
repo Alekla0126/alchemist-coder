@@ -109,6 +109,22 @@ export function BrowserPane({ covered: coveredBy = false, onClose }: { covered?:
 
   const tabs = state?.tabs ?? [];
   const tabName = (tab: { title: string; url: string }) => tab.title || hostOf(tab.url) || t('browser.newTab');
+  const [notice, setNotice] = useState<string | null>(null);
+  // Bring the sign-ins of a browser you use: macOS asks first; then the pane offers its sites one by one.
+  const importFrom = async (id: string, name: string) => {
+    setNotice(null);
+    const r = await api().browserImport(id);
+    if ('error' in r) setNotice(r.error);
+    else if (!r.sites) setNotice(t('browser.importNone', { browser: name }));
+  };
+  const chooseImport = async () => {
+    const list = state?.importable ?? [];
+    if (!list.length) return;
+    if (list.length === 1) return void importFrom(list[0]!.id, list[0]!.name);
+    const id = await api().showMenu(list.map((b) => ({ id: b.id, label: t('browser.importFrom', { browser: b.name }) })));
+    const chosen = list.find((b) => b.id === id);
+    if (chosen) void importFrom(chosen.id, chosen.name);
+  };
 
   return (
     <section className="browser-pane" aria-label={t('browser.title')}>
@@ -116,8 +132,15 @@ export function BrowserPane({ covered: coveredBy = false, onClose }: { covered?:
       <div className="browser-tabs" role="tablist" aria-label={t('browser.tabs')}>
         {tabs.map((tab) => (
           <div key={tab.id} className={`browser-tab ${tab.active ? 'on' : ''}`} role="presentation">
-            <button role="tab" aria-selected={tab.active} className="bt-name" title={tab.url || tabName(tab)} onClick={() => void api().browserSwitchTab(tab.id)}>
+            <button
+              role="tab"
+              aria-selected={tab.active}
+              className="bt-name"
+              title={tab.owner ? `${t('browser.tabOf', { agent: tab.owner })} · ${tab.url || tabName(tab)}` : tab.url || tabName(tab)}
+              onClick={() => void api().browserSwitchTab(tab.id)}
+            >
               {tab.loading && <span className="spin" aria-hidden />}
+              {tab.owner && <span className="bt-owner">{tab.owner}</span>}
               <span className="bt-label">{tabName(tab)}</span>
             </button>
             <button className="bt-close" onClick={() => void api().browserCloseTab(tab.id)} title={t('browser.closeTab')} aria-label={`${t('browser.closeTab')}: ${tabName(tab)}`}>
@@ -125,9 +148,14 @@ export function BrowserPane({ covered: coveredBy = false, onClose }: { covered?:
             </button>
           </div>
         ))}
-        <button className="icon-btn bt-new" disabled={tabs.length >= BROWSER_MAX_TABS} onClick={() => void api().browserNewTab()} title={tabs.length >= BROWSER_MAX_TABS ? t('browser.tabsFull', { n: BROWSER_MAX_TABS }) : t('browser.newTab')} aria-label={t('browser.newTab')}>
+        <button className="icon-btn bt-new" disabled={!!state?.tabsFull} onClick={() => void api().browserNewTab()} title={state?.tabsFull ? t('browser.tabsFull', { n: BROWSER_MAX_TABS }) : t('browser.newTab')} aria-label={t('browser.newTab')}>
           <Icon name="plus" size={14} />
         </button>
+        {(state?.importable?.length ?? 0) > 0 && !!state?.project && (
+          <button className="icon-btn bt-import" onClick={() => void chooseImport()} title={t('browser.importTitle')} aria-label={t('browser.importTitle')}>
+            <Icon name="user" size={14} />
+          </button>
+        )}
       </div>
       <form className="browser-bar" onSubmit={go}>
         <button type="button" className="icon-btn" disabled={!state?.canGoBack} onClick={() => void api().browserBack()} title={t('browser.back')} aria-label={t('browser.back')}>
@@ -191,7 +219,17 @@ export function BrowserPane({ covered: coveredBy = false, onClose }: { covered?:
         </div>
       )}
       {/* Sign-ins from other projects' browsers (or the one before 1.3.1): this project's agents get them only if you say so. */}
-      {state?.signInsFrom && state.signInsFrom.length > 0 && <SignInsOffer sites={state.signInsFrom} earlier={state.signInsEarlier} />}
+      {state?.signInsFrom && state.signInsFrom.length > 0 && <SignInsOffer sites={state.signInsFrom} earlier={state.signInsEarlier} browser={state.signInsBrowser} />}
+      {notice && (
+        <div className="browser-signins" role="status">
+          <span className="bsi-text">{notice}</span>
+          <span className="bsi-actions">
+            <button className="quiet" onClick={() => setNotice(null)}>
+              {t('browser.importOk')}
+            </button>
+          </span>
+        </div>
+      )}
       <div className="browser-body" ref={body}>
         {empty && (
           <div className="browser-empty">
@@ -209,12 +247,12 @@ export function BrowserPane({ covered: coveredBy = false, onClose }: { covered?:
  * time (a click on its name) or all, so only the accounts you pick reach this project's agents; from
  * the browser before 1.3.1, all of them at once, as before.
  */
-export function SignInsOffer({ sites, earlier }: { sites: string[]; earlier: boolean }) {
+export function SignInsOffer({ sites, earlier, browser = null }: { sites: string[]; earlier: boolean; browser?: string | null }) {
   const t = useT();
   const listed = sites.length > 4 ? `${sites.slice(0, 4).join(', ')} +${sites.length - 4}` : sites.join(', ');
   return (
     <div className="browser-signins" role="note">
-      <span className="bsi-text">{earlier ? t('browser.signIns', { sites: listed }) : t('browser.signInsOther')}</span>
+      <span className="bsi-text">{earlier ? t('browser.signIns', { sites: listed }) : browser ? t('browser.signInsBrowser', { browser }) : t('browser.signInsOther')}</span>
       {!earlier && (
         <span className="bsi-sites">
           {sites.slice(0, 8).map((site) => (

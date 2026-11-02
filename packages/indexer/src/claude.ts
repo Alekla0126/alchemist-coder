@@ -1,4 +1,4 @@
-import { emptyUsage, type TokenUsage } from '@alchemist-coder/core';
+import { emptyUsage, maxUsage, type TokenUsage } from '@alchemist-coder/core';
 import { forEachLine } from './lines.ts';
 import { addUsage, newSummary, num, summarizeToolInput, titleFrom, touchTs, tsOf, type FileSummary } from './summary.ts';
 import { editsOf } from './edits.ts';
@@ -37,19 +37,47 @@ function textOf(content: unknown): string {
     .join('\n');
 }
 
+/** What has been read of a Claude transcript, so the next read starts where this one stopped. */
+export interface ClaudeProgress {
+  /** Totals so far; `rows` holds only the rows of the last read. */
+  summary: FileSummary;
+  /** Byte where the next read starts: after the last whole line. */
+  resumeAt: number;
+  models: Set<string>;
+  /** The latest replies by message id: records still to come can raise their counts. */
+  replies: Map<string, { model: string | null; usage: TokenUsage }>;
+  /** What's already final: replies with no id and older replies. */
+  counted: Pick<FileSummary, 'usage' | 'costUsd'>;
+}
+
+/** Replies kept open for more records (one reply's records are written one after another). */
+const OPEN_REPLIES = 16;
+
 /** Parses one Claude Code transcript: a main session file or a subagent file. */
 export function parseClaudeFile(path: string): FileSummary {
-  const s = newSummary();
-  const models = new Set<string>();
-  const seenMessages = new Set<string>();
+  return readClaudeFile(path).summary;
+}
 
-  forEachLine(path, (line, offset, length) => {
+/**
+ * Reads a Claude Code transcript from where `progress` stopped, or from the start without it. Transcripts
+ * only grow while an agent works, so a live one is read a few lines at a time instead of whole.
+ */
+export function readClaudeFile(path: string, progress?: ClaudeProgress): ClaudeProgress {
+  const p = progress ?? { summary: newSummary(), resumeAt: 0, models: new Set<string>(), replies: new Map(), counted: { usage: emptyUsage(), costUsd: null } };
+  const s = p.summary;
+  const { models, replies } = p;
+  s.rows = [];
+
+  forEachLine(path, (line, offset, length, complete) => {
     let d: Json;
     try {
       d = JSON.parse(line);
     } catch {
+      // A last line still being written is read again next time.
+      if (complete) p.resumeAt = offset + length + 1;
       return;
     }
+    p.resumeAt = complete ? offset + length + 1 : offset + length;
     const ts = tsOf(d.timestamp);
     touchTs(s, ts);
     if (typeof d.sessionId === 'string') s.sessionId ??= d.sessionId;
@@ -74,6 +102,12 @@ export function parseClaudeFile(path: string): FileSummary {
       case 'summary':
         if (d.summary && !s.aiTitle) s.aiTitle = String(d.summary);
         return;
+      case 'cost-state': {
+        // Written once per CLI run: its model ids keep the long-context mark («claude-opus-5-5[1m]») that replies drop.
+        const ids = Object.keys(d.modelUsage ?? {});
+        if (ids.length) s.contextWindow = ids.some((id) => id.endsWith('[1m]')) ? 1_000_000 : null;
+        return;
+      }
       case 'user': {
         const content = d.message?.content;
         if (d.isMeta) {
@@ -109,16 +143,20 @@ export function parseClaudeFile(path: string): FileSummary {
         const msg: Json = d.message ?? {};
         const model = typeof msg.model === 'string' && msg.model !== '<synthetic>' ? msg.model : null;
         if (model) models.add(model);
-        // One API response is split into several records that repeat the same usage.
         const messageId = typeof msg.id === 'string' ? msg.id : null;
-        if (!messageId || !seenMessages.has(messageId)) {
-          if (messageId) seenMessages.add(messageId);
+        const u = usageOf(msg.usage);
+        const known = messageId ? replies.get(messageId) : undefined;
+        if (known) {
+          maxUsage(known.usage, u);
+          known.model ??= model;
+        } else {
           s.assistantMessages++;
-          const u = usageOf(msg.usage);
-          addUsage(s, model, u);
-          const read = u.input + u.cacheRead + u.cacheWrite5m + u.cacheWrite1h;
-          if (read > 0) s.contextTokens = read;
+          if (messageId) replies.set(messageId, { model, usage: u });
+          else addUsage(p.counted, model, u);
         }
+        const current = known?.usage ?? u;
+        const read = current.input + current.cacheRead + current.cacheWrite5m + current.cacheWrite1h;
+        if (read > 0) s.contextTokens = read;
         if (typeof msg.stop_reason === 'string') s.lastStopReason = msg.stop_reason;
         let text = '';
         for (const b of Array.isArray(msg.content) ? msg.content : []) {
@@ -147,10 +185,19 @@ export function parseClaudeFile(path: string): FileSummary {
       default:
         return;
     }
-  });
+  }, p.resumeAt);
 
+  // Older replies are final: they join what's counted, and only the latest stay open.
+  for (const [id, r] of replies) {
+    if (replies.size <= OPEN_REPLIES) break;
+    addUsage(p.counted, r.model, r.usage);
+    replies.delete(id);
+  }
+  s.usage = { ...p.counted.usage };
+  s.costUsd = p.counted.costUsd;
+  for (const r of replies.values()) addUsage(s, r.model, r.usage);
   s.models = [...models];
-  return s;
+  return p;
 }
 
 export interface SubagentMeta {

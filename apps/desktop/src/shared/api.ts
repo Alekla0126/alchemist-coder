@@ -124,6 +124,27 @@ export interface Settings {
   autopilot: boolean;
 }
 
+/** Speech to text for the microphone button, local engines first (main/voice.ts). */
+export const VOICE_ENGINES = ['whisper-cpp', 'whisper', 'openai', 'dictation'] as const;
+export type VoiceEngineId = (typeof VOICE_ENGINES)[number];
+/** Whisper's model sizes: bigger is more accurate and slower. */
+export const WHISPER_MODELS = ['tiny', 'base', 'small', 'medium', 'turbo'] as const;
+export interface VoiceStatus {
+  /** `detail`: the model file in use, or why it can't be used ('missing', 'noModel', 'noFfmpeg', 'noKey', 'macOnly'). */
+  engines: Array<{ id: VoiceEngineId; available: boolean; detail: string }>;
+  /** What "Automatic" uses now. */
+  auto: VoiceEngineId | null;
+  platform: string;
+}
+export interface VoiceRequest {
+  engine: 'auto' | VoiceEngineId;
+  model: string;
+  /** Two-letter language of the speech; null = let the engine tell. */
+  language: string | null;
+  /** Words the speech is likely to have (names of agents, projects, products), so the engine spells them right. */
+  hint?: string | null;
+}
+
 export interface BackupStatus {
   dir: string | null;
   auto: boolean;
@@ -140,6 +161,15 @@ export interface BackupStatus {
 
 export type ExportFormat = 'md' | 'html' | 'json';
 
+/** What became of a pasted license key or invitation. reason: 'malformed' | 'signature' | 'expired' | 'device' | 'plan' | 'revoked' | 'no-pro-module'. */
+export interface ProActivation {
+  ok: boolean;
+  reason?: string;
+  /** When the key or invitation ends (ms). */
+  expiresAt?: number;
+  beta?: boolean;
+}
+
 export interface AppInfo {
   version: string;
   edition: 'community' | 'pro';
@@ -147,6 +177,12 @@ export interface AppInfo {
   personal: boolean;
   /** The app's first launch on this computer (no settings yet). */
   firstRun?: boolean;
+  /** This copy carries the Pro module, so a license key or beta invitation can turn Pro on. */
+  proModule?: boolean;
+  /** Where «Buy Pro» goes (a payment link), when this copy has one. */
+  proCheckout?: string | null;
+  /** This module supports browser-based sign-in and device-bound license renewal. */
+  proAccount?: boolean;
   platform: string;
   systemLocale: string;
   /** The user's home folder (where a first project goes by default). */
@@ -173,6 +209,8 @@ export interface AppInfo {
     scope?: 'project' | 'all' | 'recent' | null;
     /** Marketing mode's tab to show. */
     mkTab?: string | null;
+    /** The microphone as if recording or writing out (to see its look). */
+    voice?: 'recording' | 'transcribing' | null;
     /** Writes the first piece with this agent, then captures. */
     mkGenerate?: AgentChoice | null;
     compose: boolean;
@@ -205,6 +243,10 @@ export interface AppInfo {
     drag?: string | null;
     /** Open the status bar's activity list. */
     activity?: boolean;
+    /** With --bots-view=live: open the coordinator's card in the office. */
+    officeCard?: boolean;
+    /** With botsView 'office': an example office made from the organization's agents, in the window only. */
+    officeDemo?: boolean;
     /** Scroll the open conversation to the first element matching this selector. */
     scrollTo?: string | null;
     /** With `run`: capture while the agent's first subagent works, instead of once the run settles. */
@@ -222,11 +264,11 @@ export interface AppInfo {
     /** With `orgGoal`: approve the plan and capture while its agents work. */
     orgApprove?: boolean;
     /** Open Settings at this section. */
-    settings: 'general' | 'agents' | 'automations' | 'usage' | 'backup' | 'shortcuts' | 'about' | null;
+    settings: 'general' | 'agents' | 'voice' | 'automations' | 'usage' | 'backup' | 'shortcuts' | 'about' | null;
     /** Starts a real agent run and captures once it asks for permission or finishes. */
     run: { harnessId: string; providerId: string; model: string; permissionMode: PermissionMode; prompt: string; cwd: string | null } | null;
     /** Bots mode: open the most recent team, the new-configuration dialog, or the chart with a plan to review on it. */
-    botsView: 'team' | 'config' | 'member' | 'agent' | 'chart' | null;
+    botsView: 'team' | 'config' | 'member' | 'agent' | 'chart' | 'live' | 'map' | 'office' | null;
     /** Starts a real bot team (coordinator agent from `agent`) and captures once it settles. */
     team: { goal: string; harnessId: string; providerId: string; model: string; cwd: string; approvePlan: boolean; org: boolean } | null;
     /** Runs a real Arena task and captures it at plan review or once the agents finish. */
@@ -333,6 +375,12 @@ export interface BrowserState {
   signInsFrom: string[] | null;
   /** Those sign-ins are all from the browser shared by every project before 1.3.1 (else from other projects). */
   signInsEarlier: boolean;
+  /** Those sign-ins come from another browser you use ("Chrome"), brought because you asked; else null. */
+  signInsBrowser: string | null;
+  /** The other browsers on this Mac whose sign-ins the pane can bring (Chrome, Brave, Edge, Arc, Vivaldi). */
+  importable: Array<{ id: string; name: string }>;
+  /** No room for another tab: every one is in use (an agent tab left idle makes room by itself). */
+  tabsFull: boolean;
   /** Its tabs, in order; `active` is the one in front. */
   tabs: BrowserTab[];
   /** Every project's browser an agent used in the last few seconds (the title bar says so in words). */
@@ -348,6 +396,8 @@ export interface BrowserTab {
   url: string;
   loading: boolean;
   active: boolean;
+  /** The agent whose tab it is ("Claude Code", a bot's name), or null for yours. */
+  owner: string | null;
 }
 
 /** Where the browser pane's page area is, in window pixels. */
@@ -367,11 +417,16 @@ export type TaskPhase = 'draft' | 'planning' | 'review' | 'running' | 'compare' 
 
 /** One agent + provider + model, as picked in the composer. */
 /** A saved bot: who it is and how it runs. Any configuration can coordinate a team or be created by one. */
+/** The longest an agent's description can be: it has to fit on its card. */
+export const ABOUT_MAX = 180;
+
 export interface BotConfig {
   id: string;
   name: string;
   /** Its role and standing instructions. */
   role: string;
+  /** What it does in a line, for you (its card in the office); none: the opening of its role. At most ABOUT_MAX. */
+  about?: string;
   agent: AgentChoice;
   permissionMode: PermissionMode;
   /** It may create other bots (within the team's limits). */
@@ -390,6 +445,38 @@ export interface BotConfig {
   avatar?: string | null;
 }
 
+/**
+ * One agent of a staff template (the house one is The Alchemist Code's, in org-roster.ts), in the
+ * app's language. `lead`: the key of the agent whose team it's on; none, it reports to the coordinator.
+ */
+export interface StarterAgent {
+  name: string;
+  role: string;
+  about?: string;
+  /** What its work needs: opus where a mistake costs most, sonnet to do, haiku to measure and summarize. */
+  tier?: ModelTier;
+  /** That tier as a model of the agent's provider ("opus", "claude-opus-…"); none: the agent's own model. */
+  model?: string;
+  permissionMode?: PermissionMode;
+  canSpawn?: boolean;
+  ownWorktree?: boolean;
+  lead?: string;
+  proposed?: boolean;
+}
+export const MODEL_TIERS = ['opus', 'sonnet', 'haiku'] as const;
+export type ModelTier = (typeof MODEL_TIERS)[number];
+
+/** What renewing the staff from a template does (or would do): agents by name. */
+export interface RosterChange {
+  added: string[];
+  /** Agents already there whose team, model or permissions change. */
+  updated: string[];
+  /** Same name twice: the copies go (the first one stays, with its history). */
+  removed: string[];
+  /** The organization's instructions are set (they were empty). */
+  instructions: boolean;
+}
+
 /** The organization: its name and the instructions the coordinator and every agent get. */
 export interface OrgSettings {
   name: string;
@@ -398,6 +485,15 @@ export interface OrgSettings {
   autopilot: boolean;
   /** What the organization learned from its mistakes, newest first; every agent of it is told. */
   lessons: OrgLesson[];
+  /** Organizations to look at it by (one per business, client or side project): groups of project folders. They only filter what you see; agents still talk across them. */
+  groups?: OrgGroup[];
+}
+
+/** An organization to filter the view by: a name and the project folders that belong to it. */
+export interface OrgGroup {
+  id: string;
+  name: string;
+  projects: string[];
 }
 
 /** One thing to do differently next time, written by the agent that learned it. */
@@ -409,6 +505,8 @@ export interface OrgLesson {
   /** The assignment it came from. */
   from: string;
   at: number;
+  /** You pinned it: every agent is told it, whatever its task. */
+  pinned?: boolean;
 }
 
 export type BotStatus = 'starting' | 'working' | 'waiting' | 'idle' | 'done' | 'error' | 'stopped';
@@ -461,6 +559,8 @@ export interface TeamEvent {
   kind: TeamEventKind;
   /** Details: the other bot's id for created/message, a task or a count. */
   detail: string;
+  /** How long what was said is, in characters, when the detail doesn't hold all of it (a long task, a reply). */
+  chars?: number;
 }
 
 export interface TeamPlan {
@@ -1065,6 +1165,12 @@ export interface AlchemistApi {
   revealPath(path: string): Promise<void>;
   /** Copies text to the clipboard. */
   copyText(text: string): Promise<void>;
+  /** Checks a pasted Pro license key or beta invitation and keeps it; Pro starts on the next launch. */
+  proActivate(code: string): Promise<ProActivation>;
+  proAccountStart(): Promise<boolean>;
+  onProAccountResult(listener: (result: ProActivation) => void): () => void;
+  /** Quits and opens the app again. */
+  relaunch(): Promise<void>;
   /** Subscription plans and recent usage (Claude, Codex) from local data; `refresh` skips the one-minute cache. */
   planUsage(refresh?: boolean): Promise<PlanUsage>;
   /** Looks at the CLIs' versions again (after updating one); the result is pushed with the usage. */
@@ -1090,6 +1196,11 @@ export interface AlchemistApi {
   /** Brings the earlier sign-ins to the shown project's browser (true) or keeps it apart (false). */
   /** Bring the offered sign-ins (all, or only `site`'s) to the shown project's browser, or say no to them. */
   browserSignIns(bring: boolean, site?: string): Promise<void>;
+  /**
+   * Reads the sign-ins of another browser you use (`browser` from `importable`) and offers them, site by
+   * site, to the shown project's browser. macOS asks you first (that browser's data and its keychain key).
+   */
+  browserImport(browser: string): Promise<{ sites: number } | { error: string }>;
   /** Agent runs in this project with changes still to review. */
   reviews(projectCwd: string): Promise<AgentReview[]>;
   reviewFile(reviewId: string, path: string): Promise<ReviewFileContent>;
@@ -1135,10 +1246,16 @@ export interface AlchemistApi {
   /** The organization's settings. */
   orgSettings(): Promise<OrgSettings>;
   saveOrgSettings(settings: Partial<OrgSettings>): Promise<OrgSettings>;
+  /** The owner's own build: its starting organizations from these open folders, saved only if none ever were and one matches. */
+  seedOrgGroups(folders: string[]): Promise<OrgSettings>;
   /** Creates the coordinator (and the starter agents) the first time. */
-  ensureOrg(agent: AgentChoice, starters: Record<string, { name: string; role: string }>): Promise<BotConfig[]>;
+  ensureOrg(agent: AgentChoice, starters: Record<string, StarterAgent>): Promise<BotConfig[]>;
+  /** Brings the organization to a staff template: adds who's missing, sets teams, models and permissions, drops copies. `apply: false` only says what it would do. */
+  renewStaff(agent: AgentChoice, starters: Record<string, StarterAgent>, instructions: string, apply: boolean): Promise<RosterChange>;
   botTeams(): Promise<BotTeam[]>;
   startTeam(request: StartTeamRequest): Promise<BotTeam>;
+  /** Gives the chosen organization agent a task using its own saved runtime and permissions. */
+  startAgentTask(request: { configId: string; cwd: string; task: string }): Promise<BotTeam>;
   /** Sends a message to one bot of a team (you, not the coordinator). */
   messageBot(teamId: string, botId: string, text: string): Promise<void>;
   /** Stops a bot and the bots it created; no bot id = the whole team. */
@@ -1168,6 +1285,14 @@ export interface AlchemistApi {
   onTerminalExit(listener: (message: { id: string; code: number }) => void): () => void;
   /** Opens a file dialog and returns the parsed VS Code theme JSON, or null if cancelled. */
   /** Opens a file dialog: a theme .json, or a .vsix with one or more themes; null if cancelled. */
+  /** Speech-to-text engines and which one "Automatic" picks. */
+  voiceStatus(model: string): Promise<VoiceStatus>;
+  /** Asks the system for the microphone; false when refused. */
+  voiceMicrophone(): Promise<boolean>;
+  /** macOS: starts the system's dictation in the focused text field. */
+  voiceDictate(): void;
+  /** A recording (16 kHz mono WAV) as text. */
+  transcribe(audio: Uint8Array, request: VoiceRequest): Promise<{ text: string; engine: VoiceEngineId }>;
   importTheme(): Promise<unknown[] | null>;
   /** Theme extensions on Open VSX (open-vsx.org). */
   searchThemes(query: string): Promise<Array<{ namespace: string; name: string; displayName: string; description: string; version: string; downloads: number; verified: boolean }>>;
@@ -1280,11 +1405,16 @@ export const Channels = {
   browserSwitchTab: 'browser:switch-tab',
   browserCloseTab: 'browser:close-tab',
   browserSignIns: 'browser:sign-ins',
+  browserImport: 'browser:import',
   cliVersions: 'usage:versions',
   showMenu: 'menu:show',
   appCommand: 'app:command',
   revealPath: 'shell:reveal',
   copyText: 'clipboard:copy',
+  proActivate: 'pro:activate',
+  proAccountStart: 'pro:account-start',
+  proAccountResult: 'pro:account-result',
+  relaunch: 'app:relaunch',
   reviews: 'reviews:list',
   reviewFile: 'reviews:file',
   reviewKeep: 'reviews:keep',
@@ -1315,9 +1445,12 @@ export const Channels = {
   addStarterBots: 'bots:addStarters',
   orgSettings: 'bots:org',
   saveOrgSettings: 'bots:saveOrg',
+  seedOrgGroups: 'bots:seedOrgGroups',
   ensureOrg: 'bots:ensureOrg',
+  renewStaff: 'bots:renewStaff',
   botTeams: 'bots:teams',
   startTeam: 'bots:startTeam',
+  startAgentTask: 'bots:startAgentTask',
   messageBot: 'bots:message',
   stopBot: 'bots:stop',
   deleteTeam: 'bots:deleteTeam',
@@ -1342,6 +1475,10 @@ export const Channels = {
   killTerminal: 'term:kill',
   terminalData: 'term:data',
   terminalExit: 'term:exit',
+  voiceStatus: 'voice:status',
+  voiceMicrophone: 'voice:microphone',
+  voiceDictate: 'voice:dictate',
+  transcribe: 'voice:transcribe',
   importTheme: 'theme:import',
   searchThemes: 'theme:search',
   installTheme: 'theme:install',

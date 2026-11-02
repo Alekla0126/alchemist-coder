@@ -32,7 +32,9 @@ import { BoardService } from './board';
 import { AutomationHost } from './automation-host';
 import { Workspace } from './workspace';
 import { KeychainSecretStore } from './secrets';
-import { loadPersonalModule, loadProModule } from './extensions';
+import { Voice } from './voice';
+import { checkoutLink, loadPersonalModule, loadProModule } from './extensions';
+import { ProAccountFlow } from './pro-account';
 import workerPath from './indexer-worker?modulePath';
 
 registerPreviewScheme();
@@ -48,6 +50,11 @@ let progress: IndexProgress = { phase: 'scanning', done: 0, total: 0 };
 let edition: 'community' | 'pro' = 'community';
 /** Whether this copy bundles its owner's personal module (see extensions.ts). */
 let personalBuild = false;
+/** Whether this copy carries the Pro module (licensed or not), and where «Buy Pro» goes. */
+let proBundled = false;
+let proCheckout: string | null = null;
+let proAccount: ProAccountFlow | null = null;
+let proAccountAvailable = false;
 /** This launch is the app's first on this computer. */
 let firstRun = false;
 
@@ -67,6 +74,9 @@ function appInfo(): AppInfo {
     edition,
     personal: personalBuild,
     firstRun,
+    proModule: proBundled,
+    proCheckout,
+    proAccount: proAccountAvailable,
     platform: process.platform,
     systemLocale: app.getLocale(),
     home: app.getPath('home'),
@@ -90,6 +100,8 @@ function appInfo(): AppInfo {
           browserDriver: arg('browser-driver') ?? null,
           drag: arg('drag') ?? null,
           activity: process.argv.includes('--activity'),
+          officeCard: process.argv.includes('--office-card'),
+          officeDemo: process.argv.includes('--office-demo'),
           scrollTo: arg('scroll-to') ?? null,
           runUntil: arg('run-until') === 'subagent' ? 'subagent' : null,
           orgGoal: arg('org-goal') ?? null,
@@ -98,8 +110,8 @@ function appInfo(): AppInfo {
           automationRun: process.argv.includes('--automation-run'),
           automationAnswer: process.argv.includes('--automation-answer'),
           orgApprove: process.argv.includes('--org-approve'),
-          settings: (['general', 'agents', 'automations', 'usage', 'backup', 'shortcuts', 'about'] as const).find((x) => x === arg('settings')) ?? null,
-          botsView: ['team', 'config', 'member', 'agent', 'chart'].includes(arg('bots-view') ?? '') ? (arg('bots-view') as 'team' | 'config' | 'member' | 'agent' | 'chart') : null,
+          settings: (['general', 'agents', 'voice', 'automations', 'usage', 'backup', 'shortcuts', 'about'] as const).find((x) => x === arg('settings')) ?? null,
+          botsView: ['team', 'config', 'member', 'agent', 'chart', 'live', 'map', 'office'].includes(arg('bots-view') ?? '') ? (arg('bots-view') as 'team' | 'config' | 'member' | 'agent' | 'chart' | 'live' | 'map' | 'office') : null,
           team: (() => {
             const [h, p, m] = (arg('team-agent') ?? '').split(',');
             const goal = arg('team');
@@ -127,6 +139,7 @@ function appInfo(): AppInfo {
           addAgent: process.argv.includes('--add-agent'),
           scope: (['project', 'all', 'recent'] as const).find((x) => x === arg('scope')) ?? null,
           mkTab: arg('mk-tab') ?? null,
+          voice: arg('voice') === 'recording' || arg('voice') === 'transcribing' ? (arg('voice') as 'recording' | 'transcribing') : null,
           mkGenerate: (() => {
             const [h, p, m] = (arg('mk-generate') ?? '').split(',');
             return h && p && m ? { harnessId: h, providerId: p, model: m } : null;
@@ -257,7 +270,19 @@ function createWindow(onClosed: () => void) {
 }
 
 if (!app.requestSingleInstanceLock() && !capturePath) app.quit();
-app.on('second-instance', () => {
+const acceptProCallback = (url: string) => {
+  if (!proAccount || !url.startsWith('alchemistcoder:')) return;
+  void proAccount.accept(url).then((result) => {
+    if (result) {
+      send(Channels.proAccountResult, result);
+      if (window?.isMinimized()) window.restore();
+      window?.focus();
+    }
+  });
+};
+app.on('open-url', (event, url) => { event.preventDefault(); acceptProCallback(url); });
+app.on('second-instance', (_event, argv) => {
+  for (const url of argv) acceptProCallback(url);
   if (window?.isMinimized()) window.restore();
   window?.focus();
 });
@@ -271,9 +296,22 @@ void app.whenReady().then(async () => {
   void adoptLoginShellPath();
   const secrets = new KeychainSecretStore(join(userData, 'secrets.json'));
   const pro = loadProModule(process.resourcesPath);
+  proBundled = !!pro;
+  proCheckout = checkoutLink(pro);
+  proAccount = new ProAccountFlow(pro, userData);
+  proAccountAvailable = !!(pro?.accountUrl?.() && pro.deviceId && pro.activate);
+  if (app.isPackaged && proAccountAvailable) app.setAsDefaultProtocolClient('alchemistcoder');
   edition = pro && (await pro.isPro({ userData, secrets }).catch(() => false)) ? 'pro' : 'community';
   const own = loadPersonalModule(process.resourcesPath);
   personalBuild = !!own;
+  // Its owner's starting organizations (a broken module seeds none).
+  const starterGroups = (folders: string[]) => {
+    try {
+      return own?.orgGroups?.(folders) ?? [];
+    } catch {
+      return [];
+    }
+  };
   const registry = new ExtensionRegistry(edition, secrets);
   // Agents speak ACP (permissions, plans, diffs, modes). Without Node's npx, Claude Code and Codex
   // fall back to their headless stream-json mode.
@@ -338,6 +376,8 @@ void app.whenReady().then(async () => {
   const browser = new BrowserHost(() => window, { command: process.execPath, script: writeBrowserBridge(userData) }, (state) => send(Channels.browserChanged, state));
   await browser.start();
   browserHost = browser;
+  // The organization's bots drive the same browser, each in tabs of its own.
+  bots.setBrowser({ tools: (label, project) => browser.mcpServer(label, project), bind: (server, runId) => browser.bindRun(server, runId), release: (server) => browser.release(server) });
   const board = new BoardService(userData, (data) => send(Channels.boardChanged, data));
   // Automations run with the window closed too: a notification brings it back on the automation.
   const automations = new AutomationHost(userData, {
@@ -399,7 +439,12 @@ void app.whenReady().then(async () => {
     if ('autopilot' in patch) autopilotChanged();
     else if ('locale' in patch) buildMenu();
   };
-  registerIpc({ info: appInfo, bots, settings, onSettingsChanged, reader: () => reader, progress: () => progress, onRendered: () => void capture(), runner, tasks, preview, hub, backup, reviews, usage, exportSession: (id, format) => (reader ? exportSession(window, reader, id, format) : Promise.reject(new Error('The index is still loading'))), workspace, terminals, dataDir: userData, board, automations, browser });
+  registerIpc({ info: appInfo, bots, starterGroups, settings, onSettingsChanged, reader: () => reader, progress: () => progress, onRendered: () => void capture(), runner, tasks, preview, hub, backup, reviews, usage, exportSession: (id, format) => (reader ? exportSession(window, reader, id, format) : Promise.reject(new Error('The index is still loading'))), workspace, terminals, voice: new Voice(secrets, userData), dataDir: userData, board, automations, browser, proActivate: pro?.activate ? (code) => pro.activate!({ userData }, code) : undefined, proAccountStart: async () => {
+    const url = proAccount?.start();
+    if (!url) return false;
+    await shell.openExternal(url);
+    return true;
+  } });
   startIndexer(join(userData, 'index.db'), backup.root(), (source) => usage.touch(source));
   backup.start();
   const menuLocale = () => settings.get().locale ?? matchLocale(app.getLocale());

@@ -128,6 +128,30 @@ describe('bot teams', () => {
     await expect(bots.callTool(lead, 'create_bot', { name: 'X', task: 't' })).rejects.toThrow(/spending cap/);
   });
 
+  it('gives bots the project’s browser, says so once, and lets go of it when the run ends', async () => {
+    const { fake, bots } = setup();
+    await bots.start();
+    const calls: string[] = [];
+    bots.setBrowser({
+      tools: (label, project) => (calls.push(`tools ${label} ${project}`), { name: 'alchemist_browser', command: 'node', args: [], env: { AC_BROWSER_TOKEN: label } }),
+      bind: (server, runId) => void calls.push(`bind ${server.env?.AC_BROWSER_TOKEN} ${runId}`),
+      release: (server) => void calls.push(`release ${server.env?.AC_BROWSER_TOKEN}`),
+    });
+    const team = bots.startTeam({ goal: 'g', cwd: '/p', coordinator: { name: 'Lead', role: '', agent, permissionMode: 'acceptEdits' } });
+    // The bot tools and the browser's.
+    expect(fake.started[0]!.mcp).toBe(2);
+    expect(fake.started[0]!.prompt).toContain('alchemist_browser');
+    expect(calls).toEqual(['tools Lead /p', 'bind Lead run-1']);
+    const emit = (bots as unknown as { onRunEvent(m: RunnerEventMessage): void }).onRunEvent.bind(bots);
+    emit({ runId: 'run-1', event: { type: 'started', sessionId: 'sess-1' } });
+    emit({ runId: 'run-1', event: { type: 'status', status: 'done' } });
+    expect(calls.at(-1)).toBe('release Lead');
+    // A continued conversation gets the browser again, without being told about it twice.
+    bots.message(team.id, 'b1', 'one more thing');
+    expect(fake.started[1]!.mcp).toBe(2);
+    expect(fake.started[1]!.prompt).toBe('one more thing');
+  });
+
   it('continues a finished bot in its saved conversation, and names teams from the goal', async () => {
     const { teamTitle } = await import('../src/main/bots');
     expect(teamTitle('Add a login page. Then test it.')).toBe('Add a login page.');
@@ -211,6 +235,25 @@ describe('bot teams', () => {
     expect(bots.listTeams()[0]!.bots[1]!.doing).toBeNull();
   });
 
+  it('keeps how long a long task or a reply was, so the office can weigh what they handed each other', async () => {
+    const { fake, bots } = setup();
+    const team = bots.startTeam({ goal: 'g', cwd: '/p', coordinator: { name: 'Lead', role: '', agent, permissionMode: 'acceptEdits' } });
+    const lead = { teamId: team.id, botId: 'b1' };
+    const task = 'Write the docs. '.repeat(40);
+    await bots.callTool(lead, 'create_bot', { name: 'W', task: 'short task' });
+    await bots.callTool(lead, 'create_bot', { name: 'X', task });
+    fake.play('run-2', 'Docs written in docs/a.md');
+    const [short, long, reply] = bots.team(team.id)!.activity!;
+    // A short one is whole in its line: no length needed.
+    expect(short).toMatchObject({ kind: 'created', detail: 'b2|short task' });
+    expect(short!.chars).toBeUndefined();
+    // A long one is cut to 300 characters, and keeps its real length (without the other bot's id).
+    expect(long!.detail).toHaveLength(300);
+    expect(long!.chars).toBe(task.trim().length);
+    // A reply isn't in its line at all: only its length.
+    expect(reply).toMatchObject({ kind: 'finished', botId: 'b2', detail: '', chars: 'Docs written in docs/a.md'.length });
+  });
+
   it('finishes only when the coordinator says so, and talking to it again reopens the team', async () => {
     const { fake, bots } = setup();
     const team = bots.startTeam({ goal: 'g', cwd: '/p', coordinator: { name: 'Lead', role: '', agent, permissionMode: 'acceptEdits' } });
@@ -258,6 +301,16 @@ describe('bot teams', () => {
     expect(bots.saveConfig({ ...saved, avatar: `data:image/png;base64,${'A'.repeat(400_001)}` }).avatar).toBeNull();
     // Renaming keeps it.
     expect(bots.saveConfig({ ...saved, name: 'Pic 2' }).avatar).toBe(png);
+  });
+
+  it('keeps a description on one line and within its card, and drops an empty one', () => {
+    const { bots } = setup();
+    const saved = bots.saveConfig({ name: 'Stores', role: 'Watch the stores.', agent, permissionMode: 'default', about: '  Keeps the apps\n published. ' });
+    expect(saved.about).toBe('Keeps the apps published.');
+    expect(bots.saveConfig({ ...saved, about: 'x'.repeat(500) }).about).toHaveLength(180);
+    expect('about' in bots.saveConfig({ ...saved, about: '   ' })).toBe(false);
+    // Renaming keeps it.
+    expect(bots.saveConfig({ ...saved, name: 'Stores 2' }).about).toBe('Keeps the apps published.');
   });
 
   it('keeps saying what a bot does when a call\'s updates come without its name', async () => {
@@ -349,6 +402,43 @@ describe('bot teams', () => {
     again.saveOrgSettings({ lessons: [] });
     again.startTeam({ goal: 'Again', cwd: '/p', configId: lead.id });
     expect(fake.started.at(-1)!.prompt).not.toContain('Lessons this organization learned');
+  });
+
+  it('keeps organizations as groups of folders: none until you (or the owner’s build) save some, then yours, without touching the rest', () => {
+    const fake = fakeRunner();
+    const files = { configs: join(dir, `c-${Math.random()}.json`), teams: join(dir, `t-${Math.random()}.json`) };
+    const make = () => new BotManager(files, fake.runner as never, { command: process.execPath, script: writeBridge(dir) }, (cwd) => String(cwd), () => {});
+    // A new organization, or an org.json from before organizations: never saved (the renderer decides what to start with).
+    expect(make().orgSettings().groups).toBeUndefined();
+    writeFileSync(`${files.configs}.org.json`, JSON.stringify({ name: 'Old', instructions: 'Be brief', autopilot: false, lessons: [] }));
+    const old = make();
+    expect(old.orgSettings()).toEqual({ name: 'Old', instructions: 'Be brief', autopilot: false, lessons: [] });
+    // Yours: folders once each, bad ones dropped; the name and lessons stay.
+    old.saveOrgSettings({ groups: [{ id: 'clients', name: ' Clients ', projects: ['/p/li', '/p/li', 3] }, { id: 'bad id!', name: 'X', projects: [] }, { id: 'nameless', name: '', projects: [] }] });
+    expect(old.orgSettings().groups).toEqual([{ id: 'clients', name: 'Clients', projects: ['/p/li'] }]);
+    expect(old.orgSettings().name).toBe('Old');
+    // Saving something else keeps them; none left stays none (saved, so nothing is seeded again).
+    old.saveOrgSettings({ instructions: 'Be kind' });
+    expect(make().orgSettings().groups).toEqual([{ id: 'clients', name: 'Clients', projects: ['/p/li'] }]);
+    old.saveOrgSettings({ groups: [] });
+    expect(make().orgSettings().groups).toEqual([]);
+  });
+
+  it('seeds a build’s starting organizations only while none were saved and one of them has a folder', () => {
+    const fake = fakeRunner();
+    const files = { configs: join(dir, `c-${Math.random()}.json`), teams: join(dir, `t-${Math.random()}.json`) };
+    const bots = new BotManager(files, fake.runner as never, { command: process.execPath, script: writeBridge(dir) }, (cwd) => String(cwd), () => {});
+    const none = [{ id: 'mobile', name: 'Mobile', projects: [] }, { id: 'web', name: 'Web', projects: [] }];
+    // No open folder matched: nothing saved, so the next try (other folders open) can still seed.
+    expect(bots.seedOrgGroups(none).groups).toBeUndefined();
+    expect(bots.seedOrgGroups('not a list').groups).toBeUndefined();
+    const some = [{ id: 'mobile', name: 'Mobile', projects: ['/p/app'] }, { id: 'web', name: 'Web', projects: [] }];
+    expect(bots.seedOrgGroups(some).groups).toEqual(some);
+    // Once saved (by seeding or by you), never replaced.
+    bots.saveOrgSettings({ groups: [{ id: 'mine', name: 'Mine', projects: ['/p/x'] }] });
+    expect(bots.seedOrgGroups(some).groups).toEqual([{ id: 'mine', name: 'Mine', projects: ['/p/x'] }]);
+    bots.saveOrgSettings({ groups: [] });
+    expect(bots.seedOrgGroups(some).groups).toEqual([]);
   });
 
   it("decides everything on the coordinator's own switch: plans, permissions and its own turns", async () => {
@@ -625,4 +715,25 @@ describe('bots with their own copy', { timeout: 30_000 }, () => {
     bots.stopAll();
     rmSync(plain, { recursive: true, force: true });
   });
+});
+
+
+it('starts separate Codex office agents with their saved model and permissions, without the Claude coordinator', async () => {
+  const { fake, bots } = setup();
+  await bots.start();
+  try {
+    bots.saveConfig({ name: 'Claude coordinator', kind: 'coordinator', role: 'Coordinate', agent, permissionMode: 'acceptEdits', canSpawn: true });
+    const codex = bots.saveConfig({ name: 'Codex office test', role: 'Only test the conversation', agent: { harnessId: 'codex', providerId: 'openai', model: 'default' }, permissionMode: 'plan', canSpawn: false });
+    const first = await bots.startSolo({ configId: codex.id, cwd: '/test-office', task: 'Remember Solar Cedar' });
+    const second = await bots.startSolo({ configId: codex.id, cwd: '/test-office', task: 'Remember Lunar Oak' });
+    expect(first.id).not.toBe(second.id);
+    expect(first.bots[0]).toMatchObject({ configId: codex.id, agent: { harnessId: 'codex', providerId: 'openai' }, permissionMode: 'plan', canSpawn: false });
+    expect(fake.started).toHaveLength(2);
+    expect(fake.started[0]!.prompt).toContain('The user gave you this task directly in the office');
+    expect(fake.started[0]!.prompt).not.toContain('An automation gave you');
+    expect(fake.started.every((r) => r.model === 'default' && r.permissionMode === 'plan')).toBe(true);
+    fake.play(first.bots[0]!.runId!, 'Solar Cedar');
+    await bots.message(first.id, first.bots[0]!.id, 'Repeat the name');
+    expect(fake.sent).toContainEqual([first.bots[0]!.runId, 'Repeat the name']);
+  } finally { bots.stopAll(); }
 });

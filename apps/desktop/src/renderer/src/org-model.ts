@@ -1,4 +1,4 @@
-import type { BotConfig, BotMember, BotStatus, BotTeam } from '@shared/api';
+import { ABOUT_MAX, type BotConfig, type BotMember, type BotStatus, type BotTeam, type TeamEventKind } from '@shared/api';
 import { isInside } from './paths';
 
 export const ACTIVE: BotStatus[] = ['starting', 'working', 'waiting'];
@@ -150,4 +150,207 @@ export function extrasIn(team: BotTeam, configs: BotConfig[]): Array<{ key: stri
     extras.push({ key: `plan:${i}`, name: p.name, role: p.role, work: { state: 'planned', task: p.task, doing: null, botId: null, more: 0, costUsd: null } });
   });
   return extras;
+}
+
+/** One exchange of an assignment, as the live view shows it: who to whom, about what, and when. */
+export interface Exchange {
+  /** Stable while the activity grows (its index isn't: the oldest lines drop off). */
+  key: string;
+  at: number;
+  kind: ExchangeKind;
+  /** A bot's id, 'you' or 'autopilot'. */
+  from: string;
+  /** A bot's id or 'you'; null when it's for the whole organization (a lesson). */
+  to: string | null;
+  /** What was said: a task, a message, a reply, a question, a lesson. */
+  text: string;
+  /** A count, for those that carry one (agents in a plan, files applied). */
+  n: number | null;
+  /** About how many tokens what was said weighs (estimateTokens); 0 when nothing was said. */
+  tokens: number;
+}
+
+/**
+ * About how many tokens a text weighs for a model, without a tokenizer: a token is about four
+ * characters in most languages, and about one per character in Chinese, Japanese and Korean. `chars`
+ * is its whole length when `text` is only its beginning.
+ */
+export function estimateTokens(text: string, chars = text.length): number {
+  if (chars <= 0) return 0;
+  const sample = text.slice(0, 2000);
+  const wide = sample ? (sample.match(/[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af\uf900-\ufaff]/g) ?? []).length / sample.length : 0;
+  return Math.max(1, Math.round(chars * wide + (chars * (1 - wide)) / 4));
+}
+
+/** The kinds that are someone telling someone something; a stop isn't. */
+export type ExchangeKind = Exclude<TeamEventKind, 'stopped'>;
+const EXCHANGES: ExchangeKind[] = ['created', 'message', 'finished', 'failed', 'applied', 'waiting', 'plan', 'approved', 'changes', 'done', 'learned', 'nudged'];
+
+/** An assignment's activity as exchanges between its agents, you and Autopilot, oldest first. */
+export function exchangesOf(team: BotTeam): Exchange[] {
+  const events = team.activity ?? [];
+  const coordinator = team.bots[0]?.id ?? 'you';
+  const botOf = (id: string) => team.bots.find((b) => b.id === id);
+  // A bot reports to the one that created it; the coordinator reports to you.
+  const parentOf = (id: string) => botOf(id)?.parentId ?? 'you';
+  const lastOf = (i: number, kinds: TeamEventKind[], botId: string) => !events.slice(i + 1).some((x) => kinds.includes(x.kind) && x.botId === botId);
+  // Lines the same in every way are told apart by how many like them come after: the oldest ones
+  // dropping off (past 200) then change no key.
+  const after = new Map<string, number>();
+  const keys = events.map((e) => `${e.at}|${e.botId}|${e.kind}|${e.detail}`);
+  const nth = new Array<number>(events.length);
+  for (let i = events.length - 1; i >= 0; i--) {
+    nth[i] = after.get(keys[i]!) ?? 0;
+    after.set(keys[i]!, nth[i]! + 1);
+  }
+  const out: Exchange[] = [];
+  events.forEach((e, i) => {
+    const kind = e.kind as ExchangeKind;
+    if (!EXCHANGES.includes(kind)) return;
+    // Only these say who the other one is (`<botId>|<text>`); the rest is free text that may hold a '|'.
+    const cut = ['created', 'message', 'applied'].includes(kind) ? e.detail.indexOf('|') : -1;
+    const [other, rest] = cut >= 0 ? [e.detail.slice(0, cut), e.detail.slice(cut + 1)] : ['', e.detail];
+    const count = Number.parseInt(rest, 10);
+    const n = ['plan', 'approved', 'applied'].includes(kind) && Number.isFinite(count) ? count : null;
+    const x: Exchange = { key: nth[i] ? `${keys[i]}#${nth[i]}` : keys[i]!, at: e.at, kind, from: e.botId, to: null, text: '', n, tokens: 0 };
+    switch (kind) {
+      case 'created':
+      case 'message':
+        x.to = other || null;
+        x.text = rest;
+        break;
+      case 'applied':
+        x.to = other || null;
+        break;
+      case 'finished':
+      case 'failed': {
+        x.to = parentOf(e.botId);
+        // Its reply is kept for its latest turn only.
+        const bot = botOf(e.botId);
+        if (bot && lastOf(i, ['finished', 'failed'], e.botId)) x.text = (e.kind === 'failed' && bot.error) || bot.lastReply;
+        break;
+      }
+      case 'waiting':
+        x.to = 'you';
+        x.text = rest;
+        break;
+      case 'plan':
+        x.to = 'you';
+        if (lastOf(i, ['plan'], e.botId)) x.text = team.plan?.summary ?? '';
+        break;
+      case 'done':
+        x.to = 'you';
+        if (lastOf(i, ['done'], e.botId)) x.text = team.finished?.summary ?? '';
+        break;
+      case 'approved':
+      case 'changes':
+      case 'nudged':
+        x.to = coordinator;
+        x.text = e.kind === 'changes' ? rest : '';
+        break;
+      case 'learned':
+        x.text = rest;
+        break;
+    }
+    // Its weight: the whole length when the line kept only the start (a long task is whole on its bot).
+    if (kind !== 'applied' && kind !== 'approved' && kind !== 'nudged') {
+      const task = kind === 'created' ? botOf(other)?.task : undefined;
+      const chars = e.chars ?? Math.max(x.text.length, task?.length ?? 0);
+      x.tokens = estimateTokens(task && task.length > x.text.length ? task : x.text, chars);
+    }
+    out.push(x);
+  });
+  return out;
+}
+
+/** Your desk in the office: what you say, and what Autopilot decides for you, comes from it. */
+export const YOU = 'you';
+
+/**
+ * The card a bot shows on in the chart: its organization agent's, or its own (extrasIn's key) when
+ * defined on the spot. You and Autopilot sit at your desk.
+ */
+export function cardOf(team: BotTeam, id: string, configs: BotConfig[]): string | null {
+  if (id === 'you' || id === 'autopilot') return YOU;
+  const bot = team.bots.find((b) => b.id === id);
+  if (!bot) return null;
+  if (bot.configId && configs.some((c) => c.id === bot.configId)) return bot.configId;
+  if (bot.depth === 0) return configs.find((c) => c.kind === 'coordinator')?.id ?? null;
+  return `bot:${bot.id}`;
+}
+
+/** The exchanges in `next` that weren't there before; none the first time (an assignment just opened). */
+export function newExchanges(prev: ReadonlySet<string> | null, next: Exchange[]): string[] {
+  if (!prev) return [];
+  return next.filter((x) => !prev.has(x.key)).map((x) => x.key);
+}
+
+/** Two cards that wrote to each other in an assignment, and how many times (either way). */
+export interface Link {
+  a: string;
+  b: string;
+  n: number;
+}
+
+/** Who wrote to whom in an assignment, card to card (you included); a lesson is for everyone, so for no card. */
+export function linksOf(team: BotTeam, exchanges: Exchange[], configs: BotConfig[]): Link[] {
+  const links = new Map<string, Link>();
+  for (const x of exchanges) {
+    const a = cardOf(team, x.from, configs);
+    const b = x.to ? cardOf(team, x.to, configs) : null;
+    if (!a || !b || a === b) continue;
+    const [p, q] = a < b ? [a, b] : [b, a];
+    const key = `${p}>${q}`;
+    const link = links.get(key) ?? { a: p, b: q, n: 0 };
+    link.n++;
+    links.set(key, link);
+  }
+  return [...links.values()];
+}
+
+/** Who a card talked with in an assignment, most messages first (ties: in the order they first spoke). */
+export function partnersOf(links: Link[], card: string): Array<{ id: string; n: number }> {
+  return links
+    .filter((l) => l.a === card || l.b === card)
+    .map((l) => ({ id: l.a === card ? l.b : l.a, n: l.n }))
+    .sort((x, y) => y.n - x.n);
+}
+
+/** A first sentence shorter than this takes the next one too ("You are the release manager." says little). */
+const ABOUT_SHORT = 40;
+
+/** `text` cut at a word to fit in `max`, with "…". */
+function fit(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max - 1);
+  const space = cut.lastIndexOf(' ');
+  return `${(space > max * 0.6 ? cut.slice(0, space) : cut).replace(/[\s,;:.\u2014-]+$/, '')}…`;
+}
+
+/**
+ * What an agent does, in a line or two for its card: the description you (or the coordinator) gave it,
+ * or else the opening of its instructions, so every agent has one from the moment the app opens.
+ */
+export function aboutOf(c: { about?: string | null; role: string }): string {
+  const own = c.about?.replace(/\s+/g, ' ').trim();
+  if (own) return fit(own, ABOUT_MAX);
+  const text = c.role
+    .replace(/^\s*#+\s*/gm, '')
+    .replace(/^\s*(?:[-*•]|\d+[.)])\s+/gm, '')
+    .replace(/[*_`]+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!text) return '';
+  // Sentences end at . ! ? before a space (so "v1.2" stays whole), or right after 。！？.
+  const sentences = text.split(/(?<=[.!?])\s+|(?<=[。！？])/).filter(Boolean);
+  let first = sentences[0]!;
+  const next = sentences[1];
+  if (first.length > ABOUT_MAX) {
+    // "Judge the interface like a senior designer: open the app…" keeps what comes before the colon.
+    const colon = first.search(/[:;：；]\s?/);
+    return colon >= 24 && colon < ABOUT_MAX ? `${first.slice(0, colon)}.` : fit(first, ABOUT_MAX);
+  }
+  // CJK sentences follow each other without a space.
+  if (first.length < ABOUT_SHORT && next && first.length + 1 + next.length <= ABOUT_MAX) first = /[。！？]$/.test(first) ? first + next : `${first} ${next}`;
+  return first;
 }

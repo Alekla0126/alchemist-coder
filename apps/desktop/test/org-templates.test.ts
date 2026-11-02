@@ -16,7 +16,7 @@ describe('the templates an assignment starts from', () => {
       const starters = starterTemplates((key) => translate(locale, key));
       expect(starters[0]).toMatchObject({ id: HOUSE_TEMPLATE, name: 'The Alchemist Code', reviewPlan: true, goal: '' });
       expect(starters[0].guidance).toContain('The Alchemist Code');
-      expect(starters.map((s) => s.id)).toEqual(['starter:alchemist', 'starter:build', 'starter:security', 'starter:research']);
+      expect(starters.map((s) => s.id)).toEqual(['starter:alchemist', 'starter:build', 'starter:security', 'starter:research', 'starter:slides']);
     }
   });
 

@@ -31,6 +31,16 @@ export interface TokenUsage {
 
 export const emptyUsage = (): TokenUsage => ({ input: 0, output: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0 });
 
+/**
+ * Merges another record of the same reply into `into`, keeping each field's largest value. Claude Code
+ * writes one reply as several records, and their usage can grow while it streams (a subagent's first
+ * record may say 8 output tokens and its last 258), so neither the first nor the last is always right.
+ */
+export function maxUsage(into: TokenUsage, from: TokenUsage): TokenUsage {
+  for (const k of Object.keys(into) as Array<keyof TokenUsage>) into[k] = Math.max(into[k], from[k]);
+  return into;
+}
+
 export function priceFor(model: string | null | undefined): { input: number; output: number } | null {
   if (!model) return null;
   let best: (typeof PRICES)[number] | null = null;

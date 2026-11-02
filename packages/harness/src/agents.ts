@@ -1,6 +1,6 @@
 import type { HarnessAdapter } from '@alchemist-coder/core';
 import { acpHarness, type AcpLaunch } from './acp.ts';
-import { detectBinary } from './detect.ts';
+import { binaryPath, detectBinary } from './detect.ts';
 import type { SpawnFn } from './process.ts';
 
 // Pinned so an adapter update can't change behaviour under the user; bump deliberately.
@@ -11,8 +11,8 @@ export const GROK_CLI = '@xai-official/grok@1.0.41';
 const versionOf = (pkg: string) => pkg.slice(pkg.lastIndexOf('@') + 1);
 
 /** Runs an npm package through npx (downloaded once into the npm cache). */
-function viaNpx(pkg: string, args: string[] = []): () => Promise<AcpLaunch | null> {
-  return async () => ((await detectBinary('npx')).installed ? { command: 'npx', args: ['-y', pkg, ...args], version: versionOf(pkg) } : null);
+function viaNpx(pkg: string, args: string[] = [], detect = detectBinary): () => Promise<AcpLaunch | null> {
+  return async () => ((await detect('npx')).installed ? { command: 'npx', args: ['-y', pkg, ...args], version: versionOf(pkg) } : null);
 }
 
 /**
@@ -54,13 +54,22 @@ export function claudeAgent(options: AgentOptions = {}): HarnessAdapter {
   );
 }
 
-/** OpenAI Codex through its ACP adapter (bundles a compatible Codex). */
-export function codexAgent(options: AgentOptions = {}): HarnessAdapter {
+/** Use the user's installed Codex when available: its account and model catalog match that binary. */
+export function codexAgent(options: AgentOptions & { detectBinary?: typeof detectBinary } = {}): HarnessAdapter {
+  const detect = options.detectBinary ?? detectBinary;
+  const adapter = viaNpx(CODEX_ACP, [], detect);
   return acpHarness(
     {
       id: 'codex',
       label: 'Codex',
-      resolve: viaNpx(CODEX_ACP),
+      async resolve() {
+        const launch = await adapter();
+        if (!launch || process.env.CODEX_PATH) return launch;
+        const codex = await detect('codex');
+        // Without an installed CLI the adapter's bundled Codex remains the fallback.
+        const path = codex.installed ? binaryPath(codex.path ?? 'codex') : null;
+        return path ? { ...launch, env: { CODEX_PATH: path } } : launch;
+      },
       modes: {
         // read-only asks before every edit and command; agent edits the workspace on its own.
         default: { modes: ['read-only'], options: { collaboration_mode: 'default' } },

@@ -808,6 +808,14 @@ button.chip.edition { cursor: pointer; }
 .set-dot.ok { color: var(--green); font-size: 12px; }
 .set-dot.off { color: var(--fg-3); }
 .set-pro { font-size: 10px; padding: 1px 6px; border-radius: 999px; background: var(--bg-sel); color: var(--accent); margin-left: 4px; }
+/* Settings › About: «Buy Pro», and where the license key or beta invitation is pasted. */
+.set-row a.pro-buy { color: var(--on-accent, #1a0d05); text-decoration: none; flex-shrink: 0; }
+.pro-code { align-items: flex-start; }
+.pro-code-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.pro-code-actions input { width: 220px; background: var(--bg-input); color: var(--fg); border: 1px solid var(--line-2); border-radius: 7px; padding: 5px 8px; font-size: 12.5px; font-family: var(--mono); }
+.pro-code-actions input:focus { outline: none; border-color: var(--accent); }
+.set-row p.pro-code-bad { color: var(--red); }
+.set-row p.pro-code-ok { color: var(--green); }
 .set-key { display: flex; align-items: center; gap: 8px; }
 .set-key input { background: var(--bg-input); color: var(--fg); border: 1px solid var(--line-2); border-radius: 7px; padding: 5px 8px; font-size: 12.5px; width: 220px; }
 .set-warn { color: var(--warn, #d9a441) !important; }
@@ -1351,6 +1359,13 @@ code.md-path:hover { color: var(--accent-2); }
 .org-side .tree, .bots-list.org-side .bots-teams { flex: none; overflow: visible; min-height: auto; }
 .org-side .sec { position: sticky; top: 0; z-index: 2; background: var(--bg-side); display: flex; align-items: center; justify-content: space-between; }
 .org-top { display: flex; flex-direction: column; gap: 6px; padding: 10px 10px 2px; }
+/* The organization's name with the organization you look at (one business, client or side project) beside it. */
+.org-top-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.org-top-row > .org-name, .org-top-row > .org-name-input { flex: 1 1 100%; min-width: 0; }
+/* The organization menu and «📁 Folders» on their own row under the name, whole names. */
+.org-groups { display: flex; align-items: center; gap: 4px; flex: 1 1 100%; min-width: 0; }
+.org-group-select { width: auto; flex: 1 1 auto; min-width: 0; padding-right: 22px; }
+.org-group-empty { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 8px; border: 1px dashed var(--line-2); border-radius: 8px; font-size: 12px; color: var(--fg); }
 .org-callout { margin: 0 10px 6px; padding: 6px 10px; border-radius: 8px; text-align: left; font-size: 12px; font-weight: 600; color: var(--amber); border: 1px solid color-mix(in srgb, var(--amber) 45%, var(--line-2)); background: color-mix(in srgb, var(--amber) 8%, transparent); }
 .org-callout:hover { background: color-mix(in srgb, var(--amber) 14%, transparent); }
 .org-member.lead .tt small { font-weight: 400; }
@@ -2100,6 +2115,175 @@ select.mk-chip { appearance: none; padding-right: 12px; }
 :root[data-theme-type='light'] .oc-line.st-waiting { color: #8a4b00; }
 @media (prefers-reduced-motion: reduce) { .oc-card { transition: none; } .oc-card.drop-over { transform: none; } }
 
+/* Read by screen readers, not shown. */
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* ---------- organization live, as an office: desks by department, who talks to whom, the conversation below ---------- */
+.lv { display: flex; flex-direction: column; gap: 14px; }
+.lv-board { position: relative; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+/* The desks above the lines between them; a later row's bubble goes over an earlier one. */
+.of-top, .of-rooms, .of-open, .lv-board > .of-room { position: relative; z-index: 1; }
+/* The floor: a faint grid in the theme's own text color, so it reads as a floor in any theme. */
+.of-floor { padding: 18px 12px 14px; border: 1px solid var(--line); border-radius: 12px; background-color: color-mix(in srgb, var(--bg-card) 45%, var(--bg)); background-image: linear-gradient(color-mix(in srgb, var(--fg) 5%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--fg) 5%, transparent) 1px, transparent 1px); background-size: 32px 32px; }
+.of-top { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 18px; }
+.of-rooms { display: grid; grid-template-columns: repeat(auto-fill, minmax(296px, 1fr)); gap: 12px; }
+/* A department is a room: walls, and its name on a plate. */
+.of-room { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 8px 8px 6px; border: 2px solid color-mix(in srgb, var(--fg) 16%, transparent); border-radius: 10px; background: color-mix(in srgb, var(--bg) 60%, transparent); }
+.of-room.lv-extras { border-style: dashed; }
+.of-room h4 { align-self: flex-start; max-width: 100%; padding: 1px 8px; border-radius: 4px; font-size: 10.5px; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg); background: var(--bg-input); box-shadow: inset 0 0 0 1px var(--line-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.of-desks, .of-open { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 4px; }
+/* A desk: the person behind the table, its screen, its name, its state in words and one line. Its size never changes. */
+.of-desk { position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px; width: 140px; padding: 12px 8px 8px; border: 1px solid transparent; border-radius: 10px; text-align: center; cursor: pointer; }
+.of-desk:hover { background: var(--bg-hl); }
+.of-desk:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Its card is open: a frame and a background, not only a color. */
+.of-desk.on { border-color: var(--line-2); background: var(--bg-hl); box-shadow: inset 0 -2px 0 var(--fg-2); }
+.of-person { position: relative; display: block; }
+.of-mark { position: absolute; top: -5px; right: -9px; min-width: 17px; height: 17px; padding: 0 3px; border-radius: 999px; font-size: 11px; font-style: normal; font-weight: 800; line-height: 17px; color: var(--fg); background: var(--bg-card); box-shadow: inset 0 0 0 1.5px var(--line-2); }
+.of-mark.st-waiting { box-shadow: inset 0 0 0 1.5px var(--amber); animation: of-ask 1.6s ease-in-out infinite; }
+.of-mark.st-error { box-shadow: inset 0 0 0 1.5px var(--red); }
+.of-mark.st-done { box-shadow: inset 0 0 0 1.5px var(--green); }
+/* The table in front of the person, and the screen on it. */
+.of-table { position: relative; display: block; width: 104px; height: 12px; margin-top: -10px; border-radius: 4px 4px 2px 2px; background: color-mix(in srgb, var(--fg) 30%, var(--bg-card)); box-shadow: 0 2px 0 color-mix(in srgb, var(--fg) 14%, transparent); }
+.of-desk.of-lead .of-table { width: 124px; }
+.of-screen { position: absolute; right: 5px; bottom: calc(100% - 2px); display: flex; align-items: flex-end; justify-content: center; gap: 2px; width: 24px; height: 17px; padding: 2px; border: 1.5px solid color-mix(in srgb, var(--fg) 45%, transparent); border-radius: 3px; background: color-mix(in srgb, var(--fg) 8%, var(--bg)); }
+.of-screen i { display: none; width: 3px; height: 3px; border-radius: 1px; background: var(--green); }
+.st-working .of-screen { border-color: var(--green); box-shadow: 0 0 8px color-mix(in srgb, var(--green) 45%, transparent); }
+.st-working .of-screen i { display: block; animation: of-type 0.9s ease-in-out infinite; }
+.st-working .of-screen i:nth-child(2) { animation-delay: 0.15s; }
+.st-working .of-screen i:nth-child(3) { animation-delay: 0.3s; }
+.st-waiting .of-screen { border-color: var(--amber); }
+.st-error .of-screen { border-color: var(--red); }
+/* Busy: the person leans in a little, in place. */
+.st-working .of-person { animation: of-bob 1.8s ease-in-out infinite; }
+.of-name { max-width: 100%; margin-top: 4px; font-size: 12.5px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.of-line { display: block; width: 100%; min-height: 1.4em; font-size: 10.5px; line-height: 1.4; color: var(--fg-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.of-desk.st-error .of-line { color: var(--fg); }
+/* Not in the assignment: the desk is quieter, but its name and state stay readable. */
+.of-desk.st-out { border-style: dashed; border-color: color-mix(in srgb, var(--fg) 14%, transparent); }
+.of-desk.st-out .agent-av { filter: grayscale(0.7); opacity: 0.75; }
+.of-desk.st-out .of-name { color: var(--fg-2); }
+/* The state as a word on a tinted pill; the text keeps the theme's own color. */
+.lv-state { flex: none; padding: 1px 7px; border: 1px solid var(--line-2); border-radius: 999px; font-size: 10px; font-weight: 650; white-space: nowrap; color: var(--fg); background: var(--bg-input); }
+.lv-state.st-working { border-color: var(--green); background: color-mix(in srgb, var(--green) 14%, var(--bg-input)); }
+.lv-state.st-waiting { border-color: var(--amber); background: color-mix(in srgb, var(--amber) 20%, var(--bg-input)); }
+.lv-state.st-error { border-color: var(--red); background: color-mix(in srgb, var(--red) 14%, var(--bg-input)); }
+.lv-state.st-done { border-color: color-mix(in srgb, var(--green) 50%, var(--line-2)); }
+.lv-state.st-planned { border-style: dashed; border-color: var(--accent-2); }
+.lv-state.st-out, .lv-state.st-stopped { color: var(--fg-2); }
+/* A new exchange: its two desks, the line between them and its row light up for a few seconds. */
+.of-desk.lv-flash { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); animation: lv-pulse 1s ease-out 2; }
+/* Its side of the exchange in a word, in a corner, since a gold ring can look like a gold border. */
+.lv-flash-word { align-self: flex-start; padding: 0 6px; border-radius: 4px; font-size: 10.5px; font-weight: 650; color: var(--fg); background: var(--bg-input); box-shadow: inset 0 0 0 1px var(--accent); }
+.of-word { position: absolute; top: 4px; left: 4px; }
+@keyframes lv-pulse { from { box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 40%, transparent); } to { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); } }
+/* What the one talking said, in a bubble over its head; it covers, never pushes. */
+.of-bubble { position: absolute; z-index: 4; bottom: calc(100% - 12px); left: 50%; width: max-content; max-width: 230px; padding: 6px 9px 7px; border: 1px solid var(--line-2); border-radius: 10px; font-size: 11.5px; line-height: 1.35; text-align: left; color: var(--fg); background: var(--bg-card); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3), 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent); transform: translateX(-50%); pointer-events: none; animation: of-pop 0.25s ease-out; }
+.of-bubble::after { content: ''; position: absolute; top: 100%; left: 50%; border: 7px solid transparent; border-top-color: var(--bg-card); transform: translateX(-50%); }
+.of-bubble small { display: block; font-size: 10px; font-weight: 650; color: var(--fg-2); }
+.of-said { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+/* The envelope that goes from one desk to the other. */
+.of-envelope { position: absolute; top: 0; left: 0; z-index: 2; padding: 0 4px; border-radius: 4px; font-size: 12px; line-height: 17px; color: var(--fg); background: var(--bg-card); box-shadow: inset 0 0 0 1.5px var(--accent), 0 2px 6px rgba(0, 0, 0, 0.3); offset-rotate: 0deg; offset-anchor: center; offset-distance: 100%; pointer-events: none; animation: of-travel 1.4s ease-in-out both, of-arrive 0.4s ease-in 1.6s both; }
+@keyframes of-travel { from { offset-distance: 0%; } to { offset-distance: 100%; } }
+@keyframes of-arrive { to { opacity: 0; } }
+@keyframes of-pop { from { opacity: 0; transform: translate(-50%, 6px) scale(0.96); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes of-type { 0%, 100% { height: 3px; } 50% { height: 9px; } }
+@keyframes of-bob { 50% { transform: translateY(-2px); } }
+@keyframes of-ask { 50% { transform: scale(1.15); } }
+/* A desk's card: over the office, under its desk, pointing at it. */
+.of-card { position: absolute; z-index: 10; display: flex; flex-direction: column; gap: 4px; padding: 10px 12px 12px; border: 1px solid var(--line-2); border-radius: 10px; font-size: 12px; color: var(--fg); background: var(--bg-card); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.38); cursor: default; }
+.of-card::before { content: ''; position: absolute; top: -7px; left: calc(var(--tip) - 6px); width: 11px; height: 11px; border-top: 1px solid var(--line-2); border-left: 1px solid var(--line-2); background: var(--bg-card); transform: rotate(45deg); }
+.of-card-head { display: flex; align-items: center; gap: 8px; }
+.of-card-head b { flex: 1; min-width: 0; font-size: 13.5px; overflow-wrap: anywhere; }
+.of-card h5 { margin-top: 6px; font-size: 10px; font-weight: 650; letter-spacing: 0.05em; text-transform: uppercase; color: var(--fg-2); }
+.of-card p { line-height: 1.45; overflow-wrap: anywhere; }
+.of-about { font-size: 12.5px; }
+.of-card .oc-line { display: block; margin-top: 2px; }
+.of-card-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.of-close { flex: none; padding: 0 6px; border-radius: 6px; font-size: 13px; color: var(--fg-2); }
+.of-close:hover { color: var(--fg); background: var(--bg-hl); }
+.of-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.lv-wires { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.lv-spark { stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 6 5; animation: lv-flow 0.8s linear infinite; }
+@keyframes lv-flow { to { stroke-dashoffset: -11; } }
+/* The conversation, under the office. */
+.lv-chat { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.lv-chat h4 { font-size: 12px; }
+.lv-feed-wrap { position: relative; }
+.lv-feed { list-style: none; display: flex; flex-direction: column; gap: 2px; max-height: 320px; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; }
+.lv-msg { padding: 6px 8px; border: 1px solid transparent; border-radius: 8px; font-size: 12px; transition: background 0.4s, border-color 0.4s; }
+.lv-msg-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px; }
+.lv-msg-head b { font-weight: 650; }
+.lv-arrow { color: var(--fg-2); }
+.lv-kind { font-size: 11px; color: var(--fg-2); }
+.lv-msg.k-waiting .lv-kind, .lv-msg.k-failed .lv-kind { font-weight: 650; color: var(--fg); }
+.lv-text { display: block; margin-top: 2px; font-size: 12px; line-height: 1.4; color: var(--fg); white-space: pre-wrap; overflow-wrap: anywhere; }
+/* The theme's own text color, underlined: it reads on every theme, unlike an accent. */
+.lv-more { margin-left: 6px; font-size: 11.5px; font-weight: 600; color: var(--fg); text-decoration: underline; text-underline-offset: 2px; }
+.lv-more:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 3px; }
+.lv-time { flex: none; color: var(--fg-2); font-variant-numeric: tabular-nums; }
+.lv-msg.lv-marked { background: var(--bg-hl); box-shadow: inset 2px 0 0 var(--fg-2); }
+.lv-since { font-weight: 400; color: var(--fg-2); }
+/* Chart | Live: the chosen one has its own background, an accent edge, bold text and a ✓. */
+.lv-view { display: flex; gap: 2px; padding: 2px; border: 1px solid var(--line-2); border-radius: 999px; }
+.lv-view button { padding: 2px 10px; border-radius: 999px; font-size: 11px; color: var(--fg-2); }
+.lv-view button:hover { color: var(--fg); }
+.lv-view button.on { color: var(--fg); font-weight: 650; background: var(--bg-input); box-shadow: inset 0 0 0 1px var(--accent); }
+.lv-msg.lv-new { background: color-mix(in srgb, var(--accent) 12%, transparent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); box-shadow: inset 3px 0 0 var(--accent); }
+/* "new" in words beside the time, while it lights up. */
+.lv-new-word { padding: 0 5px; border-radius: 4px; font-size: 10.5px; font-weight: 650; color: var(--fg); box-shadow: inset 0 0 0 1px var(--accent); }
+/* Who a card talked with, and how often: the names say it, not a line. */
+.lv-talk { font-size: 10.5px; color: var(--fg-2); overflow-wrap: anywhere; }
+.lv-talk-more { white-space: nowrap; }
+/* On a lit desk's tinted background the muted gray drops below 4.5:1 (3.86 in light): full text color. */
+.of-desk.lv-flash .of-line { color: var(--fg); }
+.lv-unread { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); padding: 3px 12px; border-radius: 999px; font-size: 11.5px; font-weight: 650; color: var(--on-accent, #1a0d05); background: var(--accent); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); }
+.lv-pick ul { list-style: none; display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+.lv-empty { padding: 8px 0; }
+/* ---------- the office's tokens: what each desk spent (real, from the history) and what they handed each other (≈) ---------- */
+/* Your desk: a frame of its own, so it never reads as one more agent. */
+.of-desk.of-you { border: 1px dashed var(--line-2); }
+.lv-state.st-owner { color: var(--fg); }
+.tk-desk { display: flex; flex-direction: column; align-items: stretch; gap: 2px; width: 100%; margin-top: 2px; }
+/* The bar is the desk's share of the assignment's tokens; the number beside it says it in words. */
+.tk-bar { display: block; height: 4px; border-radius: 999px; background: color-mix(in srgb, var(--fg) 12%, transparent); overflow: hidden; }
+.tk-bar i { display: block; height: 100%; min-width: 2px; border-radius: inherit; background: color-mix(in srgb, var(--fg) 62%, transparent); }
+.tk-n { font-size: 10.5px; font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* "+12k": what a desk just spent, rising from its screen. */
+.tk-gain { position: absolute; z-index: 3; top: 4px; right: 6px; padding: 0 5px; border-radius: 4px; font-size: 11px; font-weight: 700; line-height: 16px; color: var(--fg); background: var(--bg-card); box-shadow: inset 0 0 0 1.5px var(--green); font-variant-numeric: tabular-nums; pointer-events: none; animation: tk-rise 2.6s ease-out both; }
+@keyframes tk-rise { 0% { opacity: 0; transform: translateY(6px); } 12% { opacity: 1; transform: translateY(0); } 75% { opacity: 1; } 100% { opacity: 0; transform: translateY(-14px); } }
+.of-envelope { white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* Over the office: what the assignment spent, in words. */
+.tk-strip { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; padding: 8px 12px; border: 1px solid var(--line-2); border-radius: 10px; font-size: 12px; color: var(--fg); background: var(--bg-card); font-variant-numeric: tabular-nums; }
+.tk-strip b { font-weight: 650; }
+.tk-strip span + span::before { content: '·'; margin-right: 14px; margin-left: -8px; color: var(--fg-2); }
+.of-card .tk-line { font-size: 11.5px; font-variant-numeric: tabular-nums; }
+/* The token exchange, desk by desk. */
+.tk-table { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.tk-table h4 { font-size: 12px; }
+.tk-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+.tk-table table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.tk-table th, .tk-table td { padding: 5px 10px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
+.tk-table thead th { font-size: 10.5px; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-2); background: var(--bg-card); }
+.tk-table th:first-child { text-align: left; }
+.tk-table tbody tr:last-child > * { border-bottom: 0; }
+.tk-table tbody tr:hover { background: var(--bg-hl); }
+/* Its desk's card is open: a background and an edge, not only a color. */
+.tk-table tbody tr.on { background: var(--bg-hl); box-shadow: inset 3px 0 0 var(--fg-2); }
+.tk-who { font-weight: 650; color: var(--fg); text-align: left; }
+.tk-who:hover { text-decoration: underline; text-underline-offset: 2px; }
+.tk-who:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 3px; }
+.tk-cell { display: inline-flex; align-items: center; gap: 6px; }
+.tk-cell .tk-bar { width: 56px; }
+/* Writing to an agent from its card. */
+.of-write { display: flex; flex-direction: column; gap: 4px; }
+.of-write textarea { width: 100%; min-height: 44px; padding: 6px 8px; border: 1px solid var(--line-2); border-radius: 8px; font: 12px/1.45 var(--sans); color: var(--fg); background: var(--bg-input); resize: vertical; user-select: text; }
+.of-write textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.of-write textarea:disabled { opacity: 0.7; }
+.of-write-bar { display: flex; align-items: center; gap: 6px; }
+/* Without motion the highlight still shows, standing still. */
+@media (prefers-reduced-motion: reduce) { .of-desk.lv-flash, .lv-spark, .of-bubble, .of-person, .of-mark, .of-screen i, .tk-gain { animation: none; } .lv-spark { stroke-dasharray: none; } .lv-msg { transition: none; } .of-envelope { display: none; } }
+
 /* ---------- chat by agent: tabs, who speaks, subagent cards, loading ---------- */
 .chat-agents { display: flex; align-items: center; gap: 6px; padding: 7px 18px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; flex: none; }
 .chat-agents::-webkit-scrollbar { display: none; }
@@ -2358,6 +2542,11 @@ select.mk-chip { appearance: none; padding-right: 12px; }
 .browser-tabs .bt-new { width: 26px; height: 26px; margin: 0 0 3px 2px; border-radius: 6px; color: var(--fg-2); display: grid; place-items: center; flex: none; }
 .browser-tabs .bt-new:not(:disabled):hover { background: var(--bg-hl); color: var(--fg); }
 .browser-tabs .bt-new:disabled { opacity: 0.35; }
+/* Another browser's sign-ins: same size and colours as the new-tab button next to it. */
+.browser-tabs .bt-import { width: 26px; height: 26px; margin: 0 0 3px 0; border-radius: 6px; color: var(--fg-2); display: grid; place-items: center; flex: none; }
+.browser-tabs .bt-import:hover { background: var(--bg-hl); color: var(--fg); }
+/* Whose tab it is (an agent's or a bot's): a small tag before the title, in the muted text colour. */
+.browser-tab .bt-owner { flex: none; max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; font-weight: 600; color: var(--fg-2); }
 .browser-bar { display: flex; align-items: center; gap: 4px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
 .browser-bar .icon-btn { width: 26px; height: 26px; border-radius: 6px; color: var(--fg-2); font-size: 16px; display: grid; place-items: center; }
 .browser-bar .icon-btn:disabled { opacity: 0.35; }
@@ -2447,3 +2636,292 @@ select.mk-chip { appearance: none; padding-right: 12px; }
 ::selection { background: color-mix(in srgb, var(--accent) 32%, transparent); color: var(--fg); }
 .entry { box-shadow: 0 1px 0 color-mix(in srgb, var(--fg) 4%, transparent) inset, 0 6px 18px -14px rgba(0, 0, 0, 0.55); }
 body { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
+
+/* ---------- Voice ----------
+   The microphone next to Send. While it records it says so in words, in red with a dot that follows
+   your voice, so the state reads in every theme; writing it out shows a spinner and words too. */
+.voice-btn { display: inline-flex; align-items: center; gap: 6px; height: 26px; min-width: 26px; padding: 0 6px; border-radius: 8px; color: var(--fg-2); border: 1px solid var(--line-2); background: var(--bg-hl); font-size: 11.5px; justify-content: center; }
+.voice-btn:hover:not(:disabled) { color: var(--fg); border-color: var(--fg-3); }
+.voice-btn:disabled { opacity: 0.45; }
+.voice-btn.recording { color: var(--red); border-color: var(--red); background: color-mix(in srgb, var(--red) 12%, var(--bg-input, var(--bg))); font-weight: 600; padding: 0 8px; }
+.voice-btn.transcribing { color: var(--fg); padding: 0 8px; cursor: default; }
+.voice-btn .spin { width: 11px; height: 11px; }
+.voice-live { display: inline-flex; align-items: center; gap: 2px; }
+.voice-cancel { width: 22px; height: 22px; color: var(--fg-3); }
+.rec-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 3px color-mix(in srgb, var(--red) 25%, transparent); transition: transform 90ms linear; }
+.voice-label { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* ---------- Organization: map, conversation and staff ----------
+   The map draws the company on a canvas: cards placed by the layout (OrgMap.tsx), the reporting
+   lines thin and quiet under them, and the token links in the accent color, as wide as their
+   tokens, with an arrow toward who got the most. Hovering or picking a card lights its links and
+   dims the rest; numbers are always in words too (labels, titles, the side panel). */
+.om { display: flex; flex-direction: column; gap: 10px; }
+.om-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.om-top .composer-note { margin: 0; font-variant-numeric: tabular-nums; }
+.om-top .composer-sp { flex: 1; }
+.om-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: start; }
+.om-body.with-side { grid-template-columns: minmax(0, 1fr) 320px; }
+.om-scroll { overflow: auto; max-height: 72vh; border-radius: 10px; background: color-mix(in srgb, var(--bg) 60%, transparent); border: 1px solid var(--line); }
+.om-canvas { position: relative; margin: 0 auto; }
+.om-lines { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+.om-report { fill: none; stroke: var(--line-2); stroke-width: 1.2; }
+.om-link { fill: none; stroke: var(--accent); opacity: 0.45; stroke-linecap: round; transition: opacity 0.12s; }
+.om-link.hot { opacity: 0.95; }
+.om-link.dim { opacity: 0.08; }
+#om-arrow path { fill: var(--accent); }
+.om-label { position: absolute; transform: translate(-50%, -50%); padding: 1px 6px; border-radius: 999px; font-size: 10.5px; font-variant-numeric: tabular-nums; color: var(--fg); background: var(--bg-card); border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--line)); white-space: nowrap; z-index: 2; pointer-events: auto; cursor: default; }
+.om-label.hot { border-color: var(--accent); font-weight: 650; }
+.om-card { position: absolute; display: flex; flex-direction: column; justify-content: space-between; gap: 2px; padding: 7px 9px 8px; text-align: left; border: 1px solid var(--line-2); border-radius: 10px; background: var(--bg-card); cursor: pointer; z-index: 1; transition: border-color 0.12s, opacity 0.12s, box-shadow 0.12s; }
+.om-card:hover, .om-card:focus-visible { border-color: var(--accent); outline: none; }
+.om-card.on { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent); }
+.om-card.dim { opacity: 0.45; }
+.om-card.lead { border-width: 1.5px; }
+.om-card.coord { background: color-mix(in srgb, var(--accent) 9%, var(--bg-card)); }
+.om-card.you, .om-card.extra { border-style: dashed; }
+.om-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.om-head b { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.om-model { font-size: 11px; color: var(--fg-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.om-spend { font-size: 11px; color: var(--fg); font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.om-bar { display: block; height: 3px; border-radius: 2px; background: var(--bg-hl); overflow: hidden; }
+.om-bar i { display: block; height: 100%; background: var(--accent); }
+.om-side { position: sticky; top: 0; display: flex; flex-direction: column; gap: 10px; max-height: 72vh; overflow-y: auto; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-card); }
+.om-side-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.om-side-head b { font-size: 14px; }
+.om-side h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--fg-2); margin: 4px 0 0; }
+.om-stats { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; margin: 0; font-size: 12px; }
+.om-stats dt { color: var(--fg-2); }
+.om-stats dd { margin: 0; font-variant-numeric: tabular-nums; }
+.om-stats small { color: var(--fg-3); }
+.om-partners { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.om-partners li { display: flex; justify-content: space-between; gap: 8px; }
+.om-partners span { color: var(--fg-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.om-body.with-side { grid-template-columns: minmax(0, 1fr) 360px; }
+/* Beside the map the form is one column: each label over its field, the agent's three choices stacked. */
+.om-editor { display: flex; flex-direction: column; gap: 10px; }
+.om-editor .bot-field { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+.om-editor .bot-field > span:first-child { padding-top: 0; }
+.om-editor .bot-field textarea { min-height: 60px; }
+.om-editor .bot-check { padding-left: 0; }
+.om-editor .agent-picker { grid-template-columns: minmax(0, 1fr); }
+.om-editor .agent-picker select { width: 100%; }
+.om-editor .bot-field .lang { justify-self: stretch; }
+
+/* The conversation with the organization on its home: your lines on the right, its answers on the left. */
+.org-chat { display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: color-mix(in srgb, var(--bg-input) 55%, transparent); }
+.org-chat-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.org-chat-head h3 { font-size: 13px; margin: 0; }
+.org-chat-head .composer-sp { flex: 1; }
+.org-chat-goal { font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.org-chat-lines { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; padding-right: 4px; }
+.org-chat-line { align-self: flex-start; max-width: 82%; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg-card); }
+.org-chat-line.mine { align-self: flex-end; background: color-mix(in srgb, var(--accent) 12%, var(--bg-card)); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+.org-chat-line small { display: block; font-size: 10.5px; color: var(--fg-2); margin-bottom: 2px; }
+.org-chat-line p { margin: 0; font-size: 12.5px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; user-select: text; }
+.org-chat-box textarea { min-height: 34px; }
+
+/* The house staff: one line and the button that renews it. */
+.org-staff { display: flex; align-items: center; justify-content: space-between; gap: 16px; border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; }
+.org-staff h3 { font-size: 13px; margin: 0 0 2px; }
+.org-staff p { margin: 0; max-width: 760px; }
+.org-staff .btn-ghost { white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+
+/* ---------- the office on one screen: the work by project, the departments beside it, the box under it ---------- */
+/* The screen never scrolls: each part scrolls inside itself. Its secondary text is mixed close to the text color, so it reads (4.5:1) on every surface it sits on: rooms, departments, chips, the sheet, a hovered row. */
+.ofc { --fg-2: color-mix(in srgb, var(--fg) 86%, var(--bg)); position: relative; flex: 1; min-width: 0; min-height: 0; height: 100%; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 280px); grid-template-rows: auto minmax(0, 1fr); gap: 12px 14px; padding: 14px 18px; }
+.ofc-head { grid-column: 1 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; min-width: 0; }
+.ofc-head h2 { font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.ofc-head .composer-note { margin: 0; }
+.ofc-callout { margin: 0; }
+.ofc-main { display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 12px; min-width: 0; min-height: 0; }
+/* The floor: the live office's faint grid, the projects as rooms on it. */
+.ofc-stage { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background-color: color-mix(in srgb, var(--bg-card) 45%, var(--bg)); background-image: linear-gradient(color-mix(in srgb, var(--fg) 5%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--fg) 5%, transparent) 1px, transparent 1px); background-size: 32px 32px; }
+.ofc-room { flex: none; display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 8px 10px 10px; border: 2px solid color-mix(in srgb, var(--fg) 16%, transparent); border-radius: 10px; background: var(--bg); }
+.ofc-room-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; min-width: 0; }
+.ofc-room-head h4 { font-size: 12.5px; font-weight: 650; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.ofc-room-head .composer-note { margin: 0; }
+.ofc-desks { display: flex; flex-wrap: wrap; gap: 6px 4px; }
+/* A desk comes in fading, in place: nothing around it moves. */
+.ofc-desk { width: 132px; animation: ofc-in 0.3s ease-out both; }
+.ofc-teams { list-style: none; display: flex; flex-wrap: wrap; gap: 4px 6px; }
+.ofc-team { display: inline-flex; align-items: center; gap: 6px; max-width: min(100%, 560px); padding: 2px 8px 2px 3px; border: 1px solid var(--line-2); border-radius: 999px; font-size: 11.5px; color: var(--fg); background: var(--bg-input); }
+.ofc-team:hover { background: var(--bg-hl); }
+.ofc-team:focus-visible, .ofc-member:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ofc-team-title { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ofc-team .r { flex: none; color: var(--fg-2); }
+.ofc-empty { margin: auto; display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: 440px; padding: 24px; text-align: center; border-radius: 12px; background: var(--bg); }
+.ofc-empty b { font-size: 15px; color: var(--fg); }
+.ofc-empty .composer-note { color: var(--fg-2); }
+.ofc-empty-art { font-size: 30px; animation: ofc-steam 3.2s ease-in-out infinite; }
+/* The box under the floor: who it's for, then the same box as everywhere. */
+.ofc-talk { max-height: min(46vh, 400px); min-width: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+.ofc-to { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; min-width: 0; }
+.ofc-to label { font-size: 12px; font-weight: 650; color: var(--fg); }
+.ofc-to select { max-width: 240px; padding: 4px 8px; border: 1px solid var(--line-2); border-radius: 7px; font-size: 12.5px; color: var(--fg); background: var(--bg-input); }
+.ofc-to-note { flex: 1 1 0; min-width: 0; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ofc-talk .org-chat-lines { max-height: 150px; }
+.ofc-talk .of-write textarea { width: 100%; }
+/* The departments, each with its agents; a click opens one's settings. */
+.ofc-depts { grid-row: 2; grid-column: 2; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 10px 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-side); }
+.ofc-depts h3 { padding: 0 6px; font-size: 11px; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-2); }
+.ofc-depts h3 { display: flex; align-items: center; justify-content: space-between; }
+.ofc-dept h4 { font-size: 11.5px; font-weight: 650; color: var(--fg); }
+/* A department's name folds it: the whole row is the button. */
+.ofc-dept-fold { display: flex; align-items: baseline; gap: 6px; width: 100%; padding: 2px 6px; border-radius: 6px; text-align: left; font-weight: 650; color: var(--fg); }
+.ofc-dept-fold:hover { background: var(--bg-hl); }
+.ofc-dept-fold:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ofc-dept-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ofc-dept-fold small { flex: none; font-size: 11px; font-weight: 500; color: var(--fg-2); }
+.ofc-dept-list { list-style: none; display: flex; flex-direction: column; gap: 1px; }
+.ofc-member { display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 6px; border-radius: 7px; text-align: left; }
+.ofc-member:hover, .ofc-member.on { background: var(--bg-hl); }
+.ofc-member.on { box-shadow: inset 2px 0 0 var(--accent); }
+.ofc-member-text { display: flex; flex-direction: column; min-width: 0; }
+.ofc-member-text b, .ofc-member-text small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ofc-member-text b { font-size: 12.5px; font-weight: 600; color: var(--fg); }
+.ofc-member-text small { font-size: 11px; color: var(--fg-2); }
+/* An agent's settings: a sheet over the office's right side, sliding in. */
+.ofc-sheet { position: absolute; top: 0; right: 0; bottom: 0; z-index: 30; display: flex; flex-direction: column; width: min(400px, 92%); border-left: 1px solid var(--line-2); background: var(--bg-card); box-shadow: -12px 0 32px rgba(0, 0, 0, 0.35); outline: 0; animation: ofc-sheet-in 0.16s ease-out; }
+.ofc-sheet-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.ofc-sheet-head b { flex: 1; min-width: 0; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ofc-sheet-body { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 12px 14px 16px; }
+.ofc-sheet-body h5 { margin-top: 6px; font-size: 11px; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-2); }
+.ofc-now { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.ofc-now li { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.ofc-now-text { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ofc-write-to { align-self: flex-start; }
+/* Waiting for you: a ring goes out from the person, over what's around, never pushing it. */
+.ofc .st-waiting .of-person::after { content: ''; position: absolute; inset: -3px; border-radius: 50%; box-shadow: 0 0 0 2px var(--amber); pointer-events: none; animation: ofc-ring 1.8s ease-out infinite; }
+/* The screen types by scaling its bars, so its box never changes size. */
+.ofc .of-screen i { height: 9px; transform: scaleY(0.33); transform-origin: bottom; }
+.ofc .st-working .of-screen i { animation-name: ofc-type; }
+@keyframes ofc-type { 0%, 100% { transform: scaleY(0.33); } 50% { transform: scaleY(1); } }
+@keyframes ofc-ring { from { transform: scale(0.95); opacity: 0.8; } to { transform: scale(1.45); opacity: 0; } }
+@keyframes ofc-in { from { opacity: 0; transform: translateY(4px); } }
+@keyframes ofc-sheet-in { from { opacity: 0.6; transform: translateX(16px); } }
+@keyframes ofc-steam { 0%, 100% { opacity: 0.75; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) { .ofc-desk, .ofc-sheet, .ofc-empty-art, .ofc .st-waiting .of-person::after, .ofc .of-screen i { animation: none; } }
+/* Narrow: the departments go under the floor, still on the one screen. */
+@media (max-width: 900px) { .ofc { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) minmax(0, 30%); } .ofc-depts { grid-column: 1; grid-row: 3; } }
+/* On the office the organization's sidebar shows as in its other views (⌘B folds it); on a mid-size window the departments start folded (OrgOffice). */
+/* The sheet's Save stays in sight at its foot, however long the form. */
+.ofc-sheet .om-editor .bots-actions { position: sticky; bottom: -16px; z-index: 1; margin: 0 -14px -16px; padding: 10px 14px; border-top: 1px solid var(--line); background: var(--bg-card); }
+/* The project the office shows, beside the views. */
+.ofc-filter { width: auto; max-width: 220px; }
+.ofc-filter-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 240px; padding: 1px 2px 1px 8px; border: 1px solid var(--line-2); border-radius: 999px; font-size: 12px; color: var(--fg); background: var(--bg-input); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The rooms side by side as the floor allows, each at least 420 px (or the whole floor), from the top. */
+.ofc-stage { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); align-content: start; align-items: start; }
+.ofc-stage.empty { align-content: center; }
+.ofc-stage .ofc-empty { grid-column: 1 / -1; justify-self: center; }
+/* A short window (720 px): smaller desks and box, so the rooms and their assignments still show. */
+@media (max-height: 780px) {
+  .ofc { gap: 8px 12px; padding: 10px 14px; }
+  .ofc-head h2 { font-size: 15px; }
+  .ofc-stage { gap: 8px; padding: 8px; }
+  .ofc-room { gap: 4px; padding: 6px 8px 8px; }
+  .ofc-desk { width: 112px; padding: 6px 4px 4px; gap: 1px; }
+  .ofc-desk .of-name { margin-top: 2px; font-size: 12px; }
+  .ofc-talk { max-height: 36vh; gap: 6px; }
+  .ofc-talk .org-composer .composer-box textarea { min-height: 38px; padding-top: 8px; }
+  .ofc-talk .org-examples { display: none; }
+}
+/* The departments folded away (their own button): the floor takes the room. */
+.ofc.depts-off { grid-template-columns: minmax(0, 1fr); }
+.ofc.depts-off .ofc-depts { display: none; }
+.ofc-no-agent { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 4px 6px; font-size: 12px; color: var(--fg); }
+/* The departments folded away: a tab on the office's right edge brings them back. */
+.ofc-depts-tab { position: absolute; top: 64px; right: 0; z-index: 5; padding: 10px 5px; border: 1px solid var(--line-2); border-right: 0; border-radius: 8px 0 0 8px; font-size: 11.5px; font-weight: 600; color: var(--fg); background: var(--bg-side); writing-mode: vertical-rl; }
+.ofc-depts-tab:hover { background: var(--bg-hl); }
+.ofc-depts-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* The project menu and «Automations» stand the same height side by side. */
+.ofc-head .ofc-filter, .ofc-head .ofc-auto { box-sizing: border-box; height: 28px; }
+.ofc-head .ofc-auto { display: inline-flex; align-items: center; }
+/* The office focused on one assignment: across the floor, what runs elsewhere on top, its agents by department. */
+.ofc-focus { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.ofc-focus-bar { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ofc-focus-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; color: var(--fg); }
+.ofc-focus-dept h5 { margin: 6px 2px 4px; font-size: 11px; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-2); }
+.ofc-elsewhere { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 8px; border: 1px dashed var(--line-2); border-radius: 10px; background: var(--bg-side); }
+.ofc-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 320px; padding: 2px 8px; border: 1px solid var(--line-2); border-radius: 999px; font-size: 12px; color: var(--fg); background: var(--bg-input); }
+.ofc-chip:hover { background: var(--bg-hl); }
+.ofc-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ofc-chip-project { flex: none; color: var(--fg-2); }
+.ofc-chip-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ofc-chip-n { flex: none; font-variant-numeric: tabular-nums; color: var(--fg-2); }
+/* A theme-colored line icon stays readable; emoji pixels ignore the text color. */
+.org-lesson-pin { color: var(--fg); }
+.org-lesson-pin.on { background: var(--bg-hl); }
+.org-lesson-pin.on .ic { fill: currentColor; }
+/* Both filters on and nothing left in the sidebar. */
+.org-filter-empty { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 2px 6px; font-size: 12px; color: var(--fg); }
+/* The focused office's bar: its buttons keep their words on one line. */
+.ofc-focus-bar > button { flex: none; white-space: nowrap; }
+/* The strip's words: the office's secondary text, readable on the strip (see org-office-contrast.test). */
+.ofc-elsewhere .composer-note { margin: 0; font-size: 12px; color: var(--fg-2); }
+.ofc-chip .org-dot { display: inline-block; vertical-align: middle; width: 7px; height: 7px; }
+/* An organization with no folders, on the floor: no box inside the box. */
+.ofc-empty .org-group-empty { border: 0; padding: 0; flex-direction: column; font-size: 13px; }
+.org-group-folders { flex: none; width: auto; padding: 0 6px; font-size: 12px; white-space: nowrap; color: var(--fg-2); }
+/* On hover --fg: --fg-2 on --bg-hl falls to 4.2:1 in GitHub Light. */
+.org-group-folders:hover, .org-group-folders:focus-visible { color: var(--fg); }
+
+/* Working views keep their navigation visible. Configuration has its own scrollable destination. */
+.org-home-head { position: sticky; top: -22px; z-index: 12; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 16px; padding: 12px 0; background: var(--bg); border-bottom: 1px solid var(--line); }
+.org-home-head > .composer-note { flex-basis: 100%; margin: 0; }
+.org-home-head .org-view-nav { margin-left: auto; }
+.org-view-nav { display: flex; align-items: center; gap: 10px; min-width: 0; flex-wrap: wrap; }
+.org-view-nav > .org-config-entry { border-left: 1px solid var(--line-2); border-radius: 0; padding-left: 12px; }
+.org-config-entry { display: inline-flex; align-items: center; gap: 6px; }
+.org-top-row > .org-config-entry { width: 100%; justify-content: flex-start; margin-top: 4px; }
+.org-chat-fold, .ofc-talk-fold { border: 1px solid var(--line); border-radius: 10px; background: var(--bg-card); min-width: 0; }
+.org-chat-fold > summary, .ofc-talk-fold > summary { padding: 10px 12px; cursor: pointer; font-weight: 600; font-size: 12px; }
+.org-chat-fold > .org-chat { margin: 0 12px 12px; }
+.org-config-page { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; padding: 18px 22px; gap: 16px; }
+.org-config-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; }
+.org-config-head h2 { font-size: 19px; }
+.org-config-head p { flex-basis: 100%; margin: 0; }
+.org-config-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(160px, 220px) minmax(0, 1fr); gap: 18px; }
+.org-config-nav { overflow-y: auto; display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding-right: 12px; border-right: 1px solid var(--line); }
+.org-config-nav h3 { margin: 14px 8px 4px; font-size: 11px; color: var(--fg-2); text-transform: uppercase; }
+.org-config-nav > button { display: flex; align-items: center; gap: 8px; min-height: 36px; text-align: left; flex: none; }
+.org-config-nav > button > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.org-config-body { overflow-y: auto; min-width: 0; padding: 0 8px 20px 0; display: flex; flex-direction: column; gap: 18px; }
+.org-config-body > * { flex: none; }
+.org-config-body .org-form { display: flex; flex-direction: column; gap: 16px; }
+.org-config-agent { display: flex; gap: 12px; align-items: center; }
+.org-config-name, .org-config-groups { padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-card); }
+.org-config-name h3, .org-config-groups h3 { margin-bottom: 10px; font-size: 14px; }
+.org-config-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
+.org-config-group > b { min-width: 120px; }
+.org-config-group > .composer-note { flex: 1; min-width: 100px; }
+.ofc-main { grid-template-rows: auto minmax(0, 1fr) auto; }
+.ofc-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.ofc-tools > input { min-width: 130px; width: 220px; flex: 1; padding: 7px 10px; font-size: 12px; }
+.ofc-tools .lv-view { flex: none; }
+.ofc-tools > button { margin-left: auto; }
+.ofc-talk-fold { max-height: 42vh; overflow-y: auto; }
+.ofc-talk-fold > .ofc-talk { padding: 0 12px 12px; }
+.ofc.with-sheet { grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); }
+.ofc.with-sheet > .ofc-depts { display: none; }
+.ofc-sheet { position: static; grid-column: 2; grid-row: 2; width: auto; min-height: 0; border: 1px solid var(--line-2); border-radius: 12px; box-shadow: none; }
+@media (max-width: 900px) {
+  .ofc.with-sheet { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) minmax(140px, 38%); }
+  .ofc.with-sheet > .ofc-sheet { grid-column: 1; grid-row: 3; }
+  .org-config-page { padding: 12px; }
+  .org-config-layout { grid-template-columns: 150px minmax(0, 1fr); gap: 12px; }
+}
+@media (max-width: 620px) {
+  .org-config-layout { display: flex; flex-direction: column; }
+  .org-config-nav { flex-direction: row; max-height: 78px; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 0 0 8px; }
+  .org-config-nav h3 { display: none; }
+  .org-config-nav > button { max-width: 180px; }
+}
+
+.body.org-configuration { grid-template-columns: 56px minmax(0, 1fr); }
+.ofc-tools > input { background: var(--bg-input); color: var(--fg); border: 1px solid var(--line-2); border-radius: 8px; font-family: inherit; outline: 0; }
+.ofc-tools > input::placeholder { color: var(--fg-2); }
+.ofc-tools > input:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+
+.office-session-composer { flex: none; border-top: 1px solid var(--line); padding: 10px 18px 14px; background: var(--bg); }
+.office-session-composer > div { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.office-session-composer .of-write { margin: 0; }

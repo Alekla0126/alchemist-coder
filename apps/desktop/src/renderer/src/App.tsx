@@ -55,7 +55,11 @@ export function App() {
   const narrow = useViewport((v) => v.narrow);
   const drawer = useViewport((v) => v.drawer);
   // A narrow window has no sidebar column: the sidebar floats over the page while it's open.
-  const sideHidden = narrow || sideHiddenPref;
+  const orgConfiguration = useStore((s) => s.settings.mode === 'bots' && s.orgPage === 'settings' && !s.activeTeamId && !s.activeMemberId && !s.activeAutomationId);
+  const sideHidden = narrow || sideHiddenPref || orgConfiguration;
+  // The organization's office: the sidebar stays beside it, with its departments as a column of its own.
+  const orgOffice = useStore((s) => s.orgPage === 'work' && s.orgOffice && !s.activeTeamId && !s.activeMemberId && !s.activeAutomationId);
+  const onOffice = mode === 'bots' && orgOffice;
   const selectionKey = useStore((s) => `${s.selection?.sessionId ?? ''}|${s.composeProjectId ?? ''}`);
 
   useEffect(() => {
@@ -145,18 +149,18 @@ export function App() {
 
   useEffect(() => {
     if (!info?.capture || !ready || !indexReady) return;
-    if ((info.capture.select || info.capture.compose || info.capture.project || info.capture.openFile || info.capture.settings || info.capture.arena || info.capture.themeSearch || info.capture.usage || info.capture.team || info.capture.orgGoal || info.capture.automationRun || info.capture.automationPrompt || info.capture.mode === 'marketing' || info.capture.mode === 'board' || (info.capture.browser && info.capture.browser !== '1') || info.capture.drag) && !captureReady) return;
+    if ((info.capture.select || info.capture.compose || info.capture.project || info.capture.openFile || info.capture.settings || info.capture.arena || info.capture.themeSearch || info.capture.usage || info.capture.team || info.capture.orgGoal || info.capture.automationRun || info.capture.automationPrompt || info.capture.mode === 'marketing' || info.capture.mode === 'board' || info.capture.botsView === 'live' || info.capture.botsView === 'office' || (info.capture.browser && info.capture.browser !== '1') || info.capture.drag) && !captureReady) return;
     window.alchemist.rendered();
   }, [info, ready, indexReady, captureReady]);
 
   return (
     <div className={`app platform-${info?.platform ?? 'darwin'} ${mode === 'agents' && browserOpen ? `with-page ${sideHidden ? 'side-off' : ''}` : ''}`}>
       <TitleBar />
-      <div className={`body mode-${mode} ${narrow ? 'narrow' : sideHidden ? 'side-hidden' : ''} ${narrow && drawer ? 'drawer-open' : ''}`}>
+      <div className={`body mode-${mode} ${narrow ? 'narrow' : sideHidden ? 'side-hidden' : ''} ${narrow && drawer ? 'drawer-open' : ''} ${onOffice ? 'org-office' : ''} ${orgConfiguration ? 'org-configuration' : ''}`}>
         <ProjectRail />
-        {narrow && drawer && <div className="drawer-scrim" onClick={closeDrawer} aria-hidden />}
+        {!orgConfiguration && narrow && drawer && <div className="drawer-scrim" onClick={closeDrawer} aria-hidden />}
         {/* A folded sidebar leaves a thin edge: click it to bring the sidebar back. */}
-        {!narrow && sideHiddenPref && WITH_SIDEBAR.has(mode) && <button className="side-edge" onClick={toggleSidebar} title={t('layout.showSidebar')} aria-label={t('layout.showSidebar')} />}
+        {!orgConfiguration && !narrow && sideHiddenPref && WITH_SIDEBAR.has(mode) && <button className="side-edge" onClick={toggleSidebar} title={t('layout.showSidebar')} aria-label={t('layout.showSidebar')} />}
         {mode === 'history' ? (
           <HistoryView />
         ) : mode === 'board' ? (
@@ -173,7 +177,7 @@ export function App() {
           </main>
         ) : mode === 'bots' ? (
           <>
-            <OrgSidebar />
+            {!orgConfiguration && <OrgSidebar />}
             <main className="center center-bots">
               <PanelBoundary label="Organization">
                 <OrgView />

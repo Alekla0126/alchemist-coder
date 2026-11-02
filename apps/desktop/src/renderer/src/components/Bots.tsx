@@ -10,6 +10,8 @@ import { Markdown } from './Markdown';
 import { TranscriptEntries } from './Transcript';
 import { CommitDialog } from './CommitDialog';
 import { Icon } from './Icon';
+import { VoiceButton } from './VoiceButton';
+import { appendSpoken } from '../voice';
 import { AgentAvatar } from './AgentAvatar';
 import { parsePatch } from '../diff';
 import { relativePath, tailOf } from '../paths';
@@ -579,6 +581,9 @@ function BotCopy({ team, bot }: { team: BotTeam; bot: BotMember }) {
 /** One team: its bots as a tree, and the selected bot's conversation. */
 export function TeamView({ team }: { team: BotTeam }) {
   const t = useT();
+  // Back goes where the organization opens: the office, or the chart with this assignment on it.
+  const office = useStore((s) => s.orgOffice);
+  const back = office ? t('org.office.back') : t('org.seeOnChart');
   const modelLabel = modelNamer(t);
   const locale = useStore((s) => s.locale);
   const activeBotId = useStore((s) => s.activeBotId);
@@ -660,7 +665,7 @@ export function TeamView({ team }: { team: BotTeam }) {
     <section className="team-view">
       <header className="team-head">
         {/* Back to the chart, with this assignment showing on it: who does what. */}
-        <button className="icon-btn ic-btn" onClick={() => showOnChart(team.id)} title={t('org.seeOnChart')} aria-label={t('org.seeOnChart')}>
+        <button className="icon-btn ic-btn" onClick={() => showOnChart(team.id)} title={back} aria-label={back}>
           <Icon name="chevronLeft" size={16} />
         </button>
         <div className="team-title">
@@ -818,6 +823,14 @@ export function TeamView({ team }: { team: BotTeam }) {
               <div className="composer-bar">
                 <span className="composer-note">{t('bots.mentionHint')}</span>
                 <span className="composer-sp" />
+                <VoiceButton
+                  owner={`team:${team.id}`}
+                  onText={(spoken) => {
+                    setText((v) => appendSpoken(v, spoken));
+                    requestAnimationFrame(() => box.current?.focus());
+                  }}
+                  focus={() => box.current?.focus()}
+                />
                 {ACTIVE.includes(bot.status) && bot.runId && (
                   <button className="btn-ghost small" onClick={() => void window.alchemist.stopBot(team.id, bot.id)}>
                     ■ {t('bots.stopBot')}

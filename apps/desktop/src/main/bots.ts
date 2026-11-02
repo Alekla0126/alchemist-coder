@@ -4,7 +4,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, 
 import { dirname, join, relative } from 'node:path';
 import { commitAll, createWorktree, git, headCommit, listChanges, repoRoot } from '@alchemist-coder/arena';
 import type { Autopilot, SessionMcpServer } from '@alchemist-coder/core';
-import type { AgentChoice, BotConfig, BotMember, BotStatus, BotTeam, OrgLesson, OrgSettings, PermissionMode, PlannedBot, RunnerEventMessage, StartTeamRequest, TeamEventKind, TeamOrigin, TeamPlan } from '../shared/api';
+import { ABOUT_MAX, type AgentChoice, type BotConfig, type RosterChange, type StarterAgent, type BotMember, type BotStatus, type BotTeam, type OrgGroup, type OrgLesson, type OrgSettings, type PermissionMode, type PlannedBot, type RunnerEventMessage, type StartTeamRequest, type TeamEventKind, type TeamOrigin, type TeamPlan } from '../shared/api';
 import type { RunnerManager } from './runner';
 
 /** Coordinator (0), the bots it creates (1), and theirs (2). */
@@ -13,11 +13,23 @@ export const MAX_BOTS = 10;
 const MAX_TEAMS = 40;
 /** The organization remembers this many lessons (the oldest go first), each this long at most. */
 export const MAX_LESSONS = 30;
+/** A bot is told this many of them, the nearest to its task; the coordinator, all. */
+export const LESSONS_PER_BOT = 8;
 const LESSON_CHARS = 400;
 /** On Autopilot a coordinator that ends its turn asking you is told to decide this many times per assignment, then it's yours. */
 const AUTOPILOT_NUDGES = 2;
 const REPLY_CHARS = 12_000;
-const PERMISSION_MODES: PermissionMode[] = ['default', 'acceptEdits', 'plan', 'bypassPermissions'];
+/** wait_for_bot returns this much of an answer; bot_reply, all of it (up to REPLY_CHARS). */
+const WAIT_REPLY_CHARS = 4_000;
+/** org_lessons returns whole lessons up to this much. */
+const ORG_LESSONS_CHARS = 14_000;
+/** How much of each agent's role the coordinator's list of agents shows. */
+const ROSTER_ROLE_CHARS = 200;
+/** How much of what was said an activity line keeps. */
+const DETAIL_CHARS = 300;
+/** The kinds whose detail starts with the other bot's id ("b2|…"). */
+const SAID_TO: TeamEventKind[] = ['created', 'message', 'applied'];
+export const PERMISSION_MODES: PermissionMode[] = ['default', 'acceptEdits', 'plan', 'bypassPermissions'];
 const ENDED: BotStatus[] = ['done', 'error', 'stopped'];
 const ACTIVE_STATUSES: BotStatus[] = ['starting', 'working', 'waiting'];
 export const SERVER_NAME = 'alchemist_bots';
@@ -36,56 +48,65 @@ interface ToolDef {
 const TOOLS: Record<string, ToolDef> = {
   list_bot_configs: {
     name: 'list_bot_configs',
-    description: 'The saved bot configurations you can create bots from: name, role, agent and model, and whether they may create bots themselves.',
+    description: 'Saved bot configurations: name, role, agent, model, and whether they may create bots.',
     inputSchema: { type: 'object', properties: {} },
   },
   create_bot: {
     name: 'create_bot',
-    description:
-      'Create a bot that starts working on `task` right away, in the same project folder. Use `config` (a configuration name from list_bot_configs), or define it directly: `role` and `model` are optional. Returns its id; then call wait_for_bot to get its answer.',
+    description: 'Create a bot that starts on `task` now, in the project folder: from `config` (list_bot_configs) or defined with `role` (and `model`). Returns its id for wait_for_bot.',
     inputSchema: {
       type: 'object',
       properties: {
-        name: { type: 'string', description: 'A short name, e.g. "Tester".' },
-        task: { type: 'string', description: 'What it should do, with everything it needs to know.' },
-        config: { type: 'string', description: 'A saved configuration to use (name or id).' },
-        role: { type: 'string', description: 'Its role and standing instructions, when not using a configuration.' },
-        model: { type: 'string', description: 'A model id of your own provider, when not using a configuration.' },
-        can_create_bots: { type: 'boolean', description: 'Let it create bots itself (only if you may, and within the depth limit).' },
-        own_worktree: { type: 'boolean', description: 'Give it its own copy of the project (a git worktree) so it cannot clash with other bots. Then use bot_changes and apply_bot_work.' },
+        name: { type: 'string', description: 'Short name, e.g. "Tester".' },
+        task: { type: 'string', description: 'What to do, with all it needs to know.' },
+        config: { type: 'string', description: 'Saved configuration (name or id).' },
+        role: { type: 'string', description: 'Role and standing instructions, without config.' },
+        about: { type: 'string', description: "Without config: what it does in one sentence for the user's office card, in the user's language (≤160 chars)." },
+        model: { type: 'string', description: "A model id of your own provider, without config." },
+        can_create_bots: { type: 'boolean', description: 'It may create bots too (only if you may, within the depth limit).' },
+        own_worktree: { type: 'boolean', description: 'Its own git worktree, so it cannot clash with others; then bot_changes and apply_bot_work.' },
       },
       required: ['name', 'task'],
     },
   },
   message_bot: {
     name: 'message_bot',
-    description: 'Send a follow-up message to one of your bots (it answers after its current turn). Then call wait_for_bot.',
+    description: 'Send one of your bots a follow-up (it answers after its current turn); then wait_for_bot.',
     inputSchema: { type: 'object', properties: { bot_id: { type: 'string' }, text: { type: 'string' } }, required: ['bot_id', 'text'] },
   },
   wait_for_bot: {
     name: 'wait_for_bot',
-    description: 'Wait until one of your bots finishes its current turn and return its answer. If it is still working when the time is up, it says so: call it again.',
+    description: `Wait for one of your bots to finish its turn and return its answer (the first ${WAIT_REPLY_CHARS} chars; bot_reply has the rest). If time runs out first, call it again.`,
     inputSchema: { type: 'object', properties: { bot_id: { type: 'string' }, timeout_seconds: { type: 'number', description: 'Default 120, at most 600.' } }, required: ['bot_id'] },
+  },
+  bot_reply: {
+    name: 'bot_reply',
+    description: "One of your bots' latest answer in full, when wait_for_bot cut it.",
+    inputSchema: { type: 'object', properties: { bot_id: { type: 'string' } }, required: ['bot_id'] },
+  },
+  org_lessons: {
+    name: 'org_lessons',
+    description: 'Every lesson the organization learned (you were told the ones nearest your task and all about safety).',
+    inputSchema: { type: 'object', properties: {} },
   },
   list_bots: {
     name: 'list_bots',
-    description: "The team's bots: id, name, who created it, status and the start of its latest answer.",
+    description: "The team's bots: id, name, creator, status and the start of the latest answer.",
     inputSchema: { type: 'object', properties: {} },
   },
   bot_changes: {
     name: 'bot_changes',
-    description: 'What one of your bots with its own copy (own_worktree) changed there: files with lines added and removed.',
+    description: 'Files one of your own_worktree bots changed in its copy, with lines added and removed.',
     inputSchema: { type: 'object', properties: { bot_id: { type: 'string' } }, required: ['bot_id'] },
   },
   apply_bot_work: {
     name: 'apply_bot_work',
-    description: "Bring the changes one of your bots made in its own copy into the project folder (as uncommitted edits). Fails without touching anything if they clash with the folder's current state.",
+    description: "Bring a bot's changes from its own copy into the project folder as uncommitted edits. Fails without touching anything if they clash with the folder.",
     inputSchema: { type: 'object', properties: { bot_id: { type: 'string' } }, required: ['bot_id'] },
   },
   propose_plan: {
     name: 'propose_plan',
-    description:
-      "Only when the team reviews plans first: send the user your plan (the bots you'll create and their tasks) and then call wait_for_plan. You can't create bots until the user approves it.",
+    description: "Only when the team reviews plans first: send the user the bots you'll create and their tasks, then wait_for_plan. No bots until the user approves.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -97,38 +118,37 @@ const TOOLS: Record<string, ToolDef> = {
             properties: {
               name: { type: 'string' },
               task: { type: 'string' },
-              config: { type: 'string', description: 'A saved configuration name, if you will use one.' },
+              config: { type: 'string', description: 'Saved configuration name, if any.' },
               role: { type: 'string' },
               own_worktree: { type: 'boolean' },
             },
             required: ['name', 'task'],
           },
         },
-        estimate_usd: { type: 'number', description: 'Your rough guess of what the whole team will cost, if you can tell.' },
+        estimate_usd: { type: 'number', description: 'Rough cost of the whole team, if you can tell.' },
       },
       required: ['summary', 'bots'],
     },
   },
   wait_for_plan: {
     name: 'wait_for_plan',
-    description: 'Wait for the user to approve (maybe with edits) or reject your plan. If they are still deciding when the time is up, it says so: call it again.',
+    description: 'Wait for the user to approve (maybe edited) or reject your plan. If time runs out first, call it again.',
     inputSchema: { type: 'object', properties: { timeout_seconds: { type: 'number', description: 'Default 120, at most 600.' } } },
   },
   finish_team: {
     name: 'finish_team',
     description:
-      "Coordinator only: tell the user the goal is done. `summary`: what was done and by whom, what is left in bots' own copies, and anything still open. If something went wrong along the way, save what you learned with record_lesson first. If you need the user's input instead, ask in your reply and don't call this.",
+      "Tell the user the goal is done. `summary`: what was done and by whom, what is left in bots' own copies, what is still open. If something went wrong, record_lesson first. If you need the user's input, ask in your reply instead.",
     inputSchema: { type: 'object', properties: { summary: { type: 'string' } }, required: ['summary'] },
   },
   stop_bot: {
     name: 'stop_bot',
-    description: 'Stop one of your bots (and the bots it created).',
+    description: 'Stop one of your bots and the bots it created.',
     inputSchema: { type: 'object', properties: { bot_id: { type: 'string' } }, required: ['bot_id'] },
   },
   record_lesson: {
     name: 'record_lesson',
-    description:
-      "Save what the organization learned from a mistake, so every one of its agents does better next time: one short, general rule (what to do or avoid, and when), not the story of what happened. The user sees it and can remove it; the same lesson isn't saved twice.",
+    description: "Save what the organization learned from a mistake, for all its agents: one short general rule (what to do or avoid, and when), not the story. The user sees it and can remove it.",
     inputSchema: {
       type: 'object',
       properties: { lesson: { type: 'string', description: 'E.g. "Build Android apps with ./gradlew assembleDebug: flutter build hangs on this Mac."' } },
@@ -136,6 +156,9 @@ const TOOLS: Record<string, ToolDef> = {
     },
   },
 };
+
+/** The tools only the coordinator gets: the plan and the end of the assignment. */
+const COORDINATOR_TOOLS = new Set(['propose_plan', 'wait_for_plan', 'finish_team']);
 
 /** What the coordinator is told about your answer to its plan. */
 function planAnswer(plan: TeamPlan, byAutopilot = false): string {
@@ -147,6 +170,14 @@ function planAnswer(plan: TeamPlan, byAutopilot = false): string {
   return `${who}. Create exactly these bots with create_bot (same names and tasks):\n${list}`;
 }
 
+/** What wait_for_bot returns of a bot's answer: the start, and how to get the rest. */
+function replyHead(bot: BotMember): string {
+  const text = bot.lastReply;
+  if (!text) return '(no answer)';
+  if (text.length <= WAIT_REPLY_CHARS) return text;
+  return `${text.slice(0, WAIT_REPLY_CHARS)}\n… (cut: ${text.length - WAIT_REPLY_CHARS} chars more; call bot_reply with bot_id "${bot.id}" for the whole answer)`;
+}
+
 /** A team's name from its goal: the first sentence or line, at most 60 characters. */
 export function teamTitle(goal: string): string {
   const first = goal.trim().split(/\n|(?<=[.!?])\s/)[0]!.trim();
@@ -154,6 +185,11 @@ export function teamTitle(goal: string): string {
 }
 
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max)}\n…` : text);
+/** One line of at most `max` characters, with "…" when cut. */
+const clipLine = (text: string, max: number) => {
+  const line = text.replace(/\s+/g, ' ').trim();
+  return line.length > max ? `${line.slice(0, max - 1).trimEnd()}…` : line;
+};
 const str = (v: unknown, max = 20_000) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 
 /** What every agent of the organization is told besides its task: what it learned, and whether you're away. */
@@ -172,9 +208,62 @@ interface OrgContext extends OrgBrief {
   guidance: string;
 }
 
-/** The lessons as a prompt block, newest first. */
-export function lessonsBlock(lessons: OrgLesson[]): string {
-  return lessons.length ? `Lessons this organization learned from earlier mistakes (follow them):\n${lessons.map((l) => `- ${l.text}`).join('\n')}` : '';
+/** The lessons as a prompt block, newest first; `more` says how many were left out (org_lessons has them). */
+export function lessonsBlock(lessons: OrgLesson[], more = 0): string {
+  if (!lessons.length) return '';
+  const tail = more > 0 ? `\n(${more} more ${more === 1 ? 'lesson' : 'lessons'}: call org_lessons)` : '';
+  return `Lessons this organization learned from earlier mistakes (follow them):\n${lessons.map((l) => `- ${l.text}`).join('\n')}${tail}`;
+}
+
+/** Lowercase and without accents, so "políticas" is "politicas". */
+const plain = (text: string) => text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+
+/**
+ * What makes a lesson about safety: stores and publishing, the owner's phrase, allowlists and
+ * authorizations, permissions and sudo, credentials (access or API tokens, not saving tokens),
+ * money, state/ and the store policies, confirmations, force, deploying and deleting (not drafts),
+ * promotion. Every agent is told those, whatever its task: a bot that misses one can publish, spend
+ * or delete what it shouldn't. Matched on the lesson in lowercase without accents ("dueño" is "dueno").
+ */
+const SAFETY_LESSON = new RegExp(
+  [
+    'tienda', '\\bstores?\\b(?!\\.)', 'publica', 'publish', 'push', 'frase', 'autoriza', 'permis', 'credencial',
+    '\\b(?:access|api) tokens?\\b', '\\btokens? de acceso\\b', 'dinero', 'money', 'state/', 'politicas', 'confirm',
+    'despleg', 'deploy', 'borra(?!dor)', 'delete', 'lista blanca', 'allowlist', 'whitelist', '\\bdueno', '\\bowner',
+    '\\bsudo\\b', '\\bforce', 'promoci',
+  ].join('|'),
+);
+
+/** A lesson every agent gets: you pinned it, or it's about safety. */
+export const alwaysTold = (l: OrgLesson) => l.pinned === true || SAFETY_LESSON.test(plain(l.text));
+
+/** The words a lesson and a task can share: four letters or more, in any language. */
+const wordsOf = (text: string) => new Set(plain(text).match(/[\p{L}\p{N}]{4,}/gu) ?? []);
+
+/** A word in more than this share of the lessons says nothing about any of them. */
+const COMMON_SHARE = 0.3;
+
+/**
+ * What an agent is told of the lessons: every one about safety (or pinned), and the `max` others
+ * nearest to its task and role (the most telling words in common, newest first on a tie; they come
+ * newest first). Never none when there are lessons.
+ */
+export function lessonsFor(lessons: OrgLesson[], about: string, max = LESSONS_PER_BOT): OrgLesson[] {
+  const others = lessons.filter((l) => !alwaysTold(l));
+  if (others.length <= max) return lessons;
+  const words = new Map(lessons.map((l) => [l, wordsOf(l.text)]));
+  const seen = new Map<string, number>();
+  for (const set of words.values()) for (const w of set) seen.set(w, (seen.get(w) ?? 0) + 1);
+  const want = [...wordsOf(about)].filter((w) => (seen.get(w) ?? 0) <= lessons.length * COMMON_SHARE);
+  const score = (l: OrgLesson) => want.filter((w) => words.get(l)!.has(w)).length;
+  const picked = new Set(
+    others
+      .map((l, i) => ({ l, i, s: score(l) }))
+      .sort((a, b) => b.s - a.s || a.i - b.i)
+      .slice(0, max)
+      .map((x) => x.l),
+  );
+  return lessons.filter((l) => alwaysTold(l) || picked.has(l));
 }
 
 const LEARN =
@@ -203,7 +292,7 @@ function coordinatorPrompt(goal: string, role: string, cwd: string, approvePlan 
         : "The organization has no agents for this project yet: define them in create_bot with role. They join the organization as proposed agents the user can keep."
       : null,
     '',
-    `You can create other bots with the tools of the "${SERVER_NAME}" MCP server: list_bot_configs, create_bot, message_bot, wait_for_bot, list_bots, bot_changes, apply_bot_work, stop_bot, finish_team and record_lesson.`,
+    `You can create other bots with the tools of the "${SERVER_NAME}" MCP server: list_bot_configs, create_bot, message_bot, wait_for_bot, bot_reply, list_bots, bot_changes, apply_bot_work, stop_bot, finish_team, record_lesson and org_lessons.`,
     'Split the work into clear tasks, give each bot everything it needs in its task, wait for their answers, check them, and ask for fixes when needed.',
     `Bots work in the project folder (${cwd}) unless you give them their own copy with own_worktree: then check their result with bot_changes and bring it in with apply_bot_work. Give bots in the shared folder separate files or steps so they don't overwrite each other.`,
     `At most ${MAX_BOTS} bots per team. When the goal is done, call finish_team with a short summary of what was done and by whom (and anything left open), then end your turn.${org?.alone ? '' : " If you need the user's input instead, ask in your reply and don't call finish_team."}`,
@@ -217,6 +306,17 @@ function coordinatorPrompt(goal: string, role: string, cwd: string, approvePlan 
     .filter((l) => l !== null)
     .join('\n');
 }
+
+/** The built-in browser for a bot's runs: tools tied to a project's browser, bound to a run, let go when it ends. */
+export interface BotBrowser {
+  tools: (label: string, project: string) => SessionMcpServer | null;
+  bind: (server: SessionMcpServer, runId: string) => void;
+  release: (server: SessionMcpServer) => void;
+}
+
+/** What a bot with the browser is told about it, once. */
+const BROWSER_LINE =
+  "The built-in browser (alchemist_browser tools) gives you tabs of your own with the project's sign-ins: use it only when no MCP or API does the job, read with find instead of whole pages, and close your tabs when done.";
 
 function workerPrompt(bot: BotMember, parentName: string, orgInstructions = '', team: BotConfig[] = [], brief?: OrgBrief): string {
   return [
@@ -262,9 +362,10 @@ async function copyUncommitted(root: string, dest: string): Promise<number> {
 }
 
 /** One organization agent doing a task by itself (an automation's step): no team, no bots to create. */
-function soloPrompt(config: BotConfig, task: string, orgName: string, orgInstructions: string, worktree: string | null, readOnly: boolean, brief?: OrgBrief): string {
+function soloPrompt(config: BotConfig, task: string, orgName: string, orgInstructions: string, worktree: string | null, readOnly: boolean, brief?: OrgBrief, automated = false): string {
   return [
-    `You are "${config.name}", an agent of the organization "${orgName}" in Alchemist Coder. An automation gave you this task; nobody is watching live, so work on it until it's done.`,
+    `You are "${config.name}", an agent of the organization "${orgName}" in Alchemist Coder.`,
+    automated ? "An automation gave you this task; nobody is watching live, so work on it until it's done." : "The user gave you this task directly in the office and can follow your activity and message you here.",
     config.role && `Your role: ${config.role}`,
     orgInstructions && `Organization instructions:\n${orgInstructions}`,
     brief?.lessons,
@@ -300,9 +401,29 @@ function lessonsOf(v: unknown): OrgLesson[] {
   for (const x of v as Array<Partial<OrgLesson>>) {
     const text = str(x?.text, LESSON_CHARS);
     if (!text || typeof x.id !== 'string' || !/^[\w-]{1,40}$/.test(x.id)) continue;
-    out.push({ id: x.id, text, by: str(x.by, 80), from: str(x.from, 120), at: typeof x.at === 'number' && Number.isFinite(x.at) ? x.at : 0 });
+    out.push({ id: x.id, text, by: str(x.by, 80), from: str(x.from, 120), at: typeof x.at === 'number' && Number.isFinite(x.at) ? x.at : 0, ...(x.pinned === true ? { pinned: true } : {}) });
   }
   return out.sort((a, b) => b.at - a.at).slice(0, MAX_LESSONS);
+}
+
+const MAX_GROUPS = 40;
+
+/**
+ * Organizations as saved (org.json is user-editable): well-formed ones, each folder once. Never saved
+ * stays undefined: the owner's own build then starts with its usual ones (the renderer knows the
+ * folders), the Community edition with none.
+ */
+function groupsOf(v: unknown): OrgGroup[] | undefined {
+  if (v === undefined) return undefined;
+  if (!Array.isArray(v)) return [];
+  const out: OrgGroup[] = [];
+  for (const x of v as Array<Partial<OrgGroup>>) {
+    const name = str(x?.name, 80);
+    if (!name || typeof x.id !== 'string' || !/^[\w-]{1,40}$/.test(x.id) || out.some((g) => g.id === x.id)) continue;
+    const projects = [...new Set((Array.isArray(x.projects) ? x.projects : []).map((p) => str(p, 4000)).filter(Boolean))];
+    out.push({ id: x.id, name, projects });
+  }
+  return out.slice(0, MAX_GROUPS);
 }
 
 /** The same lesson in other words: case, spacing and the final full stop don't count. */
@@ -311,10 +432,39 @@ const sameLesson = (a: string, b: string) => {
   return norm(a) === norm(b);
 };
 
+/** The agent with a template's model (already one of its provider's); none keeps the agent's own. */
+const withModel = (agent: AgentChoice, model: string | undefined): AgentChoice => ({ ...agent, ...(model ? { model } : {}) });
+
+/** A template's agents with every lead before its team, so the team knows its lead's id. */
+function leadsFirst(entries: Array<[string, StarterAgent]>): Array<[string, StarterAgent]> {
+  const leads = new Set(entries.map(([, s]) => s.lead).filter(Boolean));
+  return [...entries.filter(([k, s]) => !s.lead || leads.has(k)), ...entries.filter(([k, s]) => s.lead && !leads.has(k))];
+}
+
+/** Two configurations the same in what a staff template sets (no lead and a null one are the same). */
+const sameStaffing = (a: BotConfig, b: BotConfig) =>
+  a.agent.model === b.agent.model && a.permissionMode === b.permissionMode && a.canSpawn === b.canSpawn && !!a.ownWorktree === !!b.ownWorktree && (a.about ?? '') === (b.about ?? '') && a.role === b.role && !!a.proposed === !!b.proposed && (a.leadId ?? null) === (b.leadId ?? null);
+
+/** A new configuration from a template's agent. The ones that only read ask before acting. */
+function starterConfig(key: string, s: StarterAgent, agent: AgentChoice): Partial<BotConfig> {
+  return {
+    name: s.name,
+    role: s.role,
+    about: s.about,
+    agent: withModel(agent, s.model),
+    permissionMode: s.permissionMode ?? (['planner', 'reviewer', 'researcher', 'uijudge'].includes(key) ? 'default' : 'acceptEdits'),
+    canSpawn: s.canSpawn ?? key === 'planner',
+    ownWorktree: s.ownWorktree === true,
+    proposed: s.proposed === true,
+  };
+}
+
 export class BotManager {
   private configs: BotConfig[] = [];
   private teams: BotTeam[] = [];
   private org: OrgSettings = { name: 'My organization', instructions: '', autopilot: false, lessons: [] };
+  /** While renewStaff only says what it would do: nothing is written. */
+  private dryRun = false;
   /** Decides for the organization's agents while it runs on Autopilot (asked by each of their runs). */
   private readonly pilot: Autopilot | undefined;
   /** How many times Autopilot told each assignment's coordinator to decide instead of asking you. */
@@ -331,6 +481,18 @@ export class BotManager {
   private readonly watchers = new Set<(team: BotTeam) => void>();
   private server: Server | null = null;
   private port = 0;
+  /**
+   * The built-in browser's tools for a bot's run (its own tab in the project's browser, with the project's
+   * sign-ins), set once the browser is up; without it bots run as before, with no browser.
+   */
+  private browser: BotBrowser | null = null;
+  /** Each bot run's browser tools, to let go of them when the run ends. */
+  private readonly webRuns = new Map<string, SessionMcpServer>();
+
+  /** Gives the organization's bots the built-in browser: each bot works in tabs of its own. */
+  setBrowser(browser: BotBrowser): void {
+    this.browser = browser;
+  }
   private saveTimer: NodeJS.Timeout | null = null;
 
   constructor(
@@ -348,7 +510,7 @@ export class BotManager {
     this.configs = this.read<BotConfig[]>(files.configs) ?? [];
     try {
       const o = JSON.parse(readFileSync(this.orgFile, 'utf8')) as Partial<OrgSettings>;
-      this.org = { name: str(o.name, 80) || this.org.name, instructions: str(o.instructions), autopilot: o.autopilot === true, lessons: lessonsOf(o.lessons) };
+      this.org = { name: str(o.name, 80) || this.org.name, instructions: str(o.instructions), autopilot: o.autopilot === true, lessons: lessonsOf(o.lessons), ...(o.groups === undefined ? {} : { groups: groupsOf(o.groups) }) };
     } catch {
       // first run: the default name, no instructions
     }
@@ -380,6 +542,7 @@ export class BotManager {
   }
 
   private write(file: string, value: unknown) {
+    if (this.dryRun) return;
     writeFileSync(`${file}.tmp`, JSON.stringify(value, null, 1));
     renameSync(`${file}.tmp`, file);
   }
@@ -425,7 +588,7 @@ export class BotManager {
   }
 
   orgSettings(): OrgSettings {
-    return { ...this.org, lessons: this.org.lessons.map((l) => ({ ...l })) };
+    return { ...this.org, lessons: this.org.lessons.map((l) => ({ ...l })), ...(this.org.groups ? { groups: structuredClone(this.org.groups) } : {}) };
   }
 
   saveOrgSettings(input: unknown): OrgSettings {
@@ -436,8 +599,23 @@ export class BotManager {
     if (typeof o.autopilot === 'boolean') this.org.autopilot = o.autopilot;
     // You removing (or rewording) what it learned.
     if (Array.isArray(o.lessons)) this.org.lessons = lessonsOf(o.lessons);
+    // The organizations to filter the view by (renamed, removed, given folders).
+    if (Array.isArray(o.groups)) this.org.groups = groupsOf(o.groups);
     this.write(this.orgFile, this.org);
     if (this.decidesAlone() !== wasAlone) for (const w of this.orgWatchers) w(this.decidesAlone());
+    return this.orgSettings();
+  }
+
+  /**
+   * The organizations a build starts with (its owner's module gives them): saved only while none
+   * were ever saved and at least one has a folder, so an empty guess waits for the next try and
+   * yours are never replaced.
+   */
+  seedOrgGroups(input: unknown): OrgSettings {
+    const groups = groupsOf(Array.isArray(input) ? input : []) ?? [];
+    if (this.org.groups !== undefined || !groups.some((g) => g.projects.length)) return this.orgSettings();
+    this.org.groups = groups;
+    this.write(this.orgFile, this.org);
     return this.orgSettings();
   }
 
@@ -461,14 +639,22 @@ export class BotManager {
     const at = Date.now();
     const known = this.org.lessons.find((l) => sameLesson(l.text, clean));
     const lesson = known ? { ...known, at, by: by || known.by, from: from || known.from } : { id: randomBytes(6).toString('hex'), text: clean, by, from, at };
-    this.org.lessons = [lesson, ...this.org.lessons.filter((l) => l.id !== lesson.id)].slice(0, MAX_LESSONS);
+    const list = [lesson, ...this.org.lessons.filter((l) => l.id !== lesson.id)];
+    // Over the limit the oldest go first, but never one you pinned.
+    while (list.length > MAX_LESSONS) {
+      const i = list.findLastIndex((l) => !l.pinned);
+      list.splice(i < 0 ? list.length - 1 : i, 1);
+    }
+    this.org.lessons = list;
     this.write(this.orgFile, this.org);
     return { ...lesson };
   }
 
-  /** What every agent of the organization is told besides its task. */
-  private brief(): OrgBrief {
-    return { lessons: lessonsBlock(this.org.lessons), alone: this.decidesAlone() };
+  /** What every agent of the organization is told besides its task: the coordinator, every lesson; an agent (`about` = its task and role), the nearest. */
+  private brief(about?: string): OrgBrief {
+    const all = this.org.lessons;
+    const told = about === undefined ? all : lessonsFor(all, about);
+    return { lessons: lessonsBlock(told, all.length - told.length), alone: this.decidesAlone() };
   }
 
   /** The organization's coordinator, if it has one. */
@@ -477,12 +663,12 @@ export class BotManager {
   }
 
   /** The first time: a coordinator with the given agent, and the starter agents. */
-  ensureOrg(agentInput: unknown, starters: Record<string, { name: string; role: string }>): BotConfig[] {
+  ensureOrg(agentInput: unknown, starters: Record<string, StarterAgent>): BotConfig[] {
     const agent = agentInput as AgentChoice | undefined;
     if (!agent?.harnessId || !agent.providerId || !agent.model) throw new Error('Choose an agent and a model');
     if (!this.coordinator()) {
       const lead = starters.coordinator ?? { name: 'Coordinator', role: '' };
-      this.saveConfig({ name: lead.name || 'Coordinator', role: lead.role, agent, permissionMode: 'acceptEdits', canSpawn: true, kind: 'coordinator' });
+      this.saveConfig({ name: lead.name || 'Coordinator', role: lead.role, about: lead.about, agent: withModel(agent, lead.model), permissionMode: lead.permissionMode ?? 'acceptEdits', canSpawn: true, kind: 'coordinator' });
     }
     const { coordinator: _lead, ...rest } = starters;
     return this.addStarters(agent, rest);
@@ -500,10 +686,13 @@ export class BotManager {
     if (!name) throw new Error('Give the bot a name');
     const agent = c.agent as AgentChoice | undefined;
     if (!agent?.harnessId || !agent.providerId || !agent.model) throw new Error('Choose an agent and a model');
+    // Written by you or by the coordinator; none shows the opening of its role.
+    const about = str(c.about, ABOUT_MAX).replace(/\s+/g, ' ');
     const config: BotConfig = {
       id: typeof c.id === 'string' && this.configs.some((x) => x.id === c.id) ? c.id : `cfg-${randomBytes(4).toString('hex')}`,
       name,
       role: str(c.role, 8000),
+      ...(about ? { about } : {}),
       agent: { harnessId: String(agent.harnessId), providerId: String(agent.providerId), model: String(agent.model) },
       permissionMode: PERMISSION_MODES.includes(c.permissionMode as PermissionMode) ? (c.permissionMode as PermissionMode) : 'acceptEdits',
       canSpawn: c.canSpawn === true,
@@ -535,15 +724,115 @@ export class BotManager {
     return structuredClone(config);
   }
 
-  /** Adds the starter configurations (with the given agent) that aren't saved yet. */
-  addStarters(agentInput: unknown, names: Record<string, { name: string; role: string }>): BotConfig[] {
+  /**
+   * Adds the starter configurations (with the given agent) that aren't saved yet, each on its lead's
+   * team and, on Claude Code, with its tier's model.
+   */
+  addStarters(agentInput: unknown, names: Record<string, StarterAgent>): BotConfig[] {
     const agent = agentInput as AgentChoice | undefined;
     if (!agent?.harnessId || !agent.providerId || !agent.model) throw new Error('Choose an agent and a model');
-    for (const [key, s] of Object.entries(names).slice(0, 10)) {
-      if (this.configs.some((c) => c.name.toLowerCase() === s.name.toLowerCase())) continue;
-      this.saveConfig({ name: s.name, role: s.role, agent, permissionMode: ['planner', 'reviewer', 'researcher', 'uijudge'].includes(key) ? 'default' : 'acceptEdits', canSpawn: key === 'planner' });
+    const entries = leadsFirst(Object.entries(names).slice(0, 30));
+    const ids = new Map<string, string>();
+    for (const [key, s] of entries) {
+      const there = this.byName(s.name);
+      if (there) {
+        ids.set(key, there.id);
+        continue;
+      }
+      const lead = s.lead ? ids.get(s.lead) : undefined;
+      ids.set(key, this.saveConfig({ ...starterConfig(key, s, agent), leadId: lead ?? null }).id);
     }
     return this.listConfigs();
+  }
+
+  private byName(name: string): BotConfig | undefined {
+    const n = name.trim().toLowerCase();
+    return this.configs.find((c) => c.name.trim().toLowerCase() === n);
+  }
+
+  /**
+   * Brings the organization to a staff template: who's missing is added (not proposed, unless the
+   * template says so), each agent goes on its lead's team with the template's model tier (on Claude
+   * Code) and permissions, a name saved twice keeps only its first copy, and empty instructions get
+   * the template's. Roles you wrote, projects and pictures stay. `apply: false` writes nothing.
+   */
+  renewStaff(agentInput: unknown, starters: Record<string, StarterAgent>, instructions: string, apply: boolean): RosterChange {
+    const agent = agentInput as AgentChoice | undefined;
+    if (!agent?.harnessId || !agent.providerId || !agent.model) throw new Error('Choose an agent and a model');
+    const before = structuredClone(this.configs);
+    const beforeOrg = structuredClone(this.org);
+    // Trying it out writes nothing: every change is undone at the end.
+    this.dryRun = !apply;
+    try {
+      return this.renew(agent, starters, instructions, apply, before, beforeOrg);
+    } finally {
+      this.dryRun = false;
+    }
+  }
+
+  private renew(agent: AgentChoice, starters: Record<string, StarterAgent>, instructions: string, apply: boolean, before: BotConfig[], beforeOrg: OrgSettings): RosterChange {
+    const change: RosterChange = { added: [], updated: [], removed: [], instructions: false };
+    // Copies first: the same name twice, the later ones go unless an agent of theirs is at work.
+    const busy = new Set(this.teams.flatMap((t) => t.bots.filter((b) => ['starting', 'working', 'waiting'].includes(b.status)).map((b) => b.configId)));
+    const seen = new Set<string>();
+    for (const c of [...this.configs]) {
+      const n = c.name.trim().toLowerCase();
+      if (!seen.has(n)) {
+        seen.add(n);
+        continue;
+      }
+      if (c.kind === 'coordinator' || busy.has(c.id)) continue;
+      this.configs = this.configs.filter((x) => x.id !== c.id);
+      const kept = this.byName(c.name)!;
+      // The one that stays works wherever either did (none means every project).
+      kept.projects = kept.projects?.length && c.projects?.length ? [...new Set([...kept.projects, ...c.projects])] : [];
+      for (const x of this.configs) if (x.leadId === c.id) x.leadId = kept.id;
+      change.removed.push(c.name);
+    }
+    // A team is one level deep: an agent the template puts on a team stops leading one of its own.
+    for (const s of Object.values(starters)) {
+      const member = s.lead ? this.byName(s.name) : undefined;
+      if (member) for (const x of this.configs) if (x.leadId === member.id) x.leadId = null;
+    }
+    const ids = new Map<string, string>();
+    for (const [key, s] of leadsFirst(Object.entries(starters).slice(0, 30))) {
+      const there = key === 'coordinator' ? (this.coordinator() ?? this.byName(s.name)) : this.byName(s.name);
+      const lead = s.lead ? (ids.get(s.lead) ?? null) : null;
+      if (!there) {
+        const made = this.saveConfig({ ...starterConfig(key, s, agent), kind: key === 'coordinator' ? 'coordinator' : 'member', leadId: lead });
+        ids.set(key, made.id);
+        change.added.push(made.name);
+        continue;
+      }
+      ids.set(key, there.id);
+      const next: BotConfig = {
+        ...there,
+        // The template's model is one of the coordinator's provider: an agent on another one keeps its own.
+        agent: s.model && there.agent.harnessId === agent.harnessId && there.agent.providerId === agent.providerId ? { ...there.agent, model: s.model } : there.agent,
+        permissionMode: s.permissionMode ?? there.permissionMode,
+        canSpawn: there.kind === 'coordinator' || (s.canSpawn ?? there.canSpawn),
+        ownWorktree: s.ownWorktree ?? there.ownWorktree,
+        about: there.about || s.about,
+        role: there.role.trim() ? there.role : s.role,
+        proposed: s.proposed ? there.proposed === true : false,
+        ...(there.kind === 'coordinator' ? {} : { leadId: lead }),
+      };
+      if (sameStaffing(next, there)) continue;
+      change.updated.push(there.name);
+      this.saveConfig(next);
+    }
+    if (!this.org.instructions.trim() && instructions.trim()) {
+      change.instructions = true;
+      this.org = { ...this.org, instructions: instructions.trim() };
+    }
+    if (apply) {
+      this.write(this.files.configs, this.configs);
+      if (change.instructions) this.write(this.orgFile, this.org);
+    } else {
+      this.configs = before;
+      this.org = beforeOrg;
+    }
+    return change;
   }
 
   deleteConfig(id: string) {
@@ -613,7 +902,15 @@ export class BotManager {
               .map((c) => {
                 const members = this.teamOf(c.id).map((m) => m.name);
                 const lead = c.leadId ? this.configs.find((x) => x.id === c.leadId)?.name : undefined;
-                return `- ${c.name}: ${c.role.replace(/\s+/g, ' ').slice(0, 200) || 'no role set'} (${c.agent.model}, permissions ${c.permissionMode}${c.ownWorktree ? ', own copy' : ''}${members.length ? `; leads a team: ${members.join(', ')}` : ''}${lead ? `; on ${lead}'s team` : ''})`;
+                // Only what sets it apart: a model other than the coordinator's, permissions other than the usual.
+                const notes = [
+                  c.agent.model !== agent.model ? c.agent.model : '',
+                  c.permissionMode !== 'acceptEdits' ? `permissions ${c.permissionMode}` : '',
+                  c.ownWorktree ? 'own copy' : '',
+                  members.length ? `leads a team: ${members.join(', ')}` : '',
+                  lead ? `on ${lead}'s team` : '',
+                ].filter(Boolean);
+                return `- ${c.name}: ${clipLine(c.role, ROSTER_ROLE_CHARS) || 'no role set'}${notes.length ? ` (${notes.join('; ')})` : ''}`;
               })
               .join('\n'),
             guidance: str(r.guidance, 4000),
@@ -745,9 +1042,12 @@ export class BotManager {
   }
 
   /** Adds a line to the team's activity (the oldest go past 200). */
-  private log(team: BotTeam, botId: string, kind: TeamEventKind, detail = '') {
+  private log(team: BotTeam, botId: string, kind: TeamEventKind, detail = '', chars?: number) {
     const list = team.activity ?? (team.activity = []);
-    list.push({ at: Date.now(), botId, kind, detail: detail.slice(0, 300) });
+    // What was said, without the other bot's id: kept whole as a length when the detail cuts it.
+    const said = SAID_TO.includes(kind) ? detail.slice(detail.indexOf('|') + 1) : detail;
+    const size = chars ?? (detail.length > DETAIL_CHARS ? said.length : 0);
+    list.push({ at: Date.now(), botId, kind, detail: detail.slice(0, DETAIL_CHARS), ...(size > 0 ? { chars: size } : {}) });
     if (list.length > 200) list.splice(0, list.length - 200);
   }
 
@@ -811,7 +1111,7 @@ export class BotManager {
     // Not a git project: it works in the folder itself, asking first when told to.
     const workIn = input.ownWorktree && !input.readOnly ? await this.makeWorktree(team, bot).catch(() => cwd) : cwd;
     if (input.ownWorktree && !bot.worktree && input.noCopyPermission) bot.permissionMode = input.noCopyPermission;
-    this.launch(team, bot, soloPrompt(config, task, this.org.name, this.org.instructions, bot.worktree?.path ?? null, input.readOnly === true, this.brief()), workIn);
+    this.launch(team, bot, soloPrompt(config, task, this.org.name, this.org.instructions, bot.worktree?.path ?? null, input.readOnly === true, this.brief(`${task} ${config.role}`), !!input.origin), workIn);
     this.changed(team);
     return structuredClone(team);
   }
@@ -899,8 +1199,19 @@ export class BotManager {
         trusted: true,
       });
     }
+    // The project's browser (team.cwd, not a bot's own copy), so a bot uses the sign-ins you gave the project.
+    const web = this.browser?.tools(bot.name, team.cwd) ?? null;
+    if (web) {
+      mcpServers.push(web);
+      // Said once, when the bot starts; a continued conversation already has it.
+      if (!resumeSessionId) prompt = `${prompt}\n${BROWSER_LINE}`;
+    }
     try {
       const { runId } = this.runner.start({ cwd, harnessId: bot.agent.harnessId, providerId: bot.agent.providerId, model: bot.agent.model, prompt, permissionMode: bot.permissionMode, resumeSessionId }, { mcpServers, autopilot: this.pilot });
+      if (web) {
+        this.browser!.bind(web, runId);
+        this.webRuns.set(runId, web);
+      }
       bot.runId = runId;
       bot.status = 'working';
       bot.error = null;
@@ -908,6 +1219,7 @@ export class BotManager {
       this.turnText.set(runId, '');
       this.turnMark.delete(runId);
     } catch (error) {
+      if (web) this.browser!.release(web);
       bot.status = 'error';
       bot.lastReply = error instanceof Error ? error.message : String(error);
       bot.error = clip(bot.lastReply, 600);
@@ -1012,15 +1324,18 @@ export class BotManager {
         }
         break;
       }
-      case 'result':
+      case 'result': {
         bot.doing = null;
         this.forgetTools(runId);
-        this.log(team, bot.id, event.ok ? 'finished' : 'failed');
-        bot.lastReply = clip(this.finalText(runId), REPLY_CHARS) || bot.lastReply;
+        const reply = this.finalText(runId);
+        // The reply isn't in the line: its length says how much it handed back.
+        this.log(team, bot.id, event.ok ? 'finished' : 'failed', '', reply.length);
+        bot.lastReply = clip(reply, REPLY_CHARS) || bot.lastReply;
         if (event.costUsd != null) bot.costUsd = event.costUsd;
         if (!ENDED.includes(bot.status)) bot.status = event.ok ? 'idle' : 'error';
         this.wake(runId);
         break;
+      }
       case 'error':
         bot.error = clip(event.message.trim(), 600);
         break;
@@ -1029,6 +1344,11 @@ export class BotManager {
         if (event.status === 'done' || event.status === 'error' || event.status === 'interrupted') {
           bot.doing = null;
           this.forgetTools(runId);
+          const web = this.webRuns.get(runId);
+          if (web) {
+            this.browser?.release(web);
+            this.webRuns.delete(runId);
+          }
           if (event.status === 'error' && bot.status !== 'error') this.log(team, bot.id, 'failed');
           const text = this.finalText(runId);
           if (text) bot.lastReply = clip(text, REPLY_CHARS);
@@ -1098,9 +1418,10 @@ export class BotManager {
     }
   }
 
-  /** Every bot with the tools may use all of them; the checks happen per call. */
-  private toolsFor(_caller: Caller): ToolDef[] {
-    return Object.values(TOOLS);
+  /** The coordinator gets every tool; its bots, all but the plan and finish_team. The checks still happen per call. */
+  private toolsFor(caller: Caller): ToolDef[] {
+    const depth = this.teams.find((t) => t.id === caller.teamId)?.bots.find((b) => b.id === caller.botId)?.depth ?? 0;
+    return Object.values(TOOLS).filter((tool) => depth === 0 || !COORDINATOR_TOOLS.has(tool.name));
   }
 
   /** Runs one tool for `caller`. Bots only see and control the bots they created (the coordinator: all). */
@@ -1214,12 +1535,12 @@ export class BotManager {
         // Defined on the spot: it joins the organization as a proposed agent you can keep or dismiss.
         if (!config && this.coordinator() && !this.configs.some((c) => c.name.toLowerCase() === childName.toLowerCase())) {
           const root = (await repoRoot(team.cwd).catch(() => null)) ?? team.cwd;
-          const kept = this.saveConfig({ name: childName, role: child.role, agent: child.agent, permissionMode: child.permissionMode, canSpawn: child.canSpawn, ownWorktree: wantsCopy, kind: 'member', projects: [root], proposed: true });
+          const kept = this.saveConfig({ name: childName, role: child.role, about: str(args.about, ABOUT_MAX), agent: child.agent, permissionMode: child.permissionMode, canSpawn: child.canSpawn, ownWorktree: wantsCopy, kind: 'member', projects: [root], proposed: true });
           child.configId = kept.id;
         }
         team.bots.push(child);
         this.log(team, me.id, 'created', `${child.id}|${task}`);
-        this.launch(team, child, workerPrompt(child, me.name, this.org.instructions, config ? this.teamOf(config.id) : [], this.brief()), cwd);
+        this.launch(team, child, workerPrompt(child, me.name, this.org.instructions, config ? this.teamOf(config.id) : [], this.brief(`${task} ${child.role}`)), cwd);
         this.changed(team);
         if (child.status === 'error') throw new Error(`${child.name} couldn't start: ${child.lastReply}`);
         const copy = child.worktree ? ' in its own copy of the project (use bot_changes and apply_bot_work when it is done)' : '';
@@ -1246,7 +1567,21 @@ export class BotManager {
         }
         if (target.status === 'working' || target.status === 'starting') return `${target.name} is still working. Call wait_for_bot again.`;
         if (target.status === 'waiting') return `${target.name} is waiting for the user to approve something in Alchemist Coder. Call wait_for_bot again later.`;
-        return `${target.name} (${target.status}):\n${target.lastReply || '(no answer)'}${target.error ? `\nIts turn failed: ${target.error}\nIf you find out why and it can happen again, save what to do differently with record_lesson.` : ''}`;
+        return `${target.name} (${target.status}):\n${replyHead(target)}${target.error ? `\nIts turn failed: ${target.error}\nIf you find out why and it can happen again, save what to do differently with record_lesson.` : ''}`;
+      }
+      case 'bot_reply': {
+        const target = mine(args.bot_id);
+        return `${target.name} (${target.status}):\n${target.lastReply || '(no answer)'}`;
+      }
+      case 'org_lessons': {
+        if (!this.org.lessons.length) return 'The organization has no lessons yet.';
+        // Whole lessons, newest first, as many as fit.
+        const fit: OrgLesson[] = [];
+        for (const l of this.org.lessons) {
+          if (lessonsBlock([...fit, l], this.org.lessons.length - fit.length - 1).length > ORG_LESSONS_CHARS) break;
+          fit.push(l);
+        }
+        return lessonsBlock(fit, this.org.lessons.length - fit.length).replace(/: call org_lessons\)$/, ' did not fit)');
       }
       case 'list_bots': {
         const visible = me.depth === 0 ? team.bots : team.bots.filter((b) => this.subtree(team, me.id).includes(b.id));

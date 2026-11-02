@@ -4,6 +4,7 @@ import type { BotConfig } from '@shared/api';
 import { AVATAR_EMOJI, chooseImage, resizeImage } from '../avatar';
 import { monsterUri, newMonsterSeed } from '../monster';
 import { useStore, useT } from '../store';
+import { saveConfig } from '../actions/org';
 import { toast } from '../ui';
 import { AgentAvatar } from './AgentAvatar';
 
@@ -34,7 +35,7 @@ export function AvatarPicker() {
   const save = async (avatar: string | null) => {
     close();
     try {
-      await window.alchemist.saveBotConfig({ ...member, avatar });
+      await saveConfig({ ...member, avatar });
       await useStore.getState().loadBots();
     } catch (e) {
       toast(errorText(e));

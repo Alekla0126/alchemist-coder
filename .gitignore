@@ -3,6 +3,7 @@ out/
 dist/
 release/
 release-personal/
+release-pro/
 *.log
 .DS_Store
 coverage/

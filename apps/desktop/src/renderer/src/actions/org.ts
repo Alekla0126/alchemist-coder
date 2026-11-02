@@ -1,6 +1,7 @@
 import type { BotConfig, BotTeam } from '@shared/api';
 import { translate, type MessageKey } from '../i18n';
 import { canMove } from '../org-model';
+import { isDemo } from '../org-office';
 import { useAvatarPicker } from '../components/AvatarPicker';
 import { useStore } from '../store';
 import { confirmAction, openMenu, promptText, toast } from '../ui';
@@ -8,18 +9,32 @@ import { confirmAction, openMenu, promptText, toast } from '../ui';
 const t = (key: MessageKey, vars?: Record<string, string | number>) => translate(useStore.getState().locale, key, vars);
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e)).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
 
+/**
+ * Saving and removing an agent, the only way the renderer does it: the example office's agents
+ * (screenshots, `demo-…`) live in the window only, so those fail with a word on why (the callers show it).
+ */
+export function saveConfig(config: Parameters<typeof window.alchemist.saveBotConfig>[0]) {
+  return isDemo(config.id) ? Promise.reject(new Error(t('org.office.demoNoSave'))) : window.alchemist.saveBotConfig(config);
+}
+export function deleteConfig(id: string) {
+  return isDemo(id) ? Promise.reject(new Error(t('org.office.demoNoSave'))) : window.alchemist.deleteBotConfig(id);
+}
+
 /** Opens an agent's profile. */
-export const openMember = (member: BotConfig) => useStore.setState({ activeMemberId: member.id, activeTeamId: null, activeBotId: null });
+export const openMember = (member: BotConfig) => useStore.setState({ orgPage: 'work', activeMemberId: member.id, activeTeamId: null, activeBotId: null });
+
+/** Configuration never changes the selected working view or its focused assignment. */
+export const openOrgSettings = (memberId: string | null = null) => useStore.setState({ orgPage: 'settings', orgSettingsMemberId: memberId, activeTeamId: null, activeBotId: null, activeMemberId: null, activeAutomationId: null });
 
 /** Opens an assignment, on one of its agents (the coordinator when none is given). */
-export const openAssignment = (team: BotTeam, botId?: string | null) => useStore.setState({ activeTeamId: team.id, activeBotId: botId ?? team.bots[0]?.id ?? null, activeMemberId: null });
+export const openAssignment = (team: BotTeam, botId?: string | null) => useStore.setState({ orgPage: 'work', activeTeamId: team.id, activeBotId: botId ?? team.bots[0]?.id ?? null, activeMemberId: null });
 
 /** Back to the organization's chart; with an id (or null) it also changes which assignment shows on it. */
-export const showOnChart = (teamId?: string | null) => useStore.setState({ activeTeamId: null, activeBotId: null, activeMemberId: null, activeAutomationId: null, ...(teamId === undefined ? {} : { orgFocusTeamId: teamId }) });
+export const showOnChart = (teamId?: string | null) => useStore.setState({ orgPage: 'work', activeTeamId: null, activeBotId: null, activeMemberId: null, activeAutomationId: null, ...(teamId === undefined ? {} : { orgFocusTeamId: teamId }) });
 
 /** Starts writing an assignment for one agent ("Ask Tester to …"), on the chart's message box. */
 export function giveTask(member: BotConfig) {
-  useStore.setState({ orgGoal: member.kind === 'coordinator' ? useStore.getState().orgGoal : t('org.giveTaskGoal', { name: member.name }) });
+  useStore.setState({ officeTalkOpen: true, orgGoal: member.kind === 'coordinator' ? useStore.getState().orgGoal : t('org.giveTaskGoal', { name: member.name }) });
   showOnChart();
   requestAnimationFrame(() => {
     const box = document.querySelector<HTMLTextAreaElement>('.org-composer textarea');
@@ -34,7 +49,7 @@ export async function renameMember(member: BotConfig) {
   const name = value?.trim();
   if (!name || name === member.name) return;
   try {
-    await window.alchemist.saveBotConfig({ ...member, name });
+    await saveConfig({ ...member, name });
     const draft = useStore.getState().orgDrafts[member.id];
     if (draft) useStore.setState((s) => ({ orgDrafts: { ...s.orgDrafts, [member.id]: { ...draft, name } } }));
     await useStore.getState().loadBots();
@@ -51,7 +66,7 @@ export function changeAvatar(member: BotConfig) {
 /** Puts an agent on a lead's team, or back under the coordinator (null). */
 export async function setLead(member: BotConfig, lead: BotConfig | null) {
   try {
-    await window.alchemist.saveBotConfig({ ...member, leadId: lead?.id ?? null });
+    await saveConfig({ ...member, leadId: lead?.id ?? null });
     await useStore.getState().loadBots();
     toast(lead ? t('org.joinedTeam', { name: member.name, lead: lead.name }) : t('org.leftTeam', { name: member.name }), undefined, 3000);
   } catch (e) {
@@ -78,7 +93,7 @@ export async function addToTeam(lead: BotConfig, configs: BotConfig[]) {
 export async function removeMember(member: BotConfig): Promise<boolean> {
   if (!(await confirmAction({ title: t('org.deleteAgentTitle', { name: member.name }), confirmLabel: t('org.deleteAgent'), cancelLabel: t('dialog.cancel'), danger: true }))) return false;
   try {
-    await window.alchemist.deleteBotConfig(member.id);
+    await deleteConfig(member.id);
     if (useStore.getState().activeMemberId === member.id) useStore.setState({ activeMemberId: null });
     await useStore.getState().loadBots();
     return true;
@@ -91,7 +106,7 @@ export async function removeMember(member: BotConfig): Promise<boolean> {
 /** Keeping a proposed agent: it becomes one of the organization's agents. */
 export async function keepMember(member: BotConfig, patch: Partial<BotConfig> = {}) {
   try {
-    await window.alchemist.saveBotConfig({ ...member, ...patch, proposed: false });
+    await saveConfig({ ...member, ...patch, proposed: false });
     await useStore.getState().loadBots();
     toast(t('org.joined', { name: patch.name || member.name }), undefined, 3000);
   } catch (e) {
@@ -102,10 +117,10 @@ export async function keepMember(member: BotConfig, patch: Partial<BotConfig> = 
 /** Dismissing a proposed agent needs no confirmation, only a way back. */
 export async function dismissMember(member: BotConfig) {
   try {
-    await window.alchemist.deleteBotConfig(member.id);
+    await deleteConfig(member.id);
     if (useStore.getState().activeMemberId === member.id) useStore.setState({ activeMemberId: null });
     await useStore.getState().loadBots();
-    toast(t('org.dismissed', { name: member.name }), { label: t('org.undo'), run: () => void window.alchemist.saveBotConfig({ ...member, id: undefined }).then(() => useStore.getState().loadBots()) }, 8000);
+    toast(t('org.dismissed', { name: member.name }), { label: t('org.undo'), run: () => void saveConfig({ ...member, id: undefined }).then(() => useStore.getState().loadBots()) }, 8000);
   } catch (e) {
     toast(errorText(e));
   }

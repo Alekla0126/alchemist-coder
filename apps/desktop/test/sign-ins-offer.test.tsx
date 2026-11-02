@@ -29,4 +29,11 @@ describe('the offer of sign-ins from other projects', () => {
     expect(html).not.toContain('bsi-site');
     expect(html).toContain('Traerlos');
   });
+
+  it('names the browser when the sign-ins come from one you use, site by site', () => {
+    const html = renderToStaticMarkup(<SignInsOffer sites={['google.com', 'tiktok.com']} earlier={false} browser="Chrome" />);
+    expect(html).toContain('Tienes sesión en estos sitios en Chrome');
+    expect(html).toContain('>tiktok.com</button>');
+    expect(html).not.toContain('otros proyectos');
+  });
 });

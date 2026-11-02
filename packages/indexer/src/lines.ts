@@ -4,16 +4,17 @@ const CHUNK = 4 * 1024 * 1024;
 
 /**
  * Streams a JSONL file line by line with exact byte offsets, so the index can
- * point back into the original file instead of copying its contents.
+ * point back into the original file instead of copying its contents. `start`
+ * skips what was read before; `complete` is false for a last line with no newline yet.
  */
-export function forEachLine(path: string, onLine: (line: string, offset: number, length: number) => void): number {
+export function forEachLine(path: string, onLine: (line: string, offset: number, length: number, complete: boolean) => void, start = 0): number {
   const fd = openSync(path, 'r');
   try {
     const size = fstatSync(fd).size;
     const buf = Buffer.allocUnsafe(CHUNK);
     let carry: Buffer | null = null;
     let carryStart = 0;
-    let pos = 0;
+    let pos = start;
     while (pos < size) {
       const n = readSync(fd, buf, 0, Math.min(CHUNK, size - pos), pos);
       if (n <= 0) break;
@@ -22,7 +23,7 @@ export function forEachLine(path: string, onLine: (line: string, offset: number,
       let lineStart = 0;
       let nl = data.indexOf(10, lineStart);
       while (nl !== -1) {
-        if (nl > lineStart) onLine(data.toString('utf8', lineStart, nl), dataStart + lineStart, nl - lineStart);
+        if (nl > lineStart) onLine(data.toString('utf8', lineStart, nl), dataStart + lineStart, nl - lineStart, true);
         lineStart = nl + 1;
         nl = data.indexOf(10, lineStart);
       }
@@ -32,7 +33,7 @@ export function forEachLine(path: string, onLine: (line: string, offset: number,
       pos += n;
     }
     // A trailing line without newline may still be mid-write; callers ignore JSON that fails to parse.
-    if (carry && carry.length > 0) onLine(carry.toString('utf8'), carryStart, carry.length);
+    if (carry && carry.length > 0) onLine(carry.toString('utf8'), carryStart, carry.length, false);
     return size;
   } finally {
     closeSync(fd);

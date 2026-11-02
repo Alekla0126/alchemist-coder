@@ -1,9 +1,13 @@
+import { demoConfigs, demoTeams, isDemo } from './org-office';
+import { ORG_GROUP_KEY } from './org-groups';
+import { rosterOf } from './org-roster';
 import { openFolderAsProject, openNewProject } from './components/NewProject';
 import { create } from 'zustand';
 import type { AgentNode, AgentOption, FileDiff, PromptImage, SlashCommand, IndexProgress, PermissionChoice, PlanEntry, ProjectSummary, QuestionAnswer, SearchHit, SessionSummary, ToolState } from '@alchemist-coder/core';
 import type { AgentReview, AppInfo, ArenaTask, AttachmentInput, AutomationState, BotConfig, BotTeam, Locale, Mode, OrgSettings, PlanUsage, RunnerCatalog, RunnerEventMessage, Settings, StartRunRequest } from '@shared/api';
 import { resolveLocale, translate, type MessageKey } from './i18n';
 import { moveComposerState } from './composer-state';
+import type { ConversationHandoff } from './conversation-handoff';
 import { applyToTurns, markQuestion, startTurn, type LiveQuestion, type LiveTurn } from './live-turns';
 import { applyWorkbench, loadTheme, type VsTheme } from './theme';
 import { toggleSidebar, toggleSplitSide } from './layout';
@@ -12,6 +16,7 @@ import { useWelcome } from './welcome-state';
 import { markViewed } from './attention';
 import { bornConversation, heldConversation, provisionalProjects } from './stay-put';
 import { mergeOrder, readOrder } from './reorder';
+import { changeQueue } from './change-queue';
 
 const api = window.alchemist;
 const CATALOG_KEY = 'alchemist.catalog';
@@ -42,6 +47,11 @@ export type SessionFilter = 'all' | 'running' | 'favorites';
 export type AgentsScope = 'project' | 'all' | 'recent';
 const SCOPES: AgentsScope[] = ['project', 'all', 'recent'];
 const PIN_ORDER_KEY = 'alchemist.pinOrder';
+/** Whether the organization chart shows the chosen assignment live. */
+export const ORG_LIVE_KEY = 'alchemist.orgLive';
+export const ORG_MAP_KEY = 'alchemist.orgMap';
+/** Whether the organization opens on the one-screen office ('1') or on the detailed views ('0'). */
+export const ORG_OFFICE_KEY = 'alchemist.orgOffice';
 function savedScope(): AgentsScope {
   const saved = localStorage.getItem('alchemist.agentsScope') as AgentsScope | null;
   return saved && SCOPES.includes(saved) ? saved : 'project';
@@ -147,10 +157,24 @@ interface State {
   /** The organization agent whose profile is open (a configuration id). */
   activeMemberId: string | null;
   orgSettings: OrgSettings | null;
+  /** Organization configuration is a separate destination from its working views. */
+  orgPage: 'work' | 'settings';
+  orgSettingsMemberId: string | null;
+  officeTalkOpen: boolean;
   /** The project the organization view is filtered to ('' = all). */
   orgProject: string;
+  /** The organization (a group of project folders) the sidebar and the office show ('' = all); kept between launches. It never changes who can talk to whom. */
+  orgGroup: string;
   /** The assignment showing on the organization chart (who does what in it); null = the organization as a whole. */
   orgFocusTeamId: string | null;
+  /** The assignment the office is focused on (its room and agents, live); null = the whole office. */
+  officeTeamId: string | null;
+  /** The chart shows the chosen assignment live (departments and messages) instead of the organization; kept between visits. */
+  orgLive: boolean;
+  /** The chart shows the whole company as a map of tokens (who spent what and handed whom how much); kept between visits. */
+  orgMap: boolean;
+  /** The organization's home is the office: the work by project, the departments and the box, on one screen; kept between visits. */
+  orgOffice: boolean;
   /** What you're writing as the next assignment: kept while you look at an agent or an assignment. */
   orgGoal: string;
   /** The organization's automations, with their latest runs. */
@@ -180,6 +204,8 @@ interface State {
   runByTarget: Record<string, string>;
   /** Project in which the user is composing a brand-new conversation. */
   composeProjectId: number | null;
+  /** A Claude conversation prepared for continuing with Codex; nothing is sent until Send. */
+  conversationHandoff: ConversationHandoff | null;
   sidebarTab: 'agents' | 'files' | 'git' | 'extensions';
   theme: VsTheme | null;
   openFiles: Record<number, string[]>;
@@ -194,7 +220,7 @@ interface State {
   /** The Settings screen is showing. */
   settingsOpen: boolean;
   /** Which Settings section opens next. */
-  settingsSection: 'general' | 'agents' | 'automations' | 'usage' | 'backup' | 'shortcuts' | 'about' | null;
+  settingsSection: 'general' | 'agents' | 'voice' | 'automations' | 'usage' | 'backup' | 'shortcuts' | 'about' | null;
   /** The ⌘K command palette is showing. */
   paletteOpen: boolean;
   /** ⌘W in Code/Split: the editor closes its active tab (asking about unsaved edits). */
@@ -322,8 +348,17 @@ export const useStore = create<State>((set, get) => ({
   activeBotId: null,
   activeMemberId: null,
   orgSettings: null,
+  orgPage: 'work',
+  orgSettingsMemberId: null,
+  officeTalkOpen: false,
   orgProject: '',
+  orgGroup: localStorage.getItem(ORG_GROUP_KEY) ?? '',
   orgFocusTeamId: null,
+  officeTeamId: null,
+  orgLive: localStorage.getItem(ORG_LIVE_KEY) === '1',
+  orgMap: localStorage.getItem(ORG_MAP_KEY) === '1',
+  // The office unless you chose a detailed view last time.
+  orgOffice: localStorage.getItem(ORG_OFFICE_KEY) !== '0',
   orgGoal: '',
   automations: [],
   activeAutomationId: null,
@@ -337,6 +372,7 @@ export const useStore = create<State>((set, get) => ({
   tasks: {},
   activeTaskId: null,
   composeProjectId: null,
+  conversationHandoff: null,
   sidebarTab: 'agents',
   theme: null,
   openFiles: {},
@@ -371,7 +407,7 @@ export const useStore = create<State>((set, get) => ({
         void Promise.all([get().refreshProjects(), ...Object.keys(get().trees).map((id) => get().loadTree(id)), ...(wantsRecent(get()) ? [get().loadRecent()] : [])]).then(() => resolveIndexed());
       } else if (p.done % 60 === 0) void get().refreshProjects();
     });
-    api.onSessionsChanged((ids) => void get().onChanged(ids));
+    api.onSessionsChanged((ids) => changes.push(ids));
     api.onRunnerEvent((m) => applyRunnerEvent(m));
     api.onAppCommand((command) => runAppCommand(command));
     if (info.capture?.settings) set({ settingsOpen: true });
@@ -529,7 +565,33 @@ export const useStore = create<State>((set, get) => ({
           set({ captureReady: true });
         }
       }
-      if (info.capture.botsView === 'chart') set({ orgFocusTeamId: (get().botTeams.find((x) => x.plan?.status === 'pending') ?? latest)?.id ?? null });
+      // A capture of another view isn't taken on the office, the organization's default.
+      if (info.capture.botsView !== 'office') set({ orgOffice: false });
+      if (info.capture.botsView === 'office') {
+        set({ orgOffice: true });
+        // --office-demo: an example floor from the organization's own agents (set up on first open).
+        for (let i = 0; i < 40 && info.capture.officeDemo && !get().botConfigs.some((c) => c.kind === 'coordinator'); i++) {
+          await new Promise((r) => setTimeout(r, 250));
+          await get().loadBots();
+        }
+        const l = get().locale;
+        const words = (k: 'goalA' | 'goalB' | 'taskA' | 'taskB' | 'taskC') => translate(l, `org.office.demo.${k}`);
+        const open = get().settings.openProjectIds.map((id) => get().projects.find((p) => p.id === id)).filter((p) => !!p);
+        if (info.capture.officeDemo && !get().botConfigs.some((c) => c.kind === 'coordinator')) set({ botConfigs: demoConfigs(rosterOf((k) => translate(l, k), (tier) => tier), { harnessId: 'claude-code', providerId: 'anthropic', model: 'default' }) });
+        if (info.capture.officeDemo) for (const team of demoTeams(get().botConfigs, open, Date.now(), { goalA: words('goalA'), goalB: words('goalB'), taskA: words('taskA'), taskB: words('taskB'), taskC: words('taskC') })) get().upsertTeam(team);
+        setTimeout(() => set({ captureReady: true }), 800);
+      }
+      if (info.capture.botsView === 'chart' || info.capture.botsView === 'live') set({ orgFocusTeamId: (get().botTeams.find((x) => x.plan?.status === 'pending') ?? latest)?.id ?? null, orgLive: info.capture.botsView === 'live', orgMap: false });
+      // --bots-view=map (screenshots): the company's map of tokens, its heaviest agent picked.
+      if (info.capture.botsView === 'map') set({ orgFocusTeamId: null, orgLive: false, orgMap: true });
+      // --bots-view=live (screenshots): a message comes in a moment later, so the capture shows it lighting up.
+      if (info.capture.botsView === 'live')
+        setTimeout(() => {
+          const team = get().botTeams.find((x) => x.id === get().orgFocusTeamId);
+          const [from, to] = team?.bots ?? [];
+          if (team && from && to) get().upsertTeam({ ...team, activity: [...(team.activity ?? []), { at: Date.now(), botId: from.id, kind: 'message', detail: `${to.id}|${translate(get().locale, 'org.live.captureMessage')}` }] });
+          set({ captureReady: true });
+        }, 1200);
       // The organization is set up on first open: wait for its coordinator before picking a profile.
       if (info.capture.botsView === 'member' || info.capture.botsView === 'agent') {
         const pick = () => get().botConfigs.find((c) => (info.capture!.botsView === 'member' ? c.kind === 'coordinator' : c.kind !== 'coordinator' && !c.proposed));
@@ -809,6 +871,8 @@ export const useStore = create<State>((set, get) => ({
   },
 
   async messageBot(teamId, botId, text) {
+    // The example office's assignments (screenshots) have no one to hear it: the caller shows why.
+    if (isDemo(teamId)) throw new Error(translate(get().locale, 'org.office.demoNoSend'));
     await api.messageBot(teamId, botId, text);
     const runId = get().botTeams.find((t) => t.id === teamId)?.bots.find((b) => b.id === botId)?.runId;
     if (runId) patchRun(runId, (r) => ({ ...r, status: 'running', turns: startTurn(r.turns, text) }));
@@ -1008,6 +1072,7 @@ export const useStore = create<State>((set, get) => ({
   },
 
   newConversation(projectId) {
+    set({ conversationHandoff: null });
     const held = heldConversation(get(), projectId);
     if (held) set((s) => ({ runByTarget: Object.fromEntries(Object.entries(s.runByTarget).filter(([target]) => target !== held)) }));
     get().setCompose(projectId);
@@ -1033,6 +1098,14 @@ function reloadRecentSoon() {
     void useStore.getState().loadRecent();
   }, 1200);
 }
+
+const changes = changeQueue({
+  hidden: () => document.hidden,
+  focused: () => document.hasFocus(),
+  flush: (ids) => void useStore.getState().onChanged(ids),
+});
+document.addEventListener('visibilitychange', () => changes.wake());
+window.addEventListener('focus', () => changes.wake());
 
 function runAppCommand(command: string) {
   const s = useStore.getState();

@@ -65,6 +65,23 @@ describe('plan usage', () => {
     rmSync(file);
   });
 
+  it('keeps the largest count of a reply written while it streams, across reads, and counts workflow agents', async () => {
+    const h = { ...homes, claudeProjects: join(root, 'stream', 'projects') };
+    const sub = join(h.claudeProjects, '-work-app', 's9', 'subagents');
+    mkdirSync(join(sub, 'workflows', 'wf_1'), { recursive: true });
+    writeFileSync(join(h.claudeProjects, '-work-app', 's9.jsonl'), jsonl([reply('w0', 1, 5)]));
+    const file = join(sub, 'agent-b.jsonl');
+    writeFileSync(file, jsonl([reply('s1', 1, 8)])); // a subagent's first record, mid-stream
+    writeFileSync(join(sub, 'workflows', 'wf_1', 'agent-c.jsonl'), jsonl([reply('c1', 1, 40)]));
+    const tallies = new Map();
+    const first = await claudeUsage(h, now, tallies);
+    expect(first!.windows[0]).toMatchObject({ messages: 3, outputTokens: 5 + 8 + 40 });
+    // Its final count arrives later, then a record with none.
+    appendFileSync(file, jsonl([reply('s1', 1, 258), reply('s1', 1, 0)]));
+    const second = await claudeUsage(h, now, tallies);
+    expect(second!.windows[0]).toMatchObject({ messages: 3, outputTokens: 5 + 258 + 40 });
+  });
+
   it('reads the Codex plan and both windows from the newest session', async () => {
     const u = await codexUsage(homes, now);
     expect(u).toEqual({
