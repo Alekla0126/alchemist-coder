@@ -13,10 +13,16 @@ export const MAX_BOTS = 10;
 const MAX_TEAMS = 40;
 /** The organization remembers this many lessons (the oldest go first), each this long at most. */
 export const MAX_LESSONS = 30;
+/** A bot is told this many of them, the nearest to its task; the coordinator, all. */
+export const LESSONS_PER_BOT = 8;
 const LESSON_CHARS = 400;
 /** On Autopilot a coordinator that ends its turn asking you is told to decide this many times per assignment, then it's yours. */
 const AUTOPILOT_NUDGES = 2;
 const REPLY_CHARS = 12_000;
+/** wait_for_bot returns this much of an answer; bot_reply, all of it (up to REPLY_CHARS). */
+const WAIT_REPLY_CHARS = 4_000;
+/** How much of each agent's role the coordinator's list of agents shows. */
+const ROSTER_ROLE_CHARS = 120;
 /** How much of what was said an activity line keeps. */
 const DETAIL_CHARS = 300;
 /** The kinds whose detail starts with the other bot's id ("b2|…"). */
@@ -159,6 +165,11 @@ export function teamTitle(goal: string): string {
 }
 
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max)}\n…` : text);
+/** One line of at most `max` characters, with "…" when cut. */
+const clipLine = (text: string, max: number) => {
+  const line = text.replace(/\s+/g, ' ').trim();
+  return line.length > max ? `${line.slice(0, max - 1).trimEnd()}…` : line;
+};
 const str = (v: unknown, max = 20_000) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 
 /** What every agent of the organization is told besides its task: what it learned, and whether you're away. */
@@ -177,9 +188,30 @@ interface OrgContext extends OrgBrief {
   guidance: string;
 }
 
-/** The lessons as a prompt block, newest first. */
-export function lessonsBlock(lessons: OrgLesson[]): string {
-  return lessons.length ? `Lessons this organization learned from earlier mistakes (follow them):\n${lessons.map((l) => `- ${l.text}`).join('\n')}` : '';
+/** The lessons as a prompt block, newest first; `more` says how many were left out. */
+export function lessonsBlock(lessons: OrgLesson[], more = 0): string {
+  if (!lessons.length) return '';
+  const tail = more > 0 ? `\n(${more} more ${more === 1 ? 'lesson' : 'lessons'} in the organization.)` : '';
+  return `Lessons this organization learned from earlier mistakes (follow them):\n${lessons.map((l) => `- ${l.text}`).join('\n')}${tail}`;
+}
+
+/** The words a lesson and a task can share: three letters or more, in any language. */
+const wordsOf = (text: string) => new Set(text.toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) ?? []);
+
+/**
+ * The `max` lessons nearest to an agent's task and role: the most words in common, newest first on
+ * a tie (they come newest first). Never none when there are lessons.
+ */
+export function lessonsFor(lessons: OrgLesson[], about: string, max = LESSONS_PER_BOT): OrgLesson[] {
+  if (lessons.length <= max) return lessons;
+  const want = wordsOf(about);
+  const score = (l: OrgLesson) => [...wordsOf(l.text)].filter((w) => want.has(w)).length;
+  return lessons
+    .map((l, i) => ({ l, i, s: score(l) }))
+    .sort((a, b) => b.s - a.s || a.i - b.i)
+    .slice(0, max)
+    .sort((a, b) => a.i - b.i)
+    .map((x) => x.l);
 }
 
 const LEARN =
@@ -524,9 +556,11 @@ export class BotManager {
     return { ...lesson };
   }
 
-  /** What every agent of the organization is told besides its task. */
-  private brief(): OrgBrief {
-    return { lessons: lessonsBlock(this.org.lessons), alone: this.decidesAlone() };
+  /** What every agent of the organization is told besides its task: the coordinator, every lesson; an agent (`about` = its task and role), the nearest. */
+  private brief(about?: string): OrgBrief {
+    const all = this.org.lessons;
+    const told = about === undefined ? all : lessonsFor(all, about);
+    return { lessons: lessonsBlock(told, all.length - told.length), alone: this.decidesAlone() };
   }
 
   /** The organization's coordinator, if it has one. */
@@ -774,7 +808,15 @@ export class BotManager {
               .map((c) => {
                 const members = this.teamOf(c.id).map((m) => m.name);
                 const lead = c.leadId ? this.configs.find((x) => x.id === c.leadId)?.name : undefined;
-                return `- ${c.name}: ${c.role.replace(/\s+/g, ' ').slice(0, 200) || 'no role set'} (${c.agent.model}, permissions ${c.permissionMode}${c.ownWorktree ? ', own copy' : ''}${members.length ? `; leads a team: ${members.join(', ')}` : ''}${lead ? `; on ${lead}'s team` : ''})`;
+                // Only what sets it apart: a model other than the coordinator's, permissions other than the usual.
+                const notes = [
+                  c.agent.model !== agent.model ? c.agent.model : '',
+                  c.permissionMode !== 'acceptEdits' ? `permissions ${c.permissionMode}` : '',
+                  c.ownWorktree ? 'own copy' : '',
+                  members.length ? `leads a team: ${members.join(', ')}` : '',
+                  lead ? `on ${lead}'s team` : '',
+                ].filter(Boolean);
+                return `- ${c.name}: ${clipLine(c.role, ROSTER_ROLE_CHARS) || 'no role set'}${notes.length ? ` (${notes.join('; ')})` : ''}`;
               })
               .join('\n'),
             guidance: str(r.guidance, 4000),
@@ -975,7 +1017,7 @@ export class BotManager {
     // Not a git project: it works in the folder itself, asking first when told to.
     const workIn = input.ownWorktree && !input.readOnly ? await this.makeWorktree(team, bot).catch(() => cwd) : cwd;
     if (input.ownWorktree && !bot.worktree && input.noCopyPermission) bot.permissionMode = input.noCopyPermission;
-    this.launch(team, bot, soloPrompt(config, task, this.org.name, this.org.instructions, bot.worktree?.path ?? null, input.readOnly === true, this.brief()), workIn);
+    this.launch(team, bot, soloPrompt(config, task, this.org.name, this.org.instructions, bot.worktree?.path ?? null, input.readOnly === true, this.brief(`${task} ${config.role}`)), workIn);
     this.changed(team);
     return structuredClone(team);
   }
@@ -1403,7 +1445,7 @@ export class BotManager {
         }
         team.bots.push(child);
         this.log(team, me.id, 'created', `${child.id}|${task}`);
-        this.launch(team, child, workerPrompt(child, me.name, this.org.instructions, config ? this.teamOf(config.id) : [], this.brief()), cwd);
+        this.launch(team, child, workerPrompt(child, me.name, this.org.instructions, config ? this.teamOf(config.id) : [], this.brief(`${task} ${child.role}`)), cwd);
         this.changed(team);
         if (child.status === 'error') throw new Error(`${child.name} couldn't start: ${child.lastReply}`);
         const copy = child.worktree ? ' in its own copy of the project (use bot_changes and apply_bot_work when it is done)' : '';
