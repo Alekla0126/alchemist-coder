@@ -13,6 +13,8 @@ import { defaultChoice } from './AgentPicker';
 import { doingText } from './Bots';
 import { OrgChat } from './OrgChat';
 import { OrgComposer } from './OrgComposer';
+import { OrgGroupEmpty } from './OrgGroups';
+import { groupOf, memberInGroup, teamInGroup } from '../org-groups';
 import { CardWrite } from './OrgLive';
 
 type T = ReturnType<typeof useT>;
@@ -129,9 +131,8 @@ function Elsewhere({ list }: { list: ElsewhereTeam[] }) {
  * The office focused on one assignment: back to the whole office, its detail a click away, what
  * runs in other projects, and its agents live, department by department.
  */
-function FocusRoom({ team, configs, onOpen }: { team: BotTeam; configs: BotConfig[]; onOpen: (a: OfficeAgent) => void }) {
+function FocusRoom({ team, teams, configs, onOpen }: { team: BotTeam; teams: BotTeam[]; configs: BotConfig[]; onOpen: (a: OfficeAgent) => void }) {
   const t = useT();
-  const allTeams = useStore((s) => s.botTeams);
   const open = useOpenProjects();
   const { coordinator, groups } = departmentsIn(team, configs);
   const counts: Record<OfficeState, number> = { working: 0, waiting: 0, done: 0, failed: 0 };
@@ -139,7 +140,7 @@ function FocusRoom({ team, configs, onOpen }: { team: BotTeam; configs: BotConfi
   const where = projectOf(team.cwd, open);
   return (
     <div className="ofc-focus">
-      <Elsewhere list={runningElsewhere(allTeams, team, open)} />
+      <Elsewhere list={runningElsewhere(teams, team, open)} />
       <div className="ofc-focus-bar">
         <button className="btn-ghost small" onClick={() => useStore.setState({ officeTeamId: null })}>
           ← {t('org.office.allOffice')}
@@ -396,8 +397,13 @@ function ProjectFilter() {
  */
 export function OrgOffice({ title, editor, views, callout }: { title: string; editor: (member: BotConfig) => ReactNode; views: ReactNode; callout: ReactNode }) {
   const t = useT();
-  const configs = useStore((s) => s.botConfigs);
-  const allTeams = useStore((s) => s.botTeams);
+  const everyone = useStore((s) => s.botConfigs);
+  const every = useStore((s) => s.botTeams);
+  // The organization you look at (Claude Coder, LinkedIn…) only chooses what the office shows.
+  const group = useStore((s) => groupOf(s.orgSettings, s.orgGroup));
+  // Agents the filter leaves out still show by name where they work (assignments, sheets): only the departments are filtered.
+  const configs = group ? everyone.filter((c) => memberInGroup(c, group)) : everyone;
+  const allTeams = group ? every.filter((x) => teamInGroup(x, group)) : every;
   const orgProject = useStore((s) => s.orgProject);
   const open = useOpenProjects();
   const deptsHidden = useLayout((l) => l.deptsHidden);
@@ -413,7 +419,7 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
   const [sheet, setSheet] = useState<string | null>(null);
   const [to, setTo] = useState(COORDINATOR);
   const officeTeamId = useStore((s) => s.officeTeamId);
-  const focusTeam = officeTeamId ? allTeams.find((x) => x.id === officeTeamId) : undefined;
+  const focusTeam = officeTeamId ? every.find((x) => x.id === officeTeamId) : undefined;
   // A focused assignment that was deleted leaves the whole office.
   useEffect(() => {
     if (officeTeamId && !focusTeam) useStore.setState({ officeTeamId: null });
@@ -421,21 +427,21 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
   const [unfolded, setUnfolded] = useState<Record<string, boolean>>({});
   // An agent that left the organization (deleted, dismissed) is no longer one to write to or look at.
   useEffect(() => {
-    if (to && !configs.some((c) => c.id === to)) setTo(COORDINATOR);
-  }, [configs, to]);
+    if (to && !everyone.some((c) => c.id === to)) setTo(COORDINATOR);
+  }, [everyone, to]);
   const opener = useRef<HTMLElement | null>(null);
   const teams = orgProject ? allTeams.filter((x) => inFolder(x, orgProject)) : allTeams;
-  const floor = projectsOf(allTeams, configs, open, now, orgProject);
+  const floor = projectsOf(allTeams, everyone, open, now, orgProject);
   const counts = countsOf(floor);
   const { coordinator, departments, proposed } = departmentsOf(configs, teams, orgProject);
-  const shown = sheet ? configs.find((c) => c.id === sheet) : undefined;
+  const shown = sheet ? everyone.find((c) => c.id === sheet) : undefined;
   const agents = floor.flatMap((p) => p.agents);
   // Leaving an agent with unsaved settings (closing, or opening another one) asks first; leaving drops them.
   const leave = async () => {
     const id = sheet;
     const draft = id ? useStore.getState().orgDrafts[id] : undefined;
     if (!id || !draft) return true;
-    const name = configs.find((c) => c.id === id)?.name ?? '';
+    const name = everyone.find((c) => c.id === id)?.name ?? '';
     const before = document.activeElement as HTMLElement | null;
     if (!(await confirmAction({ title: t('org.office.discardTitle', { name }), message: t('org.office.discardHint'), confirmLabel: t('org.office.discard'), cancelLabel: t('org.office.keepEditing'), danger: true }))) {
       // Back where you were editing (or on the sheet), not on the page with nowhere to type.
@@ -467,7 +473,7 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
   };
   // A desk opens its agent's settings; one the coordinator defined on the spot opens its assignment.
   const openDesk = (a: OfficeAgent) => {
-    const member = a.configId ? configs.find((c) => c.id === a.configId) : undefined;
+    const member = a.configId ? everyone.find((c) => c.id === a.configId) : undefined;
     if (member) void openSheet(member, document.activeElement as HTMLElement | null);
     else openAssignment(a.team, a.botId);
   };
@@ -504,8 +510,12 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
       </header>
       <div className="ofc-main">
         <section className={`ofc-stage ${floor.length || focusTeam ? '' : 'empty'}`} aria-label={t('org.office.floor')}>
-          {focusTeam ? (
-            <FocusRoom team={focusTeam} configs={configs} onOpen={openDesk} />
+          {group && !group.projects.length && !focusTeam ? (
+            <div className="ofc-empty">
+              <OrgGroupEmpty group={group} />
+            </div>
+          ) : focusTeam ? (
+            <FocusRoom team={focusTeam} teams={allTeams} configs={everyone} onOpen={openDesk} />
           ) : floor.length ? (
             floor.map((p) => <ProjectRoom key={p.cwd} p={p} onOpen={openDesk} />)
           ) : (
@@ -518,7 +528,7 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
             </div>
           )}
         </section>
-        <Talk to={to} setTo={setTo} configs={configs} teams={teams} floor={agents} departments={departments} coordinator={coordinator?.member} />
+        <Talk to={to} setTo={setTo} configs={everyone} teams={teams} floor={agents} departments={departments} coordinator={coordinator?.member} />
       </div>
       <aside className="ofc-depts" aria-label={t('org.office.departments')}>
         <h3>

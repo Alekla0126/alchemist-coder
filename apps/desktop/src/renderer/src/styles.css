@@ -1351,6 +1351,12 @@ code.md-path:hover { color: var(--accent-2); }
 .org-side .tree, .bots-list.org-side .bots-teams { flex: none; overflow: visible; min-height: auto; }
 .org-side .sec { position: sticky; top: 0; z-index: 2; background: var(--bg-side); display: flex; align-items: center; justify-content: space-between; }
 .org-top { display: flex; flex-direction: column; gap: 6px; padding: 10px 10px 2px; }
+/* The organization's name with the organization you look at (Claude Coder, LinkedIn…) beside it. */
+.org-top-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.org-top-row > .org-name, .org-top-row > .org-name-input { flex: 1; min-width: 0; }
+.org-groups { display: inline-flex; align-items: center; gap: 2px; flex: none; max-width: 55%; }
+.org-group-select { width: auto; min-width: 0; max-width: 100%; }
+.org-group-empty { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 8px; border: 1px dashed var(--line-2); border-radius: 8px; font-size: 12px; color: var(--fg); }
 .org-callout { margin: 0 10px 6px; padding: 6px 10px; border-radius: 8px; text-align: left; font-size: 12px; font-weight: 600; color: var(--amber); border: 1px solid color-mix(in srgb, var(--amber) 45%, var(--line-2)); background: color-mix(in srgb, var(--amber) 8%, transparent); }
 .org-callout:hover { background: color-mix(in srgb, var(--amber) 14%, transparent); }
 .org-member.lead .tt small { font-weight: 400; }

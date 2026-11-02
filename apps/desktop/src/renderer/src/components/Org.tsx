@@ -18,6 +18,8 @@ import { OrgComposer } from './OrgComposer';
 import { OrgMap } from './OrgMap';
 import { OrgOffice } from './OrgOffice';
 import { OrgChat } from './OrgChat';
+import { OrgGroupEmpty, OrgGroupPicker } from './OrgGroups';
+import { groupOf, memberInGroup, teamInGroup } from '../org-groups';
 import { ROSTER, ROSTER_DEPARTMENTS, rosterOf, tierModels } from '../org-roster';
 import { AutomationList, AutomationView, NewAutomationDialog } from './Automations';
 import { PermissionCard } from './LiveRun';
@@ -557,12 +559,14 @@ export function OrgSidebar() {
       .catch((e: unknown) => toast(errorText(e)))
       .finally(() => (ensuring.current = false));
   }, [catalog, configs, loaded]);
+  // The organization you look at (Claude Coder, LinkedIn…) only chooses what shows here.
+  const group = useStore((s) => groupOf(s.orgSettings, s.orgGroup));
   const coordinator = configs.find((c) => c.kind === 'coordinator');
-  const members = configs.filter((c) => c.kind !== 'coordinator' && (!orgProject || inProject(c, orgProject)));
+  const members = configs.filter((c) => c.kind !== 'coordinator' && (!orgProject || inProject(c, orgProject)) && memberInGroup(c, group));
   const kept = members.filter((c) => !c.proposed);
   const proposed = members.filter((c) => c.proposed);
   const compact = members.length > COMPACT_AT;
-  const teams = orgProject ? allTeams.filter((x) => inFolder(x, orgProject)) : allTeams;
+  const teams = allTeams.filter((x) => (!orgProject || inFolder(x, orgProject)) && teamInGroup(x, group));
   // On the office an assignment focuses it (its room and agents, live); elsewhere it opens in detail.
   const onOffice = useStore((s) => s.orgOffice && !s.activeTeamId && !s.activeMemberId && !s.activeAutomationId);
   const officeTeamId = useStore((s) => s.officeTeamId);
@@ -604,7 +608,11 @@ export function OrgSidebar() {
   return (
     <aside className="side bots-list org-side">
       <div className="org-top">
-        <OrgName />
+        <div className="org-top-row">
+          <OrgName />
+          <OrgGroupPicker />
+        </div>
+        {group && !group.projects.length && <OrgGroupEmpty group={group} />}
         {open.length > 1 && (
           <select className="org-filter" value={orgProject} aria-label={t('org.project')} onChange={(e) => useStore.setState({ orgProject: e.target.value })}>
             <option value="">{t('org.allProjects')}</option>

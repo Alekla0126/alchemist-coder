@@ -1,4 +1,5 @@
 import { demoConfigs, demoTeams, isDemo } from './org-office';
+import { ORG_GROUP_KEY } from './org-groups';
 import { rosterOf } from './org-roster';
 import { openFolderAsProject, openNewProject } from './components/NewProject';
 import { create } from 'zustand';
@@ -157,6 +158,8 @@ interface State {
   orgSettings: OrgSettings | null;
   /** The project the organization view is filtered to ('' = all). */
   orgProject: string;
+  /** The organization (a group of project folders) the sidebar and the office show ('' = all); kept between launches. It never changes who can talk to whom. */
+  orgGroup: string;
   /** The assignment showing on the organization chart (who does what in it); null = the organization as a whole. */
   orgFocusTeamId: string | null;
   /** The assignment the office is focused on (its room and agents, live); null = the whole office. */
@@ -339,6 +342,7 @@ export const useStore = create<State>((set, get) => ({
   activeMemberId: null,
   orgSettings: null,
   orgProject: '',
+  orgGroup: localStorage.getItem(ORG_GROUP_KEY) ?? '',
   orgFocusTeamId: null,
   officeTeamId: null,
   orgLive: localStorage.getItem(ORG_LIVE_KEY) === '1',
