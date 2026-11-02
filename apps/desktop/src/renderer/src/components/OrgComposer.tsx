@@ -4,8 +4,7 @@ import { defaultTemplate, HOUSE_TEMPLATE, loadTemplates, saveTemplates, setDefau
 import { baseName } from '../paths';
 import { useOpenProjects, useStore, useT } from '../store';
 import { folderInGroup, groupOf } from '../org-groups';
-import { projectOf } from '../org-office';
-import { isDemo } from '../org-office';
+import { isDemo, projectOf } from '../org-office';
 import { openMenu, promptText, toast } from '../ui';
 import { errorText } from './Bots';
 import { Chip } from './ComposerChips';
@@ -30,12 +29,15 @@ export function OrgComposer({ coordinator, examples: showExamples }: { coordinat
   const open = useOpenProjects();
   // The project you picked on the chip; until then (or once it's closed) the one you're in, so switching projects in the rail takes the box with you.
   const [picked, setPicked] = useState<string | null>(null);
-  // Then the project of the assignment the office is focused on, the filter's project, the first open folder of the organization you look at.
+  // Then the project you filtered to (your choice wins), the project of the assignment the office is
+  // focused on (only while the office shows: a focus left from an earlier visit doesn't count), the
+  // first open folder of the organization you look at.
+  const onOffice = useStore((s) => s.orgOffice && !s.activeTeamId && !s.activeMemberId && !s.activeAutomationId);
   const focusCwd = useStore((s) => s.botTeams.find((x) => x.id === s.officeTeamId)?.cwd);
   const group = useStore((s) => groupOf(s.orgSettings, s.orgGroup));
-  const focusProject = focusCwd ? projectOf(focusCwd, open).cwd : '';
+  const focusProject = onOffice && focusCwd ? projectOf(focusCwd, open).cwd : '';
   const groupFirst = group ? open.find((p) => folderInGroup(p.cwd, group))?.cwd : undefined;
-  const cwd = (picked && open.some((p) => p.cwd === picked) ? picked : '') || focusProject || orgProject || groupFirst || activeProject?.cwd || open[0]?.cwd || '';
+  const cwd = (picked && open.some((p) => p.cwd === picked) ? picked : '') || orgProject || focusProject || groupFirst || activeProject?.cwd || open[0]?.cwd || '';
   const [templates, setTemplates] = useState<Template[]>(loadTemplates);
   const all = [...starterTemplates(t), ...templates];
   // The box starts from the default template: The Alchemist Code's way of working, unless you made another one the default.

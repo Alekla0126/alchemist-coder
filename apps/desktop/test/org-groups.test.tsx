@@ -102,6 +102,7 @@ vi.mock('../src/renderer/src/store', () => {
 const { OrgOffice } = await import('../src/renderer/src/components/OrgOffice');
 const { OrgSidebar } = await import('../src/renderer/src/components/Org');
 const { OrgGroupPicker } = await import('../src/renderer/src/components/OrgGroups');
+const { OrgComposer } = await import('../src/renderer/src/components/OrgComposer');
 const render = () => renderToStaticMarkup(<OrgOffice title="Studio" editor={() => <form />} views={null} callout={null} />);
 const depts = (html: string) => html.slice(html.indexOf('class="ofc-depts"'));
 
@@ -185,6 +186,25 @@ describe('the office filtered by organization', () => {
     state.orgSettings = { ...state.orgSettings, groups: [coder, clients] };
     state.orgGroup = '';
     expect(chip(render())).toBe('Coder');
+  });
+
+  it('starts the box on the project you filtered to, over a focus, and on a focus only while the office shows', () => {
+    const chipOf = () => /title="Project"[^>]*>(?:<[^>]+>)*([^<]+)</.exec(renderToStaticMarkup(<OrgComposer coordinator={configs[0]} examples={false} />))?.[1];
+    state.officeTeamId = 'VPN work';
+    // Filter on Coder + an old focus on Komodo + the chart: Coder.
+    state.orgProject = '/p/coder';
+    state.orgOffice = false;
+    expect(chipOf()).toBe('Coder');
+    // The same on the office: your filter still wins.
+    state.orgOffice = true;
+    expect(chipOf()).toBe('Coder');
+    // No filter: the focus on the office, but not on the chart (the project you're in, Coder).
+    state.orgProject = '';
+    expect(chipOf()).toBe('Komodo');
+    state.orgOffice = false;
+    expect(chipOf()).toBe('Coder');
+    state.orgOffice = true;
+    state.officeTeamId = null;
   });
 
   it('says so when the organization and the project leave the sidebar empty', () => {
