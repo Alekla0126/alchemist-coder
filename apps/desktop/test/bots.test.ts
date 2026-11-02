@@ -14,13 +14,13 @@ afterAll(() => rmSync(dir, { recursive: true, force: true }));
 function fakeRunner() {
   let n = 0;
   const listeners: Array<(m: RunnerEventMessage) => void> = [];
-  const started: Array<{ runId: string; prompt: string; model: string; effort?: string; permissionMode?: string; mcp: number; cwd?: string; pilot?: unknown }> = [];
+  const started: Array<{ runId: string; prompt: string; harnessId?: string; providerId?: string; model: string; effort?: string; permissionMode?: string; mcp: number; cwd?: string; pilot?: unknown }> = [];
   const sent: Array<[string, string]> = [];
   const stopped: string[] = [];
   const runner = {
-    start(req: { prompt: string; model: string; effort?: string; permissionMode?: string; cwd?: string }, internal: { mcpServers?: unknown[]; autopilot?: unknown } = {}) {
+    start(req: { prompt: string; harnessId?: string; providerId?: string; model: string; effort?: string; permissionMode?: string; cwd?: string }, internal: { mcpServers?: unknown[]; autopilot?: unknown } = {}) {
       const runId = `run-${++n}`;
-      started.push({ runId, prompt: req.prompt, model: req.model, effort: req.effort, permissionMode: req.permissionMode, mcp: internal.mcpServers?.length ?? 0, cwd: req.cwd, resume: (req as { resumeSessionId?: string }).resumeSessionId, pilot: internal.autopilot } as never);
+      started.push({ runId, prompt: req.prompt, harnessId: req.harnessId, providerId: req.providerId, model: req.model, effort: req.effort, permissionMode: req.permissionMode, mcp: internal.mcpServers?.length ?? 0, cwd: req.cwd, resume: (req as { resumeSessionId?: string }).resumeSessionId, pilot: internal.autopilot } as never);
       return { runId };
     },
     send: (runId: string, text: string) => void sent.push([runId, text]),
@@ -760,4 +760,20 @@ it('persists per-agent Codex settings across restart and uses them for direct, c
   bots.startTeam({ goal: 'Next task', cwd: '/p', configId: saved.id });
   expect(fake.started.at(-1)).toMatchObject({ model: 'future-small', effort: 'low', permissionMode: 'plan' });
   bots.stopAll(); original.stopAll();
+});
+
+it('routes an explicit Codex organization assignment through the saved CEO without changing staff, permissions or existing conversations', () => {
+  const { bots, fake } = setup();
+  const ceo = bots.saveConfig({ name: 'CEO', role: 'Coordinate the organization', kind: 'coordinator', agent, permissionMode: 'default', canSpawn: true });
+  const before = bots.listConfigs();
+  const old = bots.startTeam({ goal: 'Previous conversation', cwd: '/p', configId: ceo.id });
+  const codex = { harnessId: 'codex', providerId: 'openai', model: 'future-codex', effort: 'low' };
+  const next = bots.startTeam({ goal: 'New assignment using Codex', cwd: '/p', configId: ceo.id, agentOverride: codex, approvePlan: true });
+  expect(fake.started.at(-1)).toMatchObject({ harnessId: 'codex', providerId: 'openai', model: 'future-codex', effort: 'low', permissionMode: 'default' });
+  expect(next.bots[0]).toMatchObject({ configId: ceo.id, agent: codex, permissionMode: 'default', name: 'CEO' });
+  expect(next.id).not.toBe(old.id);
+  expect(bots.listConfigs()).toEqual(before);
+  expect(bots.listTeams().find((t) => t.id === old.id)?.bots[0]?.agent).toEqual(agent);
+  expect(() => bots.startTeam({ goal: 'Invalid override', cwd: '/p', configId: ceo.id, agentOverride: { ...codex, effort: 'invalid effort' } })).toThrow(/valid model/);
+  bots.stopAll();
 });

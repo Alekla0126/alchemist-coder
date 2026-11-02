@@ -1,6 +1,11 @@
 import type { Messages } from '../i18n';
 
 export const es: Messages = {
+  "org.assignment.engine": "Motor del coordinador para este encargo",
+  "org.assignment.override": "Elegir otro motor para el coordinador",
+  "org.assignment.hint": "Se aplica al coordinador de este nuevo encargo. Los colaboradores mantienen sus propios motores; los permisos y las conversaciones existentes conservan su configuración.",
+  "org.assignment.changedCoordinator": "El coordinador cambió. Confirma de nuevo la elección del motor.",
+
   "org.codex.inheritEffort": "Heredar configuración del runtime",
   "org.codex.title": "Runtime de Codex",
   "org.codex.connected": "Catálogo conectado; el acceso al modelo se comprueba al ejecutar",

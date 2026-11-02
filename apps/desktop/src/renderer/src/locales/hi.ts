@@ -1,6 +1,11 @@
 import type { Messages } from '../i18n';
 
 export const hi: Messages = {
+  "org.assignment.engine": "इस कार्य के समन्वयक का इंजन",
+  "org.assignment.override": "समन्वयक के लिए दूसरा इंजन चुनें",
+  "org.assignment.hint": "इस नए कार्य के समन्वयक पर लागू होता है। सहयोगी अपने इंजन रखते हैं; अनुमतियाँ और मौजूदा बातचीत की सेटिंग बनी रहती हैं।",
+  "org.assignment.changedCoordinator": "समन्वयक बदल गया है। इंजन का चयन फिर से सुनिश्चित करें।",
+
   "org.codex.inheritEffort": "रनटाइम सेटिंग विरासत में लें",
   "org.codex.title": "Codex रनटाइम",
   "org.codex.connected": "कैटलॉग जुड़ा है; मॉडल की पहुँच कार्य चलने पर जाँची जाएगी",

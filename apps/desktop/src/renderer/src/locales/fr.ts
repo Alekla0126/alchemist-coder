@@ -1,6 +1,11 @@
 import type { Messages } from '../i18n';
 
 export const fr: Messages = {
+  "org.assignment.engine": "Moteur du coordinateur pour cette mission",
+  "org.assignment.override": "Choisir un autre moteur pour le coordinateur",
+  "org.assignment.hint": "Concerne le coordinateur de cette nouvelle mission. Les collaborateurs gardent leurs propres moteurs ; les autorisations et conversations existantes conservent leur configuration.",
+  "org.assignment.changedCoordinator": "Le coordinateur a changé. Confirmez à nouveau le moteur.",
+
   "org.codex.inheritEffort": "Hériter de la configuration du runtime",
   "org.codex.title": "Runtime Codex",
   "org.codex.connected": "Catalogue connecté ; accès au modèle vérifié à l’exécution",

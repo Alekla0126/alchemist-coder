@@ -871,8 +871,14 @@ export class BotManager {
     const base = typeof r.configId === 'string' ? this.configs.find((c) => c.id === r.configId) : undefined;
     const inline = r.coordinator;
     if (!base && !inline) throw new Error('Choose or define the coordinator');
-    const agent = base?.agent ?? inline!.agent;
+    const agent = r.agentOverride ?? base?.agent ?? inline!.agent;
     if (!agent?.harnessId || !agent.providerId || !agent.model) throw new Error('Choose an agent and a model for the coordinator');
+    if (r.agentOverride && (
+      typeof agent.harnessId !== 'string' || agent.harnessId.length > 120 ||
+      typeof agent.providerId !== 'string' || agent.providerId.length > 120 ||
+      typeof agent.model !== 'string' || !/^[\w.:/@-]{1,120}$/.test(agent.model) ||
+      (agent.effort !== undefined && (typeof agent.effort !== 'string' || !/^[\w-]{1,24}$/.test(agent.effort)))
+    )) throw new Error('Choose a valid model and reasoning effort for this assignment');
     const now = Date.now();
     const budget = Number(r.budgetUsd);
     const team: BotTeam = { id: `team-${randomBytes(4).toString('hex')}`, title: teamTitle(goal), goal, cwd, createdAt: now, updatedAt: now, bots: [], budgetUsd: Number.isFinite(budget) && budget > 0 ? Math.min(budget, 10_000) : null };

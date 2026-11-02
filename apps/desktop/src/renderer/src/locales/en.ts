@@ -1,5 +1,10 @@
 /** English: the source every other language translates (and the fallback for a missing text). */
 export const en = {
+  "org.assignment.engine": "Coordinator engine for this assignment",
+  "org.assignment.override": "Choose another engine for the coordinator",
+  "org.assignment.hint": "Applies to the coordinator of this new assignment. Collaborators keep their own engines; permissions and existing conversations keep their configuration.",
+  "org.assignment.changedCoordinator": "The coordinator changed. Confirm the engine choice again.",
+
   "org.codex.inheritEffort": "Inherit runtime configuration",
   "org.codex.title": "Codex runtime",
   "org.codex.connected": "Catalog connected; model access is checked when the task runs",

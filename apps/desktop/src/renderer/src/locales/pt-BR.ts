@@ -1,6 +1,11 @@
 import type { Messages } from '../i18n';
 
 export const ptBR: Messages = {
+  "org.assignment.engine": "Motor do coordenador nesta tarefa",
+  "org.assignment.override": "Escolher outro motor para o coordenador",
+  "org.assignment.hint": "Aplica-se ao coordenador desta nova tarefa. Colaboradores mantêm seus próprios motores; permissões e conversas existentes mantêm a configuração.",
+  "org.assignment.changedCoordinator": "O coordenador mudou. Confirme novamente o motor.",
+
   "org.codex.inheritEffort": "Herdar configuração do runtime",
   "org.codex.title": "Runtime Codex",
   "org.codex.connected": "Catálogo conectado; acesso ao modelo verificado na execução",

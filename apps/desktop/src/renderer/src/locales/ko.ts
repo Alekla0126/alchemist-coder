@@ -1,6 +1,11 @@
 import type { Messages } from '../i18n';
 
 export const ko: Messages = {
+  "org.assignment.engine": "이 작업의 코디네이터 엔진",
+  "org.assignment.override": "코디네이터에 다른 엔진 선택",
+  "org.assignment.hint": "이 새 작업의 코디네이터에 적용됩니다. 협업자는 각자의 엔진을 유지하며 권한과 기존 대화 설정도 유지됩니다.",
+  "org.assignment.changedCoordinator": "코디네이터가 변경되었습니다. 엔진 선택을 다시 확인하세요.",
+
   "org.codex.inheritEffort": "런타임 설정 상속",
   "org.codex.title": "Codex 런타임",
   "org.codex.connected": "카탈로그 연결됨. 모델 접근은 실행 시 확인합니다",

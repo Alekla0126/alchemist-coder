@@ -1,6 +1,11 @@
 import type { Messages } from '../i18n';
 
 export const zhCN: Messages = {
+  "org.assignment.engine": "本任务协调员的引擎",
+  "org.assignment.override": "为协调员选择其他引擎",
+  "org.assignment.hint": "适用于此新任务的协调员。协作者保留各自的引擎；权限和现有对话保留原配置。",
+  "org.assignment.changedCoordinator": "协调员已更改。请重新确认引擎选择。",
+
   "org.codex.inheritEffort": "继承运行时配置",
   "org.codex.title": "Codex 运行时",
   "org.codex.connected": "目录已连接；模型访问权限在执行时检查",

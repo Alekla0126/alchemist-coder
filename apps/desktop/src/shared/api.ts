@@ -728,6 +728,8 @@ export interface StartTeamRequest {
   cwd: string;
   /** A saved configuration for the coordinator, or one defined here. */
   configId?: string;
+  /** Explicit engine for this new assignment only; saved staff and permissions stay unchanged. */
+  agentOverride?: AgentChoice;
   coordinator?: Omit<BotConfig, 'id' | 'canSpawn'>;
   budgetUsd?: number | null;
   approvePlan?: boolean;

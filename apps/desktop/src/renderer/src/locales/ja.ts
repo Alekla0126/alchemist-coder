@@ -1,6 +1,11 @@
 import type { Messages } from '../i18n';
 
 export const ja: Messages = {
+  "org.assignment.engine": "このタスクのコーディネーターのエンジン",
+  "org.assignment.override": "コーディネーターに別のエンジンを選ぶ",
+  "org.assignment.hint": "この新規タスクのコーディネーターに適用します。共同作業者は各自のエンジンを維持し、権限と既存の会話の設定も維持されます。",
+  "org.assignment.changedCoordinator": "コーディネーターが変わりました。エンジンの選択を再確認してください。",
+
   "org.codex.inheritEffort": "ランタイムの設定を継承",
   "org.codex.title": "Codex ランタイム",
   "org.codex.connected": "カタログ接続済み。モデルへのアクセスは実行時に確認します",

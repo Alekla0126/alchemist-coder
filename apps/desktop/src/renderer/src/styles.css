@@ -2933,3 +2933,8 @@ body { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; 
 .org-codex-effort { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; grid-column: 1 / -1; }
 
 .org-codex-status .composer-note, .org-codex-permissions { color: var(--fg-2); }
+
+.org-assignment-engine { padding: 10px 12px; border: 1px solid var(--line-2); border-radius: 9px; display: flex; flex-direction: column; gap: 8px; }
+.org-assignment-engine-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; font-size: 12px; }
+.org-assignment-engine-head > span { color: var(--fg-2); overflow-wrap: anywhere; }
+.org-assignment-runtime > summary { cursor: pointer; font-size: 12px; color: var(--fg-2); }

@@ -1414,7 +1414,7 @@ function OrganizationSettings() {
           {member ? <section key={member.id} className="org-form">
             <header className="org-config-agent"><button className="av-edit" onClick={() => void changeAvatar(member)} aria-label={t('avatar.change')}><AgentAvatar name={member.name} avatar={member.avatar} size={40} /></button><h3>{member.name}</h3></header>
             <MapEditor member={member} />
-            {!drafts[member.id] && <OrgComposer coordinator={undefined} recipient={member} examples={false} />}
+            {!drafts[member.id] && <OrgComposer coordinator={undefined} recipient={member} examples={false} showRuntime={false} />}
             {member.kind !== 'coordinator' && <><TeamSection member={member} coordinatorName={configs.find((c) => c.kind === 'coordinator')?.name ?? ''} /><button className="btn-ghost small danger" onClick={() => void removeMember(member)}>{t('org.deleteAgent')}</button></>}
           </section> : <>
             <section className="org-config-name"><h3>{t('org.rename')}</h3><OrgName /></section>

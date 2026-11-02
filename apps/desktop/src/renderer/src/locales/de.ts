@@ -1,6 +1,11 @@
 import type { Messages } from '../i18n';
 
 export const de: Messages = {
+  "org.assignment.engine": "Engine des Koordinators für diesen Auftrag",
+  "org.assignment.override": "Andere Engine für den Koordinator wählen",
+  "org.assignment.hint": "Gilt für den Koordinator dieses neuen Auftrags. Mitarbeitende behalten ihre eigenen Engines; Berechtigungen und bestehende Gespräche bleiben unverändert.",
+  "org.assignment.changedCoordinator": "Der Koordinator hat sich geändert. Bestätige die Engine erneut.",
+
   "org.codex.inheritEffort": "Laufzeitkonfiguration übernehmen",
   "org.codex.title": "Codex-Laufzeit",
   "org.codex.connected": "Katalog verbunden; Modellzugriff wird bei Ausführung geprüft",

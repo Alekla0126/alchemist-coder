@@ -1,6 +1,11 @@
 import type { Messages } from '../i18n';
 
 export const ru: Messages = {
+  "org.assignment.engine": "Движок координатора для этого задания",
+  "org.assignment.override": "Выбрать другой движок для координатора",
+  "org.assignment.hint": "Применяется к координатору нового задания. Участники сохраняют свои движки; права и существующие беседы сохраняют настройки.",
+  "org.assignment.changedCoordinator": "Координатор изменился. Подтвердите выбор движка ещё раз.",
+
   "org.codex.inheritEffort": "Наследовать настройки среды",
   "org.codex.title": "Среда Codex",
   "org.codex.connected": "Каталог подключён; доступ к модели проверяется при запуске",
