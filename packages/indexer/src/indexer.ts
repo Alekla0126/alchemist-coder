@@ -129,6 +129,7 @@ export class Indexer {
   private readonly cache = new Map<string, ParsedFile>();
   private readonly watchers: FSWatcher[] = [];
   private readonly timers = new Map<string, ReturnType<typeof setTimeout>>();
+  private readonly pollers: Array<ReturnType<typeof setInterval>> = [];
   private readonly stmt: Record<string, StatementSync>;
 
   constructor(options: IndexerOptions) {
@@ -503,7 +504,7 @@ export class Indexer {
   // ---------- live updates ----------
 
   /** `source`: the CLI that wrote (its usage may have changed too). */
-  watch(onChange: (sessionIds: string[], source: string) => void, debounceMs = 800): void {
+  watch(onChange: (sessionIds: string[], source: string) => void, debounceMs = 800, codexPollMs = 2000): void {
     const schedule = (task: SessionTask) => {
       // A streaming Codex rollout can be written several times a second. A trailing debounce
       // would postpone indexing until it stopped: coalesce writes within a bounded window.
@@ -573,11 +574,41 @@ export class Indexer {
         }),
       );
     }
+    // Some desktop/session writers don't deliver recursive fs.watch notifications on macOS.
+    // Stat only: unchanged rollouts are never parsed again. This also discovers new date folders
+    // and roots created after the IDE starts, without needing a restart.
+    const seen = new Map<string, string>();
+    for (const row of this.stmt.knownFiles!.all() as Array<{ path: string; mtime: number; size: number }>) {
+      seen.set(row.path, `${row.mtime}:${row.size}`);
+    }
+    const poll = setInterval(() => {
+      for (const base of ['sessions', 'archived_sessions']) {
+        const root = join(this.codexRoot, base);
+        if (!existsSync(root)) continue;
+        try {
+          for (const path of walkRollouts(root)) {
+            const st = statSync(path, { throwIfNoEntry: false });
+            if (!st) continue;
+            const stamp = `${Math.trunc(st.mtimeMs)}:${st.size}`;
+            if (seen.get(path) === stamp) continue;
+            seen.set(path, stamp);
+            const cached = this.cache.get(path);
+            if (cached?.mtime === Math.trunc(st.mtimeMs) && cached.size === st.size) continue;
+            schedule(this.codexTask(path, base === 'archived_sessions'));
+          }
+        } catch (error) {
+          this.onError(error, root);
+        }
+      }
+    }, codexPollMs);
+    poll.unref();
+    this.pollers.push(poll);
   }
 
   close(): void {
     for (const w of this.watchers) w.close();
     for (const t of this.timers.values()) clearTimeout(t);
+    for (const p of this.pollers) clearInterval(p);
     this.db.close();
   }
 }

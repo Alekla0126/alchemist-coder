@@ -2908,3 +2908,8 @@ body { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; 
   .org-config-nav h3 { display: none; }
   .org-config-nav > button { max-width: 180px; }
 }
+
+.body.org-configuration { grid-template-columns: 56px minmax(0, 1fr); }
+.ofc-tools > input { background: var(--bg-input); color: var(--fg); border: 1px solid var(--line-2); border-radius: 8px; font-family: inherit; outline: 0; }
+.ofc-tools > input::placeholder { color: var(--fg-2); }
+.ofc-tools > input:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
