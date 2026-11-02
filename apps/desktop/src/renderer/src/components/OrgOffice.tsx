@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { BotConfig, BotTeam } from '@shared/api';
 import { dismissMember, keepMember, openAssignment } from '../actions/org';
 import { relativeTime } from '../format';
-import { toggleSidebar, useLayout, useViewport } from '../layout';
+import { toggleDepts, useLayout, useViewport } from '../layout';
 import { baseName, isInside } from '../paths';
 import { aboutOf, inFolder, teamState } from '../org-model';
 import { channelOf, countsOf, noAgentCause, waitingBot, departmentsOf, latestTeam, projectsOf, type Department, type OfficeAgent, type OfficeMember, type OfficeProject, type OfficeState } from '../org-office';
@@ -397,10 +397,9 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
     requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('.ofc-talk textarea')?.focus());
   };
   const summary = countText(counts, t);
-  // The automations live in the detailed view's column: there, for now, without changing the view you keep.
+  // The automations live in the sidebar beside the office: it shows them without leaving the office.
   const automations = useStore((s) => (orgProject ? s.automations.filter((x) => isInside(x.automation.cwd, orgProject)) : s.automations).length);
   const showAutomations = () => {
-    useStore.setState({ orgOffice: false, orgLive: false, orgMap: false });
     // The column they're in has to show: the floating sidebar on a narrow window, the folded one unfolded.
     if (useViewport.getState().narrow) useViewport.setState({ drawer: true });
     else if (useLayout.getState().sideHidden) useLayout.setState({ sideHidden: false });
@@ -439,7 +438,12 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
         <Talk to={to} setTo={setTo} configs={configs} teams={teams} floor={agents} departments={departments} coordinator={coordinator?.member} />
       </div>
       <aside className="ofc-depts" aria-label={t('org.office.departments')}>
-        <h3>{t('org.office.departments')}</h3>
+        <h3>
+          <span>{t('org.office.departments')}</span>
+          <button className="of-close ofc-depts-fold" onClick={toggleDepts} aria-label={t('org.office.hideDepts')} title={t('org.office.hideDepts')}>
+            ›
+          </button>
+        </h3>
         {!coordinator &&
           (noAgent ? (
             <div className="ofc-no-agent" role="status">
@@ -495,7 +499,7 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
       </aside>
       {/* Folded away, the departments leave a tab on the edge to bring them back. */}
       {deptsHidden && (
-        <button className="ofc-depts-tab" onClick={toggleSidebar} aria-label={t('org.office.showDepts')} title={t('org.office.showDepts')}>
+        <button className="ofc-depts-tab" onClick={toggleDepts} aria-label={t('org.office.showDepts')} title={t('org.office.showDepts')}>
           ‹ {t('org.office.departments')}
         </button>
       )}

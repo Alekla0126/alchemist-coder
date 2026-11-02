@@ -171,8 +171,6 @@ export function TitleBar() {
   const narrow = useViewport((v) => v.narrow);
   const drawer = useViewport((v) => v.drawer);
   const sideHidden = useLayout((l) => l.sideHidden);
-  const office = useViewport((v) => v.office);
-  const deptsHidden = useLayout((l) => l.deptsHidden);
   const splitSideHidden = useLayout((l) => l.splitSideHidden);
   const agentLabel = t(splitSideHidden ? 'layout.showAgent' : 'layout.hideAgent');
   const browserOpen = useLayout((l) => l.browserOpen);
@@ -207,8 +205,8 @@ export function TitleBar() {
     openBrowser();
   };
   // What the button would do: open when the sidebar is out of sight, close when it shows.
-  const sideShown = office ? !deptsHidden : narrow ? drawer : !sideHidden;
-  const sideLabel = office ? t(sideShown ? 'org.office.hideDepts' : 'org.office.showDepts') : t(sideShown ? 'layout.hideSidebar' : 'layout.showSidebar');
+  const sideShown = narrow ? drawer : !sideHidden;
+  const sideLabel = t(sideShown ? 'layout.hideSidebar' : 'layout.showSidebar');
   const pickMode = async () => {
     const id = await openMenu(MODES.map((m) => ({ id: m, label: t(`mode.${m}`), checked: m === mode, accelerator: `CmdOrCtrl+${MODES.indexOf(m) + 1}` })));
     if (id) setMode(id as Mode);

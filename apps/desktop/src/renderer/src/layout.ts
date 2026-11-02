@@ -12,7 +12,7 @@ interface Layout {
   /** The conversation opened next to the board. */
   peek: number;
   sideHidden: boolean;
-  /** The office's departments column, folded away (the sidebar button and ⌘B on the office). */
+  /** The office's departments column, folded away (its own button). */
   deptsHidden: boolean;
   /** The agent column of the split view, folded away. */
   splitSideHidden: boolean;
@@ -89,21 +89,20 @@ export const resetPanel = (panel: Panel) => useLayout.setState({ [panel]: LIMITS
 const isNarrow = () => typeof window !== 'undefined' && window.innerWidth < NARROW;
 
 /** The window's size class, and whether the floating sidebar is open (it starts closed). */
-/** `office`: the organization's office is on screen, where the sidebar button folds its departments instead. */
-export const useViewport = create<{ narrow: boolean; drawer: boolean; office: boolean }>(() => ({ narrow: isNarrow(), drawer: false, office: false }));
+export const useViewport = create<{ narrow: boolean; drawer: boolean }>(() => ({ narrow: isNarrow(), drawer: false }));
 if (typeof window !== 'undefined')
   window.addEventListener('resize', () => {
     const narrow = isNarrow();
     if (narrow !== useViewport.getState().narrow) useViewport.setState({ narrow, drawer: false });
   });
 
-/** ⌘B and the title bar button: hide or show the sidebar column, or open and close the floating one. */
+/** ⌘B and the title bar button: hide or show the sidebar column, or open and close the floating one (the office's too). */
 export const toggleSidebar = () => {
-  // On the office the sidebar is out of sight: the button folds its departments, and the other views keep their sidebar as it was.
-  if (useViewport.getState().office) useLayout.setState((l) => ({ deptsHidden: !l.deptsHidden }));
-  else if (useViewport.getState().narrow) useViewport.setState((v) => ({ drawer: !v.drawer }));
+  if (useViewport.getState().narrow) useViewport.setState((v) => ({ drawer: !v.drawer }));
   else useLayout.setState((l) => ({ sideHidden: !l.sideHidden }));
 };
+/** The office's departments column: its own button and the tab on the edge fold and unfold it. */
+export const toggleDepts = () => useLayout.setState((l) => ({ deptsHidden: !l.deptsHidden }));
 /** ⌘⌥B and the title bar button in split view: fold or unfold the agent column. */
 export const toggleSplitSide = () => useLayout.setState((l) => ({ splitSideHidden: !l.splitSideHidden }));
 export const closeDrawer = () => useViewport.getState().drawer && useViewport.setState({ drawer: false });

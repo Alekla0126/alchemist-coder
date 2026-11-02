@@ -1,17 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { toggleSidebar, useLayout, useViewport } from '../src/renderer/src/layout';
+import { toggleDepts, toggleSidebar, useLayout, useViewport } from '../src/renderer/src/layout';
 
-describe('the sidebar button on the office', () => {
-  it('folds the departments and leaves the other views’ sidebar as it was', () => {
+describe('the sidebar button and the office’s departments', () => {
+  it('folds the sidebar everywhere (the office too), and the departments only with their own button', () => {
     useLayout.setState({ sideHidden: false, deptsHidden: false });
-    useViewport.setState({ office: true, narrow: false });
+    useViewport.setState({ narrow: false });
     toggleSidebar();
-    expect(useLayout.getState()).toMatchObject({ deptsHidden: true, sideHidden: false });
+    expect(useLayout.getState()).toMatchObject({ sideHidden: true, deptsHidden: false });
     toggleSidebar();
+    expect(useLayout.getState().sideHidden).toBe(false);
+    toggleDepts();
+    expect(useLayout.getState()).toMatchObject({ sideHidden: false, deptsHidden: true });
+    toggleDepts();
     expect(useLayout.getState().deptsHidden).toBe(false);
-    // Elsewhere it's the sidebar again.
-    useViewport.setState({ office: false });
+  });
+
+  it('opens and closes the floating sidebar on a narrow window, leaving the column as it was', () => {
+    useLayout.setState({ sideHidden: false });
+    useViewport.setState({ narrow: true, drawer: false });
     toggleSidebar();
-    expect(useLayout.getState()).toMatchObject({ deptsHidden: false, sideHidden: true });
+    expect(useViewport.getState().drawer).toBe(true);
+    expect(useLayout.getState().sideHidden).toBe(false);
+    toggleSidebar();
+    expect(useViewport.getState().drawer).toBe(false);
   });
 });
