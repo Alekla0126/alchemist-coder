@@ -13,7 +13,8 @@ const agent = { harnessId: 'claude-code', providerId: 'anthropic', model: 'sonne
 /** Tokens, roughly: four characters each. */
 const tok = (chars: number) => Math.round(chars / 4);
 
-const TOPICS = ['Android', 'iOS', 'WordPress', 'React', 'the Mando panel', 'Play Console', 'App Store', 'the marketing site', 'Telegram', 'the emulator'];
+// None about safety (those are always told, see lessons-real.test.ts): these test the nearest-lessons pick.
+const TOPICS = ['Android', 'iOS', 'WordPress', 'React', 'the Mando panel', 'Play Console', 'the shop page', 'the marketing site', 'Telegram', 'the emulator'];
 /** 30 lessons as long as the real ones (≈280 characters). */
 const lessons = Array.from({ length: 30 }, (_, i) => ({
   id: `l${i}`,
@@ -79,10 +80,11 @@ describe('what each prompt costs', () => {
     for (const l of lessons) expect(s.coordinator).toContain(l.text);
     expect(s.coordinator).toContain('- Agent 19:');
     // Measured before AC-012 with this same sample: coordinator 15,090, bot 9,077, tools 5,186 each.
-    // The coordinator keeps all 30 lessons (≈8,700 chars): its saving is the list of agents.
-    expect(s.coordinator.length).toBeLessThan(13_500);
+    // The coordinator keeps all 30 lessons (≈8,700 chars) and roles of 200 chars: it saves little.
+    expect(s.coordinator.length).toBeLessThan(15_000);
     expect(s.worker.length).toBeLessThan(4_500);
-    expect(s.leadTools.length).toBeLessThan(4_900);
+    // org_lessons and bot_reply are new tools: a little more than v1, still under the 5,186 before.
+    expect(s.leadTools.length).toBeLessThan(5_000);
     expect(s.workerTools.length).toBeLessThan(s.leadTools.length - 800);
     expect(waited.length).toBeLessThan(4_300);
   });
@@ -91,9 +93,9 @@ describe('what each prompt costs', () => {
     const s = await sample();
     const told = lessons.filter((l) => s.worker.includes(l.text));
     expect(told).toHaveLength(8);
-    // Its task is about Android and the emulator, its role about iOS: those lessons first, the newest on a tie.
-    expect(told.every((l) => /Android|the emulator|iOS/.test(l.text))).toBe(true);
-    expect(s.worker).toContain('(22 more lessons in the organization.)');
+    // Its task is about Android and the emulator: all six of those, then the newest («iOS» is under four letters, so its role doesn't count).
+    expect(lessons.filter((l) => /Android|the emulator/.test(l.text)).every((l) => told.includes(l))).toBe(true);
+    expect(s.worker).toContain('(22 more lessons: call org_lessons)');
   });
 
   it('never leaves a bot without lessons, and tells all when there are few', async () => {
@@ -103,7 +105,7 @@ describe('what each prompt costs', () => {
     expect(none).toHaveLength(8);
     // No word in common: the newest ones (the list comes newest first).
     expect(none).toEqual(lessons.slice(0, 8));
-    expect(lessonsBlock(none, 22)).toContain('22 more lessons');
+    expect(lessonsBlock(none, 22)).toContain('(22 more lessons: call org_lessons)');
     expect(lessonsBlock([], 3)).toBe('');
   });
 
@@ -115,9 +117,8 @@ describe('what each prompt costs', () => {
     expect(line(5)).toContain('(opus)');
     expect(line(4)).toContain('permissions default');
     expect(line(0)).toContain('(opus; permissions default)');
-    // The role, at most 120 characters.
-    expect(line(1).replace(/^- Agent 1: /, '').length).toBeLessThanOrEqual(120);
-    expect(line(1).endsWith('…')).toBe(true);
+    // The role, at most 200 characters (a «only reads» or «doesn't publish» at its end stays).
+    expect(line(1).replace(/^- Agent 1: /, '').length).toBeLessThanOrEqual(200);
   });
 
   it('gives the plan and finish_team to the coordinator only, and the whole answer with bot_reply', async () => {

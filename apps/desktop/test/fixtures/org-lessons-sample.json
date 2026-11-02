@@ -1,0 +1,212 @@
+[
+ {
+  "id": "s00",
+  "text": "Al recortar las lecciones o instrucciones que recibe cada bot para ahorrar contexto, las de seguridad (tienda, publicar, frase del dueño, permisos, state/) deben llegar siempre a todos, aunque no se parezcan a la tarea.",
+  "by": "Coordinator",
+  "from": "",
+  "at": 1000000
+ },
+ {
+  "id": "s01",
+  "text": "Para dar por traducida una pantalla no basta con que existan las claves: pide una prueba que recorra la pantalla real en otro idioma y falle si ve texto sin traducir.",
+  "by": "Coordinator",
+  "from": "",
+  "at": 999999
+ },
+ {
+  "id": "s02",
+  "text": "La herramienta de navegador sin ventana de esta máquina busca una versión del navegador distinta de la instalada: en la tarea del juez de interfaz indica la ruta exacta del ejecutable.",
+  "by": "Coordinator",
+  "from": "",
+  "at": 999998
+ },
+ {
+  "id": "s03",
+  "text": "En las pruebas que abren un servidor, ciérralo en un bloque finally y corre la suite con un tiempo límite: si una prueba falla con el servidor abierto, la suite se queda colgada.",
+  "by": "Coordinator",
+  "from": "",
+  "at": 999997
+ },
+ {
+  "id": "s04",
+  "text": "Para bloquear escrituras en un modo de demostración, pon la guarda en la función que escribe o envía, no botón por botón: siempre queda otro camino que llega a la misma función.",
+  "by": "Coordinator",
+  "from": "",
+  "at": 999996
+ },
+ {
+  "id": "s05",
+  "text": "Si una fila muestra a la vez una columna de estado y un texto de siguiente paso, los dos deben salir del mismo dato. Pasa ese dato a la función que redacta el paso y prueba el caso conectado pero apagado.",
+  "by": "Coordinator",
+  "from": "",
+  "at": 999995
+ },
+ {
+  "id": "s06",
+  "text": "Un resumen corto de estado debe salir del estado real de cada caso, no de un texto fijo. Prueba cada estado (sin conexión, desbloqueado, en modo borrador) antes de poner un atajo.",
+  "by": "Coordinator",
+  "from": "",
+  "at": 999994
+ },
+ {
+  "id": "s07",
+  "text": "Las cifras y los «hoy» de un informe deben salir de la salida que se cita (el script o el registro), con su fecha. Un interruptor encendido no prueba que algo funcione hoy.",
+  "by": "Coordinator",
+  "from": "",
+  "at": 999993
+ },
+ {
+  "id": "s08",
+  "text": "Para juzgar un panel local, pide capturas con un navegador sin ventana. Cuando cambies el servidor del panel, reinícialo y prueba la ruta nueva: si no, la función queda escrita pero no se ve.",
+  "by": "Coordinator",
+  "from": "",
+  "at": 999992
+ },
+ {
+  "id": "s09",
+  "text": "Antes de encargar «crea la rama X» o una copia de trabajo nueva, mira si ya existen y da en la tarea el commit exacto de partida: suele haber corridas anteriores que se pisarían.",
+  "by": "Coordinator",
+  "from": "",
+  "at": 999991
+ },
+ {
+  "id": "s10",
+  "text": "Para saber si una app de escritorio sigue abierta no busques su nombre en los argumentos de todos los procesos: otros procesos llevan esa ruta. Busca el ejecutable principal.",
+  "by": "Coordinator",
+  "from": "",
+  "at": 999990
+ },
+ {
+  "id": "s11",
+  "text": "Cuando un cambio deba aplicarse en todas las listas o pantallas de algo, busca por la fuente de datos o la función que las alimenta, no solo por el componente: así no se escapa una tercera lista.",
+  "by": "Coordinator",
+  "from": "",
+  "at": 999989
+ },
+ {
+  "id": "s12",
+  "text": "Al pedir que se verifique en el código una función que se va a prometer en redes o fichas, indica el commit o la etiqueta de la versión publicada en la tienda, no la rama principal: el repositorio va por delante.",
+  "by": "Coordinator",
+  "from": "",
+  "at": 999988
+ },
+ {
+  "id": "s13",
+  "text": "No pongas al tester a fijar expectativas mientras el revisor o el juez todavía pueden pedir cambios. Primero reúne sus hallazgos; después el tester escribe las pruebas sobre esa versión congelada.",
+  "by": "Coordinator",
+  "from": "",
+  "at": 999987
+ },
+ {
+  "id": "s14",
+  "text": "Antes de pedir piezas de promoción de una app, cruza el plan de la semana y las decisiones vigentes para no encargar contenido de una app excluida a propósito.",
+  "by": "Coordinator",
+  "from": "",
+  "at": 999986
+ },
+ {
+  "id": "s15",
+  "text": "Antes de pedir una prueba en dos idiomas con una petición directa, mira cómo sirve el sitio el segundo idioma: si se traduce en el navegador, la petición devuelve el original y la prueba pasa sin revisar nada.",
+  "by": "Coordinator",
+  "from": "",
+  "at": 999985
+ },
+ {
+  "id": "s16",
+  "text": "Si una fila del marcador compara dos cifras, sácalas del mismo archivo o de fuentes con la misma cadencia: juntar un dato de hoy con uno de ayer la deja pendiente para siempre.",
+  "by": "Coordinator",
+  "from": "",
+  "at": 999984
+ },
+ {
+  "id": "s17",
+  "text": "Si el proceso principal valida un campo comparándolo con el valor guardado, lista y prueba cada acción que cambia ese campo en bloque (renombrar, fusionar).",
+  "by": "Coordinator",
+  "from": "",
+  "at": 999983
+ },
+ {
+  "id": "s18",
+  "text": "Cuando un color se ajusta contra una lista de superficies, toda superficie nueva donde se pinte debe entrar en esa lista y en su prueba de temas.",
+  "by": "Coordinator",
+  "from": "",
+  "at": 999982
+ },
+ {
+  "id": "s19",
+  "text": "Mide el contraste de un borde o texto contra el fondo que tiene justo al lado, no contra el fondo de la página; y si una expresión regular reescribe texto libre, pruébala también con una URL.",
+  "by": "Coordinator",
+  "from": "",
+  "at": 999981
+ },
+ {
+  "id": "s20",
+  "text": "Un marcador que compara lo medido con una meta no puede afirmar «va en camino» con datos sin medir o viejos. Cada dato lleva su fecha y su límite de antigüedad.",
+  "by": "Coordinator",
+  "from": "",
+  "at": 999980
+ },
+ {
+  "id": "s21",
+  "text": "Toda palanca que un script automático le vaya a pedir al dueño debe pasar antes por el verificador de políticas de la tienda si sube algo a una tienda (fichas, envíos a revisión, eventos). Ante la duda, la respuesta es no.",
+  "by": "Coordinator",
+  "from": "",
+  "at": 999979
+ },
+ {
+  "id": "s22",
+  "text": "Si una lista de permisos o de rutas protegidas vive en dos archivos, cámbiala en los dos y corre la prueba que exige que coincidan. Cambiar solo uno deja la protección a medias.",
+  "by": "Coordinator",
+  "from": "",
+  "at": 999978
+ },
+ {
+  "id": "s23",
+  "text": "Antes de que un bot compile una app o arranque un emulador, que mire el espacio libre en disco y no siga con menos de 10 GB; al terminar, que borre su carpeta de compilación.",
+  "by": "Coordinator",
+  "from": "",
+  "at": 999977
+ },
+ {
+  "id": "s24",
+  "text": "Si un bot investigador no puede editar archivos, pídele que deje sus cifras con la salida cruda en su respuesta, y que el bot que escribe el documento las guarde y las cite de ahí.",
+  "by": "Coordinator",
+  "from": "",
+  "at": 999976
+ },
+ {
+  "id": "s25",
+  "text": "Con publicación gestionada, la ficha guardada en la consola de la tienda puede no ser la pública: antes de copiar una oferta tal cual, compara la página pública con la guardada.",
+  "by": "Coordinator",
+  "from": "",
+  "at": 999975
+ },
+ {
+  "id": "s26",
+  "text": "Antes de poner una ruta de archivo en la tarea de un bot, comprueba que existe allí; y si un archivo es enorme, indica qué secciones leer.",
+  "by": "Coordinator",
+  "from": "",
+  "at": 999974
+ },
+ {
+  "id": "s27",
+  "text": "Al dar a una IA Edit/Write sobre una carpeta de state/, niega de forma explícita los archivos de autorización y las fuentes de cifras que hay dentro: si no, puede encenderse permisos o cambiar los datos. La frase de autorización debe ser de un uso.",
+  "by": "Coordinator",
+  "from": "",
+  "at": 999973
+ },
+ {
+  "id": "s28",
+  "text": "En el JavaScript en línea que sale dentro del contenido de un gestor de sitios no uses «&» ni «<»: el filtro de tipografía puede convertirlos y romper el script.",
+  "by": "Coordinator",
+  "from": "",
+  "at": 999972
+ },
+ {
+  "id": "s29",
+  "text": "Antes de sustituir una cifra aprobada por un contador del sitio, mira qué cuenta ese contador con el dato publicado en producción, no con el respaldo del entorno local.",
+  "by": "Coordinator",
+  "from": "",
+  "at": 999971
+ }
+]
