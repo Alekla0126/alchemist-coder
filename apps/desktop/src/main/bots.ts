@@ -4,7 +4,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, 
 import { dirname, join, relative } from 'node:path';
 import { commitAll, createWorktree, git, headCommit, listChanges, repoRoot } from '@alchemist-coder/arena';
 import type { Autopilot, SessionMcpServer } from '@alchemist-coder/core';
-import { ABOUT_MAX, type AgentChoice, type BotConfig, type RosterChange, type StarterAgent, type BotMember, type BotStatus, type BotTeam, type OrgLesson, type OrgSettings, type PermissionMode, type PlannedBot, type RunnerEventMessage, type StartTeamRequest, type TeamEventKind, type TeamOrigin, type TeamPlan } from '../shared/api';
+import { ABOUT_MAX, type AgentChoice, type BotConfig, type RosterChange, type StarterAgent, type BotMember, type BotStatus, type BotTeam, type OrgGroup, type OrgLesson, type OrgSettings, type PermissionMode, type PlannedBot, type RunnerEventMessage, type StartTeamRequest, type TeamEventKind, type TeamOrigin, type TeamPlan } from '../shared/api';
 import type { RunnerManager } from './runner';
 
 /** Coordinator (0), the bots it creates (1), and theirs (2). */
@@ -366,6 +366,28 @@ function lessonsOf(v: unknown): OrgLesson[] {
   return out.sort((a, b) => b.at - a.at).slice(0, MAX_LESSONS);
 }
 
+/** The organizations a new organization starts with, empty: you give each its project folders. */
+export const DEFAULT_GROUPS: OrgGroup[] = [
+  { id: 'claude-coder', name: 'Claude Coder', projects: [] },
+  { id: 'the-alchemist-code', name: 'The Alchemist Code', projects: [] },
+  { id: 'linkedin', name: 'LinkedIn', projects: [] },
+];
+const MAX_GROUPS = 40;
+
+/** Organizations as saved (org.json is user-editable): well-formed ones, each folder once; none saved yet = the default ones. */
+function groupsOf(v: unknown): OrgGroup[] {
+  if (v === undefined) return structuredClone(DEFAULT_GROUPS);
+  if (!Array.isArray(v)) return [];
+  const out: OrgGroup[] = [];
+  for (const x of v as Array<Partial<OrgGroup>>) {
+    const name = str(x?.name, 80);
+    if (!name || typeof x.id !== 'string' || !/^[\w-]{1,40}$/.test(x.id) || out.some((g) => g.id === x.id)) continue;
+    const projects = [...new Set((Array.isArray(x.projects) ? x.projects : []).map((p) => str(p, 4000)).filter(Boolean))];
+    out.push({ id: x.id, name, projects });
+  }
+  return out.slice(0, MAX_GROUPS);
+}
+
 /** The same lesson in other words: case, spacing and the final full stop don't count. */
 const sameLesson = (a: string, b: string) => {
   const norm = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').replace(/[.!\s]+$/, '').trim();
@@ -402,7 +424,7 @@ function starterConfig(key: string, s: StarterAgent, agent: AgentChoice): Partia
 export class BotManager {
   private configs: BotConfig[] = [];
   private teams: BotTeam[] = [];
-  private org: OrgSettings = { name: 'My organization', instructions: '', autopilot: false, lessons: [] };
+  private org: OrgSettings = { name: 'My organization', instructions: '', autopilot: false, lessons: [], groups: structuredClone(DEFAULT_GROUPS) };
   /** While renewStaff only says what it would do: nothing is written. */
   private dryRun = false;
   /** Decides for the organization's agents while it runs on Autopilot (asked by each of their runs). */
@@ -450,7 +472,7 @@ export class BotManager {
     this.configs = this.read<BotConfig[]>(files.configs) ?? [];
     try {
       const o = JSON.parse(readFileSync(this.orgFile, 'utf8')) as Partial<OrgSettings>;
-      this.org = { name: str(o.name, 80) || this.org.name, instructions: str(o.instructions), autopilot: o.autopilot === true, lessons: lessonsOf(o.lessons) };
+      this.org = { name: str(o.name, 80) || this.org.name, instructions: str(o.instructions), autopilot: o.autopilot === true, lessons: lessonsOf(o.lessons), groups: groupsOf(o.groups) };
     } catch {
       // first run: the default name, no instructions
     }
@@ -528,7 +550,7 @@ export class BotManager {
   }
 
   orgSettings(): OrgSettings {
-    return { ...this.org, lessons: this.org.lessons.map((l) => ({ ...l })) };
+    return { ...this.org, lessons: this.org.lessons.map((l) => ({ ...l })), groups: structuredClone(this.org.groups ?? []) };
   }
 
   saveOrgSettings(input: unknown): OrgSettings {
@@ -539,6 +561,8 @@ export class BotManager {
     if (typeof o.autopilot === 'boolean') this.org.autopilot = o.autopilot;
     // You removing (or rewording) what it learned.
     if (Array.isArray(o.lessons)) this.org.lessons = lessonsOf(o.lessons);
+    // The organizations to filter the view by (renamed, removed, given folders).
+    if (Array.isArray(o.groups)) this.org.groups = groupsOf(o.groups);
     this.write(this.orgFile, this.org);
     if (this.decidesAlone() !== wasAlone) for (const w of this.orgWatchers) w(this.decidesAlone());
     return this.orgSettings();

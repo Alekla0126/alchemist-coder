@@ -470,6 +470,15 @@ export interface OrgSettings {
   autopilot: boolean;
   /** What the organization learned from its mistakes, newest first; every agent of it is told. */
   lessons: OrgLesson[];
+  /** Organizations to look at it by (Claude Coder, LinkedIn…): groups of project folders. They only filter what you see; agents still talk across them. */
+  groups?: OrgGroup[];
+}
+
+/** An organization to filter the view by: a name and the project folders that belong to it. */
+export interface OrgGroup {
+  id: string;
+  name: string;
+  projects: string[];
 }
 
 /** One thing to do differently next time, written by the agent that learned it. */
