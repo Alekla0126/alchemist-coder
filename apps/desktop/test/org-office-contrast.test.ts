@@ -36,7 +36,13 @@ function varsOf(theme: VsTheme): Record<string, RGB> {
 
 /** The office's text and the surface right beside it: rooms (--bg), departments (--bg-side), chips (--bg-input), the sheet (--bg-card), hover (--bg-hl). */
 const SURFACES = ['--bg', '--bg-side', '--bg-hl', '--bg-input', '--bg-card'];
-const PAIRS: Array<[string, string]> = SURFACES.flatMap((b) => [['--fg', b] as [string, string], ['--ofc-muted', b] as [string, string]]);
+/**
+ * Named on purpose, so a change to them shows here: the strip of what runs elsewhere (.ofc-elsewhere)
+ * writes the office's secondary text on --bg-side, its chips on --bg-input (hover --bg-hl). Its note
+ * was --fg-3 (4.40:1 in the dark theme); now it's --ofc-muted (--fg-2 inside .ofc).
+ */
+const STRIP: Array<[string, string]> = [['--ofc-muted', '--bg-side'], ['--fg', '--bg-input'], ['--ofc-muted', '--bg-input'], ['--fg', '--bg-hl']];
+const PAIRS: Array<[string, string]> = [...SURFACES.flatMap((b) => [['--fg', b] as [string, string], ['--ofc-muted', b] as [string, string]]), ...STRIP];
 /** Themes whose own text is under 4.5:1 on their own background: the whole app reads like that there, not only the office. */
 const FAINT = ['tokyo-night', 'solarized-light'];
 

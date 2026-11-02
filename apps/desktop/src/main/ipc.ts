@@ -56,6 +56,8 @@ export interface IpcDeps {
   info: () => AppInfo;
   settings: SettingsStore;
   bots: BotManager;
+  /** The owner's module's starting organizations for these folders (see PersonalModule.orgGroups). */
+  starterGroups?: (folders: string[]) => unknown;
   /** After the renderer changed settings (e.g. the language, for the menu bar). */
   onSettingsChanged?: (patch: Record<string, unknown>) => void;
   reader: () => IndexReader | null;
@@ -351,6 +353,11 @@ export function registerIpc(deps: IpcDeps): void {
   ipcMain.handle(Channels.addStarterBots, (_e, agent: unknown, starters: unknown) => deps.bots.addStarters(agent, cleanStarters(starters)));
   ipcMain.handle(Channels.orgSettings, () => deps.bots.orgSettings());
   ipcMain.handle(Channels.saveOrgSettings, (_e, settings: unknown) => deps.bots.saveOrgSettings(settings));
+  // Only the owner's module knows its organizations; without one nothing is seeded.
+  ipcMain.handle(Channels.seedOrgGroups, (_e, folders: unknown) => {
+    const list = Array.isArray(folders) ? folders.filter((f): f is string => typeof f === 'string').slice(0, 200) : [];
+    return deps.bots.seedOrgGroups(deps.starterGroups?.(list) ?? []);
+  });
   ipcMain.handle(Channels.ensureOrg, (_e, agent: unknown, starters: unknown) => deps.bots.ensureOrg(agent, cleanStarters(starters)));
   ipcMain.handle(Channels.renewStaff, (_e, agent: unknown, starters: unknown, instructions: unknown, apply: unknown) =>
     deps.bots.renewStaff(agent, cleanStarters(starters), typeof instructions === 'string' ? instructions.slice(0, 8000) : '', apply === true),

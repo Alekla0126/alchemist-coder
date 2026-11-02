@@ -1351,7 +1351,7 @@ code.md-path:hover { color: var(--accent-2); }
 .org-side .tree, .bots-list.org-side .bots-teams { flex: none; overflow: visible; min-height: auto; }
 .org-side .sec { position: sticky; top: 0; z-index: 2; background: var(--bg-side); display: flex; align-items: center; justify-content: space-between; }
 .org-top { display: flex; flex-direction: column; gap: 6px; padding: 10px 10px 2px; }
-/* The organization's name with the organization you look at (Claude Coder, LinkedIn…) beside it. */
+/* The organization's name with the organization you look at (one business, client or side project) beside it. */
 .org-top-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .org-top-row > .org-name, .org-top-row > .org-name-input { flex: 1; min-width: 0; }
 .org-groups { display: inline-flex; align-items: center; gap: 2px; flex: none; max-width: 55%; }
@@ -2794,8 +2794,7 @@ body { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; 
 @media (prefers-reduced-motion: reduce) { .ofc-desk, .ofc-sheet, .ofc-empty-art, .ofc .st-waiting .of-person::after, .ofc .of-screen i { animation: none; } }
 /* Narrow: the departments go under the floor, still on the one screen. */
 @media (max-width: 900px) { .ofc { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) minmax(0, 30%); } .ofc-depts { grid-column: 1; grid-row: 3; } }
-/* On the office the organization's sidebar shows as in its other views (⌘B folds it); with it open on a mid-size window the departments go under the floor. */
-@media (max-width: 1180px) { .body.org-office:not(.side-hidden):not(.narrow) .ofc { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) minmax(0, 30%); } .body.org-office:not(.side-hidden):not(.narrow) .ofc-depts { grid-column: 1; grid-row: 3; } }
+/* On the office the organization's sidebar shows as in its other views (⌘B folds it); on a mid-size window the departments start folded (OrgOffice). */
 /* The sheet's Save stays in sight at its foot, however long the form. */
 .ofc-sheet .om-editor .bots-actions { position: sticky; bottom: -16px; z-index: 1; margin: 0 -14px -16px; padding: 10px 14px; border-top: 1px solid var(--line); background: var(--bg-card); }
 /* The project the office shows, beside the views. */
@@ -2845,3 +2844,11 @@ body { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; 
 .org-lesson-pin.on, .org-lesson-pin:hover, .org-lesson-pin:focus-visible { opacity: 1; filter: none; }
 /* Both filters on and nothing left in the sidebar. */
 .org-filter-empty { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 2px 6px; font-size: 12px; color: var(--fg); }
+/* The focused office's bar: its buttons keep their words on one line. */
+.ofc-focus-bar > button { flex: none; white-space: nowrap; }
+/* The strip's words: the office's secondary text, readable on the strip (see org-office-contrast.test). */
+.ofc-elsewhere .composer-note { margin: 0; font-size: 12px; color: var(--fg-2); }
+.ofc-chip .org-dot { width: 7px; height: 7px; }
+/* An organization with no folders, on the floor: no box inside the box. */
+.ofc-empty .org-group-empty { border: 0; padding: 0; flex-direction: column; font-size: 13px; }
+.org-group-folders { width: auto; padding: 0 6px; font-size: 12px; white-space: nowrap; }

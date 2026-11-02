@@ -2,7 +2,7 @@ import type { BotConfig, BotTeam, OrgGroup, OrgSettings } from '@shared/api';
 import { baseName, isInside } from './paths';
 
 /**
- * Organizations (Claude Coder, LinkedIn…) as groups of project folders, to look at the organization
+ * Organizations (one per business, client or side project) as groups of project folders, to look at the organization
  * by: they only choose what the sidebar and the office show. Messages between agents don't read them.
  */
 
@@ -36,16 +36,14 @@ export const toggleFolder = (groups: OrgGroup[], id: string, cwd: string): OrgGr
 
 /**
  * Where an assignment is when the filters hide it, to say so next to what needs you ("1 needs you (in
- * Claude Coder)"): the organization it's in ('' = one you don't look at, unnamed), or its project.
- * Null while it's in sight.
+ * Mobile)"): the organization it's in, else its folder's name. Null while it's in sight.
  */
 export function hiddenWhere(team: BotTeam, group: OrgGroup | null, project: string, groups: OrgGroup[]): string | null {
   if (teamInGroup(team, group) && (!project || isInside(team.cwd, project))) return null;
-  if (group && !teamInGroup(team, group)) return groups.find((g) => teamInGroup(team, g))?.name ?? '';
-  return baseName(team.cwd);
+  return (group && !teamInGroup(team, group) ? groups.find((g) => teamInGroup(team, g))?.name : undefined) ?? baseName(team.cwd);
 }
 
-/** "3 need you", and where the ones out of sight are: "(in Claude Coder)" when all of them are, "(1 in Claude Coder)" when some. */
+/** "3 need you", and where the ones out of sight are: "(in Mobile)" when all of them are, "(1 in Mobile)" when some. */
 export function needsYouText(t: (key: 'org.inboxN' | 'org.inboxIn' | 'org.inboxSomeIn', vars: Record<string, string | number>) => string, urgent: number, hidden: string[]): string {
   if (!urgent) return '';
   const where = [...new Set(hidden)].join(', ');

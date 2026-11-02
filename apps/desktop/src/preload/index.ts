@@ -133,6 +133,7 @@ const api: AlchemistApi = {
   addStarterBots: (agent, starters) => ipcRenderer.invoke(Channels.addStarterBots, agent, starters),
   orgSettings: () => ipcRenderer.invoke(Channels.orgSettings),
   saveOrgSettings: (settings) => ipcRenderer.invoke(Channels.saveOrgSettings, settings),
+  seedOrgGroups: (folders) => ipcRenderer.invoke(Channels.seedOrgGroups, folders),
   ensureOrg: (agent, starters) => ipcRenderer.invoke(Channels.ensureOrg, agent, starters),
   renewStaff: (agent, starters, instructions, apply) => ipcRenderer.invoke(Channels.renewStaff, agent, starters, instructions, apply),
   botTeams: () => ipcRenderer.invoke(Channels.botTeams),

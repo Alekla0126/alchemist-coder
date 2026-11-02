@@ -9,8 +9,8 @@ const config = (id: string, name: string, extra: Partial<BotConfig> = {}): BotCo
 const bot = (id: string, extra: Partial<BotMember> = {}): BotMember => ({ id, name: id, configId: null, role: '', agent, permissionMode: 'acceptEdits', canSpawn: false, parentId: 'b1', depth: 1, runId: null, status: 'working', task: `task of ${id}`, lastReply: '', costUsd: null, createdAt: 1000, ...extra });
 const lead = (extra: Partial<BotMember> = {}) => bot('b1', { name: 'Coordinator', configId: 'coord', parentId: null, depth: 0, task: 'Plan it', ...extra });
 
-const coder: OrgGroup = { id: 'claude-coder', name: 'Claude Coder', projects: ['/p/coder'] };
-const linkedin: OrgGroup = { id: 'linkedin', name: 'LinkedIn', projects: [] };
+const coder: OrgGroup = { id: 'mobile', name: 'Mobile', projects: ['/p/coder'] };
+const clients: OrgGroup = { id: 'clients', name: 'Clients', projects: [] };
 const team = (id: string, cwd: string, bots: BotMember[] = [lead()]): BotTeam => ({ id, title: id, goal: id, cwd, createdAt: 0, updatedAt: Date.now(), bots });
 
 describe('organizations as groups of folders', () => {
@@ -19,48 +19,48 @@ describe('organizations as groups of folders', () => {
     expect(teamInGroup(team('b', '/p/coder-other'), coder)).toBe(false);
     expect(teamInGroup(team('c', '/p/komodo'), null)).toBe(true);
     // One with no folders shows nothing.
-    expect(teamInGroup(team('d', '/p/coder'), linkedin)).toBe(false);
+    expect(teamInGroup(team('d', '/p/coder'), clients)).toBe(false);
   });
 
   it('shows an agent of one of its projects, and the coordinator and agents for every project always', () => {
     expect(memberInGroup(config('a', 'A', { projects: ['/p/coder'] }), coder)).toBe(true);
     expect(memberInGroup(config('b', 'B', { projects: ['/p/coder/sub'] }), coder)).toBe(true);
     expect(memberInGroup(config('c', 'C', { projects: ['/p/komodo'] }), coder)).toBe(false);
-    expect(memberInGroup(config('d', 'D'), linkedin)).toBe(true);
+    expect(memberInGroup(config('d', 'D'), clients)).toBe(true);
     expect(memberInGroup(config('e', 'E', { kind: 'coordinator', projects: ['/x'] }), coder)).toBe(true);
   });
 
   it('names new ones apart and adds or takes out one folder at a time', () => {
     expect(newGroupId('Side projects', [coder])).toBe('side-projects');
-    expect(newGroupId('LinkedIn', [linkedin])).toBe('linkedin-2');
+    expect(newGroupId('Clients', [clients])).toBe('clients-2');
     expect(newGroupId('¡¡!!', [])).toBe('org');
-    const once = toggleFolder([coder, linkedin], 'linkedin', '/p/li');
+    const once = toggleFolder([coder, clients], 'clients', '/p/li');
     expect(once[1]!.projects).toEqual(['/p/li']);
-    expect(toggleFolder(once, 'linkedin', '/p/li')[1]!.projects).toEqual([]);
+    expect(toggleFolder(once, 'clients', '/p/li')[1]!.projects).toEqual([]);
     expect(once[0]).toBe(coder);
   });
 
   it('says where what needs you is when the filters hide it', () => {
-    const li = { ...linkedin, projects: ['/p/li'] };
+    const li = { ...clients, projects: ['/p/li'] };
     expect(hiddenWhere(team('a', '/p/coder/x'), coder, '', [coder, li])).toBeNull();
-    expect(hiddenWhere(team('b', '/p/li/app'), coder, '', [coder, li])).toBe('LinkedIn');
-    // In no organization: unnamed.
-    expect(hiddenWhere(team('c', '/p/other'), coder, '', [coder, li])).toBe('');
+    expect(hiddenWhere(team('b', '/p/li/app'), coder, '', [coder, li])).toBe('Clients');
+    // In no organization: its folder's name.
+    expect(hiddenWhere(team('c', '/home/u'), coder, '', [coder, li])).toBe('u');
     // Hidden by the project filter: its folder.
     expect(hiddenWhere(team('d', '/p/coder/web'), null, '/p/coder/app', [coder])).toBe('web');
     const es = (key: never, vars?: Record<string, string | number>) => translate('es', key, vars);
-    expect(needsYouText(es, 1, ['Claude Coder'])).toBe('1 te necesita (en Claude Coder)');
-    expect(needsYouText(es, 3, ['Claude Coder'])).toBe('3 te necesitan (1 en Claude Coder)');
+    expect(needsYouText(es, 1, ['Mobile'])).toBe('1 te necesita (en Mobile)');
+    expect(needsYouText(es, 3, ['Mobile'])).toBe('3 te necesitan (1 en Mobile)');
     expect(needsYouText(es, 2, [])).toBe('2 te necesitan');
     expect(needsYouText(es, 0, [])).toBe('');
   });
 
   it('forgets a chosen organization that no longer exists', () => {
     const org = { name: 'x', instructions: '', autopilot: false, lessons: [], groups: [coder] } satisfies OrgSettings;
-    expect(groupOf(org, 'claude-coder')).toBe(coder);
+    expect(groupOf(org, 'mobile')).toBe(coder);
     expect(groupOf(org, 'gone')).toBeNull();
     expect(groupOf(org, '')).toBeNull();
-    expect(groupOf(null, 'claude-coder')).toBeNull();
+    expect(groupOf(null, 'mobile')).toBeNull();
   });
 });
 
@@ -71,7 +71,7 @@ const state = {
   officeTeamId: null as string | null,
   orgProject: '',
   orgGroup: '',
-  orgSettings: { name: 'My organization', instructions: '', autopilot: false, lessons: [], groups: [coder, linkedin] } as OrgSettings,
+  orgSettings: { name: 'My organization', instructions: '', autopilot: false, lessons: [], groups: [coder, clients] } as OrgSettings,
   orgFocusTeamId: null,
   orgGoal: '',
   locale: 'en',
@@ -111,7 +111,7 @@ describe('the office filtered by organization', () => {
     const all = render();
     expect(all).toContain('📁 Komodo');
     expect(all).toContain('📁 Coder');
-    state.orgGroup = 'claude-coder';
+    state.orgGroup = 'mobile';
     const one = render();
     expect(one).toContain('📁 Coder');
     expect(one).not.toContain('📁 Komodo');
@@ -120,12 +120,12 @@ describe('the office filtered by organization', () => {
     expect(one).not.toContain('>VpnGuy</option>');
     expect(one).toContain('>Dev</option>');
     expect(one).toContain('>Anyone</option>');
-    expect(depts(all)).toContain('No department');
+    expect(depts(all)).toContain('Reports to the coordinator');
     state.orgGroup = '';
   });
 
   it('keeps what runs in another organization on the focused office’s strip', () => {
-    state.orgGroup = 'claude-coder';
+    state.orgGroup = 'mobile';
     state.officeTeamId = 'Coder work';
     const html = render();
     state.officeTeamId = null;
@@ -135,42 +135,42 @@ describe('the office filtered by organization', () => {
   });
 
   it('asks for folders when the organization has none, and shows its work once it has some', () => {
-    state.orgGroup = 'linkedin';
+    state.orgGroup = 'clients';
     const empty = render();
     expect(empty).toContain('Assign folders to this organization');
     expect(empty).not.toContain('ofc-room');
-    state.orgSettings = { ...state.orgSettings, groups: [coder, { ...linkedin, projects: ['/p/komodo'] }] };
+    state.orgSettings = { ...state.orgSettings, groups: [coder, { ...clients, projects: ['/p/komodo'] }] };
     const after = render();
     expect(after).not.toContain('Assign folders to this organization');
     expect(after).toContain('📁 Komodo');
-    state.orgSettings = { ...state.orgSettings, groups: [coder, linkedin] };
+    state.orgSettings = { ...state.orgSettings, groups: [coder, clients] };
     state.orgGroup = '';
   });
 
   it('offers All, each organization and a new one beside the name, and the folders of the chosen one', () => {
     state.orgGroup = '';
     const picker = renderToStaticMarkup(<OrgGroupPicker />);
-    expect(picker).toMatch(/<option value="" selected="">All<\/option><option value="claude-coder">Claude Coder<\/option><option value="linkedin">LinkedIn<\/option><option value="__new">\+ New…<\/option>/);
+    expect(picker).toMatch(/<option value="" selected="">All organizations<\/option><option value="mobile">Mobile<\/option><option value="clients">Clients<\/option><option value="__new">\+ New…<\/option>/);
     expect(picker).not.toContain('Folders of');
-    state.orgGroup = 'linkedin';
-    expect(renderToStaticMarkup(<OrgGroupPicker />)).toContain('aria-label="Folders of LinkedIn"');
+    state.orgGroup = 'clients';
+    expect(renderToStaticMarkup(<OrgGroupPicker />)).toContain('aria-label="Folders of Clients"');
     // One deleted elsewhere: back to All.
     state.orgGroup = 'gone';
-    expect(renderToStaticMarkup(<OrgGroupPicker />)).toContain('<option value="" selected="">All</option>');
+    expect(renderToStaticMarkup(<OrgGroupPicker />)).toContain('<option value="" selected="">All organizations</option>');
     state.orgGroup = '';
   });
 
   it('with the sidebar folded, has the project menu on the office, with the organization’s folders only', () => {
     const header = (html: string) => html.slice(html.indexOf('class="ofc-head"'), html.indexOf('class="ofc-main"'));
     expect(header(render())).toContain('<option value="/p/komodo">Komodo</option>');
-    state.orgSettings = { ...state.orgSettings, groups: [{ ...coder, projects: ['/p/coder', '/p/coder2'] }, linkedin] };
+    state.orgSettings = { ...state.orgSettings, groups: [{ ...coder, projects: ['/p/coder', '/p/coder2'] }, clients] };
     state.projects = [...state.projects, { id: 3, cwd: '/p/coder2', name: 'Coder 2' }];
-    state.orgGroup = 'claude-coder';
+    state.orgGroup = 'mobile';
     const mine = header(render());
     expect(mine).toContain('Coder 2');
     expect(mine).not.toContain('Komodo');
     state.projects = state.projects.slice(0, 2);
-    state.orgSettings = { ...state.orgSettings, groups: [coder, linkedin] };
+    state.orgSettings = { ...state.orgSettings, groups: [coder, clients] };
     state.orgGroup = '';
   });
 
@@ -179,29 +179,52 @@ describe('the office filtered by organization', () => {
     state.officeTeamId = 'VPN work';
     expect(chip(render())).toBe('Komodo');
     state.officeTeamId = null;
-    state.orgSettings = { ...state.orgSettings, groups: [coder, { ...linkedin, projects: ['/p/komodo'] }] };
-    state.orgGroup = 'linkedin';
+    state.orgSettings = { ...state.orgSettings, groups: [coder, { ...clients, projects: ['/p/komodo'] }] };
+    state.orgGroup = 'clients';
     expect(chip(render())).toBe('Komodo');
-    state.orgSettings = { ...state.orgSettings, groups: [coder, linkedin] };
+    state.orgSettings = { ...state.orgSettings, groups: [coder, clients] };
     state.orgGroup = '';
     expect(chip(render())).toBe('Coder');
   });
 
   it('says so when the organization and the project leave the sidebar empty', () => {
-    state.orgSettings = { ...state.orgSettings, groups: [{ ...coder, projects: ['/p/coder', '/p/komodo'] }, linkedin] };
-    state.orgGroup = 'claude-coder';
+    state.orgSettings = { ...state.orgSettings, groups: [{ ...coder, projects: ['/p/coder', '/p/komodo'] }, clients] };
+    state.orgGroup = 'mobile';
     state.orgProject = '/p/empty';
     const side = renderToStaticMarkup(<OrgSidebar />);
-    expect(side).toContain('No assignments of empty in Claude Coder.');
+    expect(side).toContain('No assignments of empty in Mobile.');
     state.orgProject = '/p/coder';
     expect(renderToStaticMarkup(<OrgSidebar />)).not.toContain('No assignments of');
     state.orgProject = '';
     state.orgGroup = '';
-    state.orgSettings = { ...state.orgSettings, groups: [coder, linkedin] };
+    state.orgSettings = { ...state.orgSettings, groups: [coder, clients] };
+  });
+
+  it('names the folders button in words, says «no folders» on the floor only while on the office, and counts the organization’s automations', () => {
+    state.orgGroup = 'clients';
+    expect(renderToStaticMarkup(<OrgGroupPicker />)).toContain('📁 Folders</button>');
+    expect(renderToStaticMarkup(<OrgSidebar />)).not.toContain('Assign folders to this organization');
+    state.orgOffice = false;
+    expect(renderToStaticMarkup(<OrgSidebar />)).toContain('Assign folders to this organization');
+    state.orgOffice = true;
+    state.automations = [{ automation: { cwd: '/p/coder' } }, { automation: { cwd: '/p/komodo/app' } }] as never;
+    state.orgGroup = 'mobile';
+    expect(render()).toContain('⚡ Automations · 1');
+    state.orgGroup = '';
+    expect(render()).toContain('⚡ Automations · 2');
+    state.automations = [];
+  });
+
+  it('offers only «+ New…» in the Community edition, with no organizations saved', () => {
+    const saved = state.orgSettings;
+    state.orgSettings = { ...saved, groups: undefined };
+    const picker = renderToStaticMarkup(<OrgGroupPicker />);
+    state.orgSettings = saved;
+    expect(picker).toMatch(/<select[^>]*><option value="" selected="">All organizations<\/option><option value="__new">\+ New…<\/option><\/select>/);
   });
 
   it('has its texts in Spanish', () => {
-    expect(translate('es', 'org.groups.all')).toBe('Todas');
+    expect(translate('es', 'org.groups.all')).toBe('Todas las organizaciones');
     expect(translate('es', 'org.groups.new')).toBe('+ Nueva…');
     expect(translate('es', 'org.groups.empty')).toBe('Asigna carpetas a esta organización');
   });

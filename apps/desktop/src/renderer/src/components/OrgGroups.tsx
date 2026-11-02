@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import type { OrgGroup } from '@shared/api';
 import { folderInGroup, groupOf, newGroupId, ORG_GROUP_KEY, toggleFolder } from '../org-groups';
 import { baseName } from '../paths';
@@ -67,7 +68,21 @@ export function OrgGroupPicker() {
   const t = useT();
   const org = useStore((s) => s.orgSettings);
   const chosen = useStore((s) => s.orgGroup);
+  const personal = useStore((s) => s.info?.personal === true);
   const open = useOpenProjects();
+  // The owner's own build, with organizations never saved: its module's, from the open folders. Main
+  // saves them only if one of those folders matches and none were ever saved; else it tries again
+  // when the open projects change.
+  const folders = open.map((p) => p.cwd).join('\n');
+  const tried = useRef('');
+  useEffect(() => {
+    if (!personal || !org || org.groups !== undefined || !folders || tried.current === folders) return;
+    tried.current = folders;
+    void window.alchemist
+      .seedOrgGroups(folders.split('\n'))
+      .then((saved) => saved.groups !== undefined && useStore.setState({ orgSettings: saved }))
+      .catch(() => {});
+  }, [personal, org, folders]);
   const groups = org?.groups ?? [];
   const group = groupOf(org, chosen);
   return (
@@ -88,7 +103,7 @@ export function OrgGroupPicker() {
       </select>
       {group && (
         <button className="icon-btn ic-btn org-group-folders" onClick={() => void groupMenu(group, open, t)} title={t('org.groups.folders', { name: group.name })} aria-label={t('org.groups.folders', { name: group.name })}>
-          📁
+          📁 {t('org.groups.foldersShort')}
         </button>
       )}
     </span>

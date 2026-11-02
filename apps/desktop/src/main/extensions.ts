@@ -37,6 +37,8 @@ export function loadProModule(resourcesPath: string): ProModule | null {
 export interface PersonalModule {
   providers?(): ProviderAdapter[];
   claudeLimits?(claudeVersion: string): Promise<ClaudeLimits>;
+  /** The organizations its owner starts with, from the project folders open now (each with the folders that belong to it). */
+  orgGroups?(folders: string[]): Array<{ id: string; name: string; projects: string[] }>;
 }
 
 /** Loads resources/extensions/personal.cjs (or AC_PERSONAL_MODULE in development), if there is one. */
@@ -46,8 +48,8 @@ export function loadPersonalModule(resourcesPath: string): PersonalModule | null
   if (!path) return null;
   try {
     const mod = createRequire(import.meta.url)(path) as PersonalModule & { default?: PersonalModule };
-    const m = mod.providers || mod.claudeLimits ? mod : mod.default;
-    if (!m || (typeof m.providers !== 'function' && typeof m.claudeLimits !== 'function')) return null;
+    const m = mod.providers || mod.claudeLimits || mod.orgGroups ? mod : mod.default;
+    if (!m || (typeof m.providers !== 'function' && typeof m.claudeLimits !== 'function' && typeof m.orgGroups !== 'function')) return null;
     return m;
   } catch (error) {
     console.error('[personal] failed to load module', error);

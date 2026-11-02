@@ -278,6 +278,14 @@ void app.whenReady().then(async () => {
   edition = pro && (await pro.isPro({ userData, secrets }).catch(() => false)) ? 'pro' : 'community';
   const own = loadPersonalModule(process.resourcesPath);
   personalBuild = !!own;
+  // Its owner's starting organizations (a broken module seeds none).
+  const starterGroups = (folders: string[]) => {
+    try {
+      return own?.orgGroups?.(folders) ?? [];
+    } catch {
+      return [];
+    }
+  };
   const registry = new ExtensionRegistry(edition, secrets);
   // Agents speak ACP (permissions, plans, diffs, modes). Without Node's npx, Claude Code and Codex
   // fall back to their headless stream-json mode.
@@ -405,7 +413,7 @@ void app.whenReady().then(async () => {
     if ('autopilot' in patch) autopilotChanged();
     else if ('locale' in patch) buildMenu();
   };
-  registerIpc({ info: appInfo, bots, settings, onSettingsChanged, reader: () => reader, progress: () => progress, onRendered: () => void capture(), runner, tasks, preview, hub, backup, reviews, usage, exportSession: (id, format) => (reader ? exportSession(window, reader, id, format) : Promise.reject(new Error('The index is still loading'))), workspace, terminals, voice: new Voice(secrets, userData), dataDir: userData, board, automations, browser });
+  registerIpc({ info: appInfo, bots, starterGroups, settings, onSettingsChanged, reader: () => reader, progress: () => progress, onRendered: () => void capture(), runner, tasks, preview, hub, backup, reviews, usage, exportSession: (id, format) => (reader ? exportSession(window, reader, id, format) : Promise.reject(new Error('The index is still loading'))), workspace, terminals, voice: new Voice(secrets, userData), dataDir: userData, board, automations, browser });
   startIndexer(join(userData, 'index.db'), backup.root(), (source) => usage.touch(source));
   backup.start();
   const menuLocale = () => settings.get().locale ?? matchLocale(app.getLocale());

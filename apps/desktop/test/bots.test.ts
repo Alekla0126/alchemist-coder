@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import type { RunnerEventMessage } from '../src/shared/api';
-import { BotManager, DEFAULT_GROUPS, MAX_BOTS, SERVER_NAME } from '../src/main/bots';
+import { BotManager, MAX_BOTS, SERVER_NAME } from '../src/main/bots';
 import { writeBridge } from '../src/main/bots-bridge';
 
 const dir = mkdtempSync(join(tmpdir(), 'bots-'));
@@ -404,24 +404,41 @@ describe('bot teams', () => {
     expect(fake.started.at(-1)!.prompt).not.toContain('Lessons this organization learned');
   });
 
-  it('keeps organizations as groups of folders: the default three once, then yours, without touching the rest', () => {
+  it('keeps organizations as groups of folders: none until you (or the owner’s build) save some, then yours, without touching the rest', () => {
     const fake = fakeRunner();
     const files = { configs: join(dir, `c-${Math.random()}.json`), teams: join(dir, `t-${Math.random()}.json`) };
     const make = () => new BotManager(files, fake.runner as never, { command: process.execPath, script: writeBridge(dir) }, (cwd) => String(cwd), () => {});
-    // A new organization, or an org.json from before organizations: the three, with no folders.
-    expect(make().orgSettings().groups!.map((g) => [g.name, g.projects])).toEqual([['Claude Coder', []], ['The Alchemist Code', []], ['LinkedIn', []]]);
+    // A new organization, or an org.json from before organizations: never saved (the renderer decides what to start with).
+    expect(make().orgSettings().groups).toBeUndefined();
     writeFileSync(`${files.configs}.org.json`, JSON.stringify({ name: 'Old', instructions: 'Be brief', autopilot: false, lessons: [] }));
     const old = make();
-    expect(old.orgSettings()).toMatchObject({ name: 'Old', instructions: 'Be brief', groups: DEFAULT_GROUPS });
+    expect(old.orgSettings()).toEqual({ name: 'Old', instructions: 'Be brief', autopilot: false, lessons: [] });
     // Yours: folders once each, bad ones dropped; the name and lessons stay.
-    old.saveOrgSettings({ groups: [{ id: 'linkedin', name: ' LinkedIn ', projects: ['/p/li', '/p/li', 3] }, { id: 'bad id!', name: 'X', projects: [] }, { id: 'nameless', name: '', projects: [] }] });
-    expect(old.orgSettings().groups).toEqual([{ id: 'linkedin', name: 'LinkedIn', projects: ['/p/li'] }]);
+    old.saveOrgSettings({ groups: [{ id: 'clients', name: ' Clients ', projects: ['/p/li', '/p/li', 3] }, { id: 'bad id!', name: 'X', projects: [] }, { id: 'nameless', name: '', projects: [] }] });
+    expect(old.orgSettings().groups).toEqual([{ id: 'clients', name: 'Clients', projects: ['/p/li'] }]);
     expect(old.orgSettings().name).toBe('Old');
-    // Saving something else keeps them; none left stays none (the defaults come back only when there were never any).
+    // Saving something else keeps them; none left stays none (saved, so nothing is seeded again).
     old.saveOrgSettings({ instructions: 'Be kind' });
-    expect(make().orgSettings().groups).toEqual([{ id: 'linkedin', name: 'LinkedIn', projects: ['/p/li'] }]);
+    expect(make().orgSettings().groups).toEqual([{ id: 'clients', name: 'Clients', projects: ['/p/li'] }]);
     old.saveOrgSettings({ groups: [] });
     expect(make().orgSettings().groups).toEqual([]);
+  });
+
+  it('seeds a build’s starting organizations only while none were saved and one of them has a folder', () => {
+    const fake = fakeRunner();
+    const files = { configs: join(dir, `c-${Math.random()}.json`), teams: join(dir, `t-${Math.random()}.json`) };
+    const bots = new BotManager(files, fake.runner as never, { command: process.execPath, script: writeBridge(dir) }, (cwd) => String(cwd), () => {});
+    const none = [{ id: 'mobile', name: 'Mobile', projects: [] }, { id: 'web', name: 'Web', projects: [] }];
+    // No open folder matched: nothing saved, so the next try (other folders open) can still seed.
+    expect(bots.seedOrgGroups(none).groups).toBeUndefined();
+    expect(bots.seedOrgGroups('not a list').groups).toBeUndefined();
+    const some = [{ id: 'mobile', name: 'Mobile', projects: ['/p/app'] }, { id: 'web', name: 'Web', projects: [] }];
+    expect(bots.seedOrgGroups(some).groups).toEqual(some);
+    // Once saved (by seeding or by you), never replaced.
+    bots.saveOrgSettings({ groups: [{ id: 'mine', name: 'Mine', projects: ['/p/x'] }] });
+    expect(bots.seedOrgGroups(some).groups).toEqual([{ id: 'mine', name: 'Mine', projects: ['/p/x'] }]);
+    bots.saveOrgSettings({ groups: [] });
+    expect(bots.seedOrgGroups(some).groups).toEqual([]);
   });
 
   it("decides everything on the coordinator's own switch: plans, permissions and its own turns", async () => {
@@ -477,7 +494,7 @@ describe('bot teams', () => {
     const judge = list.find((c) => c.name === 'UI Judge')!;
     bots.saveConfig({ ...judge, projects: ['/other'] });
     bots.saveOrgSettings({ name: 'Acme', instructions: 'Always write tests.' });
-    expect(bots.orgSettings()).toEqual({ name: 'Acme', instructions: 'Always write tests.', autopilot: false, lessons: [], groups: DEFAULT_GROUPS });
+    expect(bots.orgSettings()).toEqual({ name: 'Acme', instructions: 'Always write tests.', autopilot: false, lessons: [] });
     const team = bots.startTeam({ goal: 'Add login', cwd: '/p', configId: lead.id, guidance: 'Keep it small' });
     const prompt = fake.started[0]!.prompt;
     expect(prompt).toContain('organization "Acme"');

@@ -71,12 +71,12 @@ describe('the office on one screen', () => {
     expect(side.indexOf('Coordinator')).toBeLessThan(side.indexOf('Planner'));
     expect(side.indexOf('Planner')).toBeLessThan(side.indexOf('Coder'));
     // An agent with no lead (and no team) goes under «No department», after the departments, before the proposed ones.
-    expect(side.indexOf('No department')).toBeGreaterThan(side.indexOf('Planner'));
-    expect(side.indexOf('No department')).toBeLessThan(side.indexOf('Proposed agents'));
+    expect(side.indexOf('Reports to the coordinator')).toBeGreaterThan(side.indexOf('Planner'));
+    expect(side.indexOf('Reports to the coordinator')).toBeLessThan(side.indexOf('Proposed agents'));
     expect(side).toContain('Sales');
     // A department with someone at work starts open; a quiet one starts folded, saying how many it has.
     expect(side).toMatch(/aria-expanded="true"[^>]*>.*Planner/);
-    expect(side).toMatch(/aria-expanded="false"[^>]*>.*No department.*1 agent/);
+    expect(side).toMatch(/aria-expanded="false"[^>]*>.*Reports to the coordinator.*1 agent/);
     expect(side).not.toContain('>Finance<');
   });
 

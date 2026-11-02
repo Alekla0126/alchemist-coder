@@ -118,8 +118,8 @@ function Elsewhere({ list }: { list: ElsewhereTeam[] }) {
         <button key={x.team.id} className={`ofc-chip ts-${teamState(x.team)}`} onClick={() => useStore.setState({ officeTeamId: x.team.id })} title={[x.team.goal, t('org.office.activeAgents', { n: x.active })].join(' · ')}>
           <span className="ofc-chip-project">📁 {x.project}</span>
           <span className="ofc-chip-title">{x.team.title || x.team.goal}</span>
-          <span className="ofc-chip-n" aria-label={t('org.office.activeAgents', { n: x.active })}>
-            ● {x.active}
+          <span className="ofc-chip-n">
+            <span className="org-dot st-working" aria-hidden /> {t('org.workingN', { n: x.active })}
           </span>
         </button>
       ))}
@@ -405,14 +405,21 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
   const t = useT();
   const everyone = useStore((s) => s.botConfigs);
   const every = useStore((s) => s.botTeams);
-  // The organization you look at (Claude Coder, LinkedIn…) only chooses what the office shows.
+  // The organization you look at (one business, client or side project) only chooses what the office shows.
   const group = useStore((s) => groupOf(s.orgSettings, s.orgGroup));
   // Agents the filter leaves out still show by name where they work (assignments, sheets): only the departments are filtered.
   const configs = group ? everyone.filter((c) => memberInGroup(c, group)) : everyone;
   const allTeams = group ? every.filter((x) => teamInGroup(x, group)) : every;
   const orgProject = useStore((s) => s.orgProject);
   const open = useOpenProjects();
-  const deptsHidden = useLayout((l) => l.deptsHidden);
+  const foldedPref = useLayout((l) => l.deptsHidden);
+  // A mid-size window with the sidebar beside the office: the departments start folded (the tab brings them back for the visit).
+  const midWindow = useViewport((v) => v.mid && !v.narrow);
+  const sideFolded = useLayout((l) => l.sideHidden);
+  const mid = midWindow && !sideFolded;
+  const [midOpen, setMidOpen] = useState(false);
+  const deptsHidden = mid ? !midOpen : foldedPref;
+  const foldDepts = () => (mid ? setMidOpen((o) => !o) : toggleDepts());
   // The organization is set up with your default agent: with none to run (catalog read), say so instead of "Setting up…" for ever.
   const noAgent = useStore((s) => !!s.catalog && !defaultChoice(s.catalog));
   const catalog = useStore((s) => s.catalog);
@@ -491,7 +498,8 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
   };
   const summary = countText(counts, t);
   // The automations live in the sidebar beside the office: it shows them without leaving the office.
-  const automations = useStore((s) => (orgProject ? s.automations.filter((x) => isInside(x.automation.cwd, orgProject)) : s.automations).length);
+  const allAutomations = useStore((s) => s.automations);
+  const automations = allAutomations.filter((x) => (!orgProject || isInside(x.automation.cwd, orgProject)) && (!group || group.projects.some((p) => isInside(x.automation.cwd, p)))).length;
   const showAutomations = () => {
     // The column they're in has to show: the floating sidebar on a narrow window, the folded one unfolded.
     if (useViewport.getState().narrow) useViewport.setState({ drawer: true });
@@ -539,7 +547,7 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
       <aside className="ofc-depts" aria-label={t('org.office.departments')}>
         <h3>
           <span>{t('org.office.departments')}</span>
-          <button className="of-close ofc-depts-fold" onClick={toggleDepts} aria-label={t('org.office.hideDepts')} title={t('org.office.hideDepts')}>
+          <button className="of-close ofc-depts-fold" onClick={foldDepts} aria-label={t('org.office.hideDepts')} title={t('org.office.hideDepts')}>
             ›
           </button>
         </h3>
@@ -599,7 +607,7 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
       </aside>
       {/* Folded away, the departments leave a tab on the edge to bring them back. */}
       {deptsHidden && (
-        <button className="ofc-depts-tab" onClick={toggleDepts} aria-label={t('org.office.showDepts')} title={t('org.office.showDepts')}>
+        <button className="ofc-depts-tab" onClick={foldDepts} aria-label={t('org.office.showDepts')} title={t('org.office.showDepts')}>
           ‹ {t('org.office.departments')}
         </button>
       )}

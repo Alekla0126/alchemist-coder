@@ -78,7 +78,7 @@ function inboxGroups(items: InboxItem[]) {
 
 /**
  * What needs you, from every assignment whatever the filters (it's never hidden), in words: "1 needs
- * you (in Claude Coder)" when it's in an organization or project out of sight. `skipPlan`: a plan
+ * you (in Mobile)" when it's in an organization or project out of sight. `skipPlan`: a plan
  * answered elsewhere on screen.
  */
 function useNeedsYou(proposed: BotConfig[], skipPlan?: string) {
@@ -91,8 +91,7 @@ function useNeedsYou(proposed: BotConfig[], skipPlan?: string) {
   const groups = inboxGroups(items);
   const group = groupOf(org, chosen);
   const placeOf = (team: BotTeam) => {
-    const where = hiddenWhere(team, group, project, org?.groups ?? []);
-    return where === null ? null : where || t('org.groups.another');
+    return hiddenWhere(team, group, project, org?.groups ?? []);
   };
   const hidden = [...groups.blocking, ...groups.plans].map((x) => placeOf(x.team)).filter((x): x is string => x !== null);
   return { items, ...groups, placeOf, text: needsYouText(t, groups.urgent, hidden) };
@@ -582,7 +581,7 @@ export function OrgSidebar() {
       .catch((e: unknown) => toast(errorText(e)))
       .finally(() => (ensuring.current = false));
   }, [catalog, configs, loaded]);
-  // The organization you look at (Claude Coder, LinkedIn…) only chooses what shows here.
+  // The organization you look at (one business, client or side project) only chooses what shows here.
   const group = useStore((s) => groupOf(s.orgSettings, s.orgGroup));
   const coordinator = configs.find((c) => c.kind === 'coordinator');
   const members = configs.filter((c) => c.kind !== 'coordinator' && (!orgProject || inProject(c, orgProject)) && memberInGroup(c, group));
@@ -637,7 +636,8 @@ export function OrgSidebar() {
           <OrgName />
           <OrgGroupPicker />
         </div>
-        {group && !group.projects.length && <OrgGroupEmpty group={group} />}
+        {/* On the office it says so on the floor, once. */}
+        {group && !group.projects.length && !onOffice && <OrgGroupEmpty group={group} />}
 
         {/* The projects of the organization you look at. */}
         {inGroup.length > 1 && (

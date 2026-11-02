@@ -470,7 +470,7 @@ export interface OrgSettings {
   autopilot: boolean;
   /** What the organization learned from its mistakes, newest first; every agent of it is told. */
   lessons: OrgLesson[];
-  /** Organizations to look at it by (Claude Coder, LinkedIn…): groups of project folders. They only filter what you see; agents still talk across them. */
+  /** Organizations to look at it by (one per business, client or side project): groups of project folders. They only filter what you see; agents still talk across them. */
   groups?: OrgGroup[];
 }
 
@@ -1225,6 +1225,8 @@ export interface AlchemistApi {
   /** The organization's settings. */
   orgSettings(): Promise<OrgSettings>;
   saveOrgSettings(settings: Partial<OrgSettings>): Promise<OrgSettings>;
+  /** The owner's own build: its starting organizations from these open folders, saved only if none ever were and one matches. */
+  seedOrgGroups(folders: string[]): Promise<OrgSettings>;
   /** Creates the coordinator (and the starter agents) the first time. */
   ensureOrg(agent: AgentChoice, starters: Record<string, StarterAgent>): Promise<BotConfig[]>;
   /** Brings the organization to a staff template: adds who's missing, sets teams, models and permissions, drops copies. `apply: false` only says what it would do. */
@@ -1416,6 +1418,7 @@ export const Channels = {
   addStarterBots: 'bots:addStarters',
   orgSettings: 'bots:org',
   saveOrgSettings: 'bots:saveOrg',
+  seedOrgGroups: 'bots:seedOrgGroups',
   ensureOrg: 'bots:ensureOrg',
   renewStaff: 'bots:renewStaff',
   botTeams: 'bots:teams',

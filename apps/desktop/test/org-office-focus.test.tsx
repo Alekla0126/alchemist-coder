@@ -104,11 +104,11 @@ describe('the focused office, rendered', () => {
     expect(focused).toContain('Open the detail →');
     expect(focused).toContain('Export to CSV');
     const stage = focused.slice(focused.indexOf('class="ofc-focus"'), focused.indexOf('class="ofc-talk"'));
-    expect(stage.indexOf('<h5>Planner</h5>')).toBeLessThan(stage.indexOf('<h5>No department</h5>'));
+    expect(stage.indexOf('<h5>Planner</h5>')).toBeLessThan(stage.indexOf('<h5>Reports to the coordinator</h5>'));
     expect(stage).toContain('Helper');
     // The other project's assignment is a chip on the strip, not a room.
     expect(stage).toContain('Also running in other projects: 1');
-    expect(stage).toMatch(/ofc-chip[^>]*>.*Komodo.*Fix the VPN.*● 2/);
+    expect(stage).toMatch(/ofc-chip[^>]*>.*Komodo.*Fix the VPN.*org-dot st-working.*2 working/);
     expect(stage).not.toContain('<h4 title="/p/komodo">');
   });
 
@@ -136,7 +136,7 @@ describe('the focused office, rendered', () => {
 
   it('has its texts in Spanish', () => {
     expect(translate('es', 'org.office.allOffice')).toBe('Toda la oficina');
-    expect(translate('es', 'org.office.noDepartment')).toBe('Sin departamento');
+    expect(translate('es', 'org.office.noDepartment')).toBe('Directo al Coordinador');
     expect(translate('es', 'org.office.alsoRunning', { n: 2 })).toBe('También en curso en otros proyectos: 2');
   });
 });

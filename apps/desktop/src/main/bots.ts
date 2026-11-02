@@ -395,17 +395,15 @@ function lessonsOf(v: unknown): OrgLesson[] {
   return out.sort((a, b) => b.at - a.at).slice(0, MAX_LESSONS);
 }
 
-/** The organizations a new organization starts with, empty: you give each its project folders. */
-export const DEFAULT_GROUPS: OrgGroup[] = [
-  { id: 'claude-coder', name: 'Claude Coder', projects: [] },
-  { id: 'the-alchemist-code', name: 'The Alchemist Code', projects: [] },
-  { id: 'linkedin', name: 'LinkedIn', projects: [] },
-];
 const MAX_GROUPS = 40;
 
-/** Organizations as saved (org.json is user-editable): well-formed ones, each folder once; none saved yet = the default ones. */
-function groupsOf(v: unknown): OrgGroup[] {
-  if (v === undefined) return structuredClone(DEFAULT_GROUPS);
+/**
+ * Organizations as saved (org.json is user-editable): well-formed ones, each folder once. Never saved
+ * stays undefined: the owner's own build then starts with its usual ones (the renderer knows the
+ * folders), the Community edition with none.
+ */
+function groupsOf(v: unknown): OrgGroup[] | undefined {
+  if (v === undefined) return undefined;
   if (!Array.isArray(v)) return [];
   const out: OrgGroup[] = [];
   for (const x of v as Array<Partial<OrgGroup>>) {
@@ -453,7 +451,7 @@ function starterConfig(key: string, s: StarterAgent, agent: AgentChoice): Partia
 export class BotManager {
   private configs: BotConfig[] = [];
   private teams: BotTeam[] = [];
-  private org: OrgSettings = { name: 'My organization', instructions: '', autopilot: false, lessons: [], groups: structuredClone(DEFAULT_GROUPS) };
+  private org: OrgSettings = { name: 'My organization', instructions: '', autopilot: false, lessons: [] };
   /** While renewStaff only says what it would do: nothing is written. */
   private dryRun = false;
   /** Decides for the organization's agents while it runs on Autopilot (asked by each of their runs). */
@@ -501,7 +499,7 @@ export class BotManager {
     this.configs = this.read<BotConfig[]>(files.configs) ?? [];
     try {
       const o = JSON.parse(readFileSync(this.orgFile, 'utf8')) as Partial<OrgSettings>;
-      this.org = { name: str(o.name, 80) || this.org.name, instructions: str(o.instructions), autopilot: o.autopilot === true, lessons: lessonsOf(o.lessons), groups: groupsOf(o.groups) };
+      this.org = { name: str(o.name, 80) || this.org.name, instructions: str(o.instructions), autopilot: o.autopilot === true, lessons: lessonsOf(o.lessons), ...(o.groups === undefined ? {} : { groups: groupsOf(o.groups) }) };
     } catch {
       // first run: the default name, no instructions
     }
@@ -579,7 +577,7 @@ export class BotManager {
   }
 
   orgSettings(): OrgSettings {
-    return { ...this.org, lessons: this.org.lessons.map((l) => ({ ...l })), groups: structuredClone(this.org.groups ?? []) };
+    return { ...this.org, lessons: this.org.lessons.map((l) => ({ ...l })), ...(this.org.groups ? { groups: structuredClone(this.org.groups) } : {}) };
   }
 
   saveOrgSettings(input: unknown): OrgSettings {
@@ -594,6 +592,19 @@ export class BotManager {
     if (Array.isArray(o.groups)) this.org.groups = groupsOf(o.groups);
     this.write(this.orgFile, this.org);
     if (this.decidesAlone() !== wasAlone) for (const w of this.orgWatchers) w(this.decidesAlone());
+    return this.orgSettings();
+  }
+
+  /**
+   * The organizations a build starts with (its owner's module gives them): saved only while none
+   * were ever saved and at least one has a folder, so an empty guess waits for the next try and
+   * yours are never replaced.
+   */
+  seedOrgGroups(input: unknown): OrgSettings {
+    const groups = groupsOf(Array.isArray(input) ? input : []) ?? [];
+    if (this.org.groups !== undefined || !groups.some((g) => g.projects.length)) return this.orgSettings();
+    this.org.groups = groups;
+    this.write(this.orgFile, this.org);
     return this.orgSettings();
   }
 

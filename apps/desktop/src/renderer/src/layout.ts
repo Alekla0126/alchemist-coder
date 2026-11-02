@@ -88,12 +88,17 @@ export const resetPanel = (panel: Panel) => useLayout.setState({ [panel]: LIMITS
 
 const isNarrow = () => typeof window !== 'undefined' && window.innerWidth < NARROW;
 
-/** The window's size class, and whether the floating sidebar is open (it starts closed). */
-export const useViewport = create<{ narrow: boolean; drawer: boolean }>(() => ({ narrow: isNarrow(), drawer: false }));
+/** Below this width, with the sidebar beside it, the office starts with its departments folded. */
+export const MID = 1180;
+const isMid = () => typeof window !== 'undefined' && window.innerWidth <= MID;
+
+/** The window's size class (`mid`: at most MID wide), and whether the floating sidebar is open (it starts closed). */
+export const useViewport = create<{ narrow: boolean; mid: boolean; drawer: boolean }>(() => ({ narrow: isNarrow(), mid: isMid(), drawer: false }));
 if (typeof window !== 'undefined')
   window.addEventListener('resize', () => {
     const narrow = isNarrow();
     if (narrow !== useViewport.getState().narrow) useViewport.setState({ narrow, drawer: false });
+    if (isMid() !== useViewport.getState().mid) useViewport.setState({ mid: isMid() });
   });
 
 /** ⌘B and the title bar button: hide or show the sidebar column, or open and close the floating one (the office's too). */
