@@ -1,6 +1,27 @@
 import type { Messages } from '../i18n';
 
 export const hi: Messages = {
+  "org.queue.title": "स्थायी निष्पादन और संसाधन",
+  "org.queue.enable": "इस कार्य को स्थायी कतार में रखें",
+  "org.queue.parallel": "समानांतर कार्य",
+  "org.queue.attempts": "अधिकतम प्रयास",
+  "org.queue.preauthorize": "इस असाइनमेंट के कतारबद्ध कार्य स्वतः फिर शुरू करें",
+  "org.queue.hint": "अनुमतियाँ और Autopilot नहीं बदलते। बाधित निष्पादन के लिए पुष्टि चाहिए; अज्ञात परिणाम वाले काम चुपचाप नहीं दोहराए जाते। समर्थित निष्पादक सेट होने तक VPS उपलब्ध नहीं है।",
+  "org.queue.import": "प्रोजेक्ट TAC टेम्पलेट आयात करें",
+  "org.queue.importHint": ".alchemist/organization/manifest.json पढ़ता है। नए एजेंट चुना हुआ इंजन और प्रोजेक्ट उपयोग करते हैं; मौजूदा एजेंटों की सेटिंग बनी रहती है।",
+  "org.queue.resume": "जाँचें और फिर शुरू करें",
+  "org.queue.cancel": "कार्य रद्द करें",
+  "org.queue.role": "पोर्टेबल भूमिका ID (वैकल्पिक)",
+  "org.queue.executor": "पसंदीदा निष्पादक",
+  "org.queue.state.queued": "कतार में",
+  "org.queue.state.running": "चल रहा है",
+  "org.queue.state.waiting": "प्रतीक्षा में",
+  "org.queue.state.blocked": "अवरुद्ध",
+  "org.queue.state.interrupted": "बाधित",
+  "org.queue.state.completed": "पूरा",
+  "org.queue.state.failed": "विफल",
+  "org.queue.state.cancelled": "रद्द",
+
   "org.assignment.engine": "इस कार्य के समन्वयक का इंजन",
   "org.assignment.override": "समन्वयक के लिए दूसरा इंजन चुनें",
   "org.assignment.hint": "इस नए कार्य के समन्वयक पर लागू होता है। सहयोगी अपने इंजन रखते हैं; अनुमतियाँ और मौजूदा बातचीत की सेटिंग बनी रहती हैं।",

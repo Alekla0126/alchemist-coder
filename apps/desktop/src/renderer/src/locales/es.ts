@@ -1,6 +1,27 @@
 import type { Messages } from '../i18n';
 
 export const es: Messages = {
+  "org.queue.title": "Ejecución persistente y recursos",
+  "org.queue.enable": "Guardar este encargo en la cola persistente",
+  "org.queue.parallel": "Trabajos paralelos",
+  "org.queue.attempts": "Máximo de intentos",
+  "org.queue.preauthorize": "Retomar automáticamente las tareas en cola de este encargo",
+  "org.queue.hint": "Se conservan permisos y Autopilot. Una ejecución interrumpida requiere confirmación; un resultado incierto no se repite silenciosamente. VPS no está disponible hasta configurar un ejecutor compatible.",
+  "org.queue.import": "Importar plantilla TAC del proyecto",
+  "org.queue.importHint": "Lee .alchemist/organization/manifest.json. Los agentes nuevos usan el motor y proyecto elegidos; el personal existente conserva su configuración.",
+  "org.queue.resume": "Revisar y reanudar",
+  "org.queue.cancel": "Cancelar tarea",
+  "org.queue.role": "ID de rol portable (opcional)",
+  "org.queue.executor": "Ejecutor preferido",
+  "org.queue.state.queued": "En cola",
+  "org.queue.state.running": "Ejecutando",
+  "org.queue.state.waiting": "En espera",
+  "org.queue.state.blocked": "Bloqueada",
+  "org.queue.state.interrupted": "Interrumpida",
+  "org.queue.state.completed": "Completada",
+  "org.queue.state.failed": "Fallida",
+  "org.queue.state.cancelled": "Cancelada",
+
   "org.assignment.engine": "Motor del coordinador para este encargo",
   "org.assignment.override": "Elegir otro motor para el coordinador",
   "org.assignment.hint": "Se aplica al coordinador de este nuevo encargo. Los colaboradores mantienen sus propios motores; los permisos y las conversaciones existentes conservan su configuración.",

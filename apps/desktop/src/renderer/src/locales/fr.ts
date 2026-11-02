@@ -1,6 +1,27 @@
 import type { Messages } from '../i18n';
 
 export const fr: Messages = {
+  "org.queue.title": "Exécution persistante et ressources",
+  "org.queue.enable": "Conserver cette mission dans la file persistante",
+  "org.queue.parallel": "Tâches parallèles",
+  "org.queue.attempts": "Nombre maximal de tentatives",
+  "org.queue.preauthorize": "Reprendre automatiquement les tâches en attente de cette mission",
+  "org.queue.hint": "Les autorisations et Autopilot restent inchangés. Une exécution interrompue demande confirmation ; un résultat incertain ne sera pas répété silencieusement. VPS indisponible sans exécuteur compatible configuré.",
+  "org.queue.import": "Importer le modèle TAC du projet",
+  "org.queue.importHint": "Lit .alchemist/organization/manifest.json. Les nouveaux agents utilisent le moteur et projet choisis ; les agents existants gardent leurs réglages.",
+  "org.queue.resume": "Vérifier et reprendre",
+  "org.queue.cancel": "Annuler la tâche",
+  "org.queue.role": "ID du rôle portable (facultatif)",
+  "org.queue.executor": "Exécuteur préféré",
+  "org.queue.state.queued": "En file",
+  "org.queue.state.running": "En cours",
+  "org.queue.state.waiting": "En attente",
+  "org.queue.state.blocked": "Bloquée",
+  "org.queue.state.interrupted": "Interrompue",
+  "org.queue.state.completed": "Terminée",
+  "org.queue.state.failed": "Échec",
+  "org.queue.state.cancelled": "Annulée",
+
   "org.assignment.engine": "Moteur du coordinateur pour cette mission",
   "org.assignment.override": "Choisir un autre moteur pour le coordinateur",
   "org.assignment.hint": "Concerne le coordinateur de cette nouvelle mission. Les collaborateurs gardent leurs propres moteurs ; les autorisations et conversations existantes conservent leur configuration.",

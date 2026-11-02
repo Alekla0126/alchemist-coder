@@ -432,6 +432,9 @@ export interface BotConfig {
   permissionMode: PermissionMode;
   /** It may create other bots (within the team's limits). */
   canSpawn: boolean;
+  /** Optional portable context: .alchemist/organization/roles/<id>.md in this project. */
+  contextRole?: string;
+  executorId?: 'local' | 'vps';
   /** It works in its own copy of the project (a git worktree); its creator applies the result. */
   ownWorktree?: boolean;
   /** The organization's coordinator (one), or one of its agents. */
@@ -539,6 +542,10 @@ export interface BotMember {
   error?: string | null;
   costUsd: number | null;
   createdAt: number;
+  queueJobId?: string;
+  queueTurn?: number;
+  contextRole?: string;
+  executorId?: 'local' | 'vps';
 }
 
 /** One bot the coordinator means to create, as the user sees (and may edit) it before approving. */
@@ -581,6 +588,9 @@ export interface BotTeam {
   title?: string;
   goal: string;
   cwd: string;
+  durable?: OrgExecutionPolicy;
+  requestId?: string;
+  requestFingerprint?: string;
   createdAt: number;
   updatedAt: number;
   /** The coordinator is bots[0]. */
@@ -723,13 +733,36 @@ export interface TeamOrigin {
   label: string;
 }
 
+export interface OrgExecutionPolicy {
+  maxParallel: number;
+  maxAttempts: number;
+  resumePreauthorized: boolean;
+  executorId?: 'local' | 'vps';
+}
+export interface OrgJob {
+  id: string; teamId: string; botId: string; executorId: 'local' | 'vps';
+  state: 'queued' | 'running' | 'waiting' | 'blocked' | 'interrupted' | 'completed' | 'failed' | 'cancelled';
+  attempt: number; maxAttempts: number; maxParallel: number;
+  verification: 'not_run' | 'reported' | 'verified'; blockedReason: string | null;
+  createdAt: number; updatedAt: number; canResume?: boolean;
+}
+export interface OrgJobEvent {
+  version: 'ac.integration.v1'; eventId: string; sequence: number;
+  type: `org.job.${string}`; occurredAt: number; taskId: string; teamId: string; botId: string;
+  executorId: 'local' | 'vps'; state: OrgJob['state']; attempt: number;
+  verification: OrgJob['verification']; reason: string | null;
+}
+export interface OrgQueueSnapshot { error?: 'queue_unreadable' | 'queue_persistence_failed'; version: 'ac.integration.v1'; sequence: number; jobs: OrgJob[]; events: OrgJobEvent[] }
+
 export interface StartTeamRequest {
+  requestId?: string;
   goal: string;
   cwd: string;
   /** A saved configuration for the coordinator, or one defined here. */
   configId?: string;
   /** Explicit engine for this new assignment only; saved staff and permissions stay unchanged. */
   agentOverride?: AgentChoice;
+  durable?: OrgExecutionPolicy;
   coordinator?: Omit<BotConfig, 'id' | 'canSpawn'>;
   budgetUsd?: number | null;
   approvePlan?: boolean;
@@ -1257,6 +1290,10 @@ export interface AlchemistApi {
   ensureOrg(agent: AgentChoice, starters: Record<string, StarterAgent>): Promise<BotConfig[]>;
   /** Brings the organization to a staff template: adds who's missing, sets teams, models and permissions, drops copies. `apply: false` only says what it would do. */
   renewStaff(agent: AgentChoice, starters: Record<string, StarterAgent>, instructions: string, apply: boolean): Promise<RosterChange>;
+  portableOrg(cwd: string, agent: AgentChoice, apply: boolean): Promise<{ names: string[]; applied: boolean }>;
+  orgQueue(): Promise<OrgQueueSnapshot>;
+  resumeOrgJob(jobId: string): Promise<void>;
+  cancelOrgJob(jobId: string): Promise<void>;
   botTeams(): Promise<BotTeam[]>;
   startTeam(request: StartTeamRequest): Promise<BotTeam>;
   /** Gives the chosen organization agent a task using its own saved runtime and permissions. */
@@ -1453,6 +1490,10 @@ export const Channels = {
   seedOrgGroups: 'bots:seedOrgGroups',
   ensureOrg: 'bots:ensureOrg',
   renewStaff: 'bots:renewStaff',
+  portableOrg: 'org:portable',
+  orgQueue: 'org:queue',
+  resumeOrgJob: 'org:queue:resume',
+  cancelOrgJob: 'org:queue:cancel',
   botTeams: 'bots:teams',
   startTeam: 'bots:startTeam',
   startAgentTask: 'bots:startAgentTask',

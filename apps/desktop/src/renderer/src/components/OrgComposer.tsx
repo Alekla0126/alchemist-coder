@@ -10,6 +10,7 @@ import { errorText } from './Bots';
 import { Chip } from './ComposerChips';
 import { AgentPicker, defaultChoice, isRunnable } from './AgentPicker';
 import { CodexStatus } from './CodexStatus';
+import { OrgExecution } from './OrgExecution';
 import { organizationAssignment } from '../org-assignment';
 import { Icon } from './Icon';
 import { VoiceButton } from './VoiceButton';
@@ -27,7 +28,7 @@ export function OrgComposer({ coordinator, recipient, examples: showExamples, sh
   const orgProject = useStore((s) => s.orgProject);
   const activeProject = useStore((s) => s.projects.find((p) => p.id === s.settings.activeProjectId));
   const goal = useStore((s) => s.orgGoal);
-  const setGoal = (orgGoal: string) => useStore.setState({ orgGoal });
+  const setGoal = (orgGoal: string) => useStore.setState({ orgGoal, ...(orgGoal !== useStore.getState().orgGoal ? { orgRequestId: null } : {}) });
   const open = useOpenProjects();
   // The project you picked on the chip; until then (or once it's closed) the one you're in, so switching projects in the rail takes the box with you.
   const [picked, setPicked] = useState<string | null>(null);
@@ -48,9 +49,10 @@ export function OrgComposer({ coordinator, recipient, examples: showExamples, sh
   const [budget, setBudget] = useState(first?.budget ?? '');
   const [reviewPlan, setReviewPlan] = useState(first?.reviewPlan ?? true);
   const [busy, setBusy] = useState(false);
+  const durable = useStore(s => s.orgExecutionDraft);
   const draftEngine = useStore((s) => s.orgAssignmentAgent);
   const agentOverride = draftEngine?.agent ?? null;
-  const setAgentOverride = (agent: AgentChoice | null) => useStore.setState({ orgAssignmentAgent: agent && coordinator ? { coordinatorId: coordinator.id, agent } : null });
+  const setAgentOverride = (agent: AgentChoice | null) => useStore.setState({ orgRequestId: null, orgAssignmentAgent: agent && coordinator ? { coordinatorId: coordinator.id, agent } : null });
   const [tplId, setTplId] = useState<string | null>(first?.id ?? null);
   const box = useRef<HTMLTextAreaElement>(null);
   // Filtering the organization to a project is picking it.
@@ -156,17 +158,19 @@ export function OrgComposer({ coordinator, recipient, examples: showExamples, sh
     if (!ready || !target || busy) return;
     if (isDemo(target.id)) return void toast(t('org.office.demoNoSend'), undefined, 3000);
     setBusy(true);
+    const requestId = useStore.getState().orgRequestId ?? crypto.randomUUID();
+    if (!recipient) useStore.setState({ orgRequestId: requestId });
     try {
       const team = recipient
         ? await window.alchemist.startAgentTask({ task: goal, cwd, configId: recipient.id })
-        : await window.alchemist.startTeam(organizationAssignment({ coordinator: target, goal, cwd, agentOverride, budgetUsd: Number(budget) || null, approvePlan: reviewPlan, guidance }));
+        : await window.alchemist.startTeam(organizationAssignment({ coordinator: target, requestId, goal, cwd, agentOverride, durable, budgetUsd: Number(budget) || null, approvePlan: reviewPlan, guidance }));
       useStore.getState().upsertTeam(team);
       // You stay on the chart: it shows who gets what as the coordinator hands the work out.
       useStore.setState({ orgFocusTeamId: team.id, ...(onOffice ? { officeTeamId: team.id } : {}) });
       // A newer draft may have been written while this request was in flight.
-      if (mounted.current && currentTarget.current === target && useStore.getState().orgGoal === goal && useStore.getState().orgAssignmentAgent === draftEngine) {
+      if (mounted.current && currentTarget.current === target && useStore.getState().orgGoal === goal && useStore.getState().orgAssignmentAgent === draftEngine && useStore.getState().orgExecutionDraft === durable && (recipient || useStore.getState().orgRequestId === requestId)) {
         setGoal('');
-        if (!recipient) useStore.setState({ orgAssignmentAgent: null });
+        if (!recipient) useStore.setState({ orgAssignmentAgent: null, orgExecutionDraft: null, orgRequestId: null });
       }
     } catch (e) {
       toast(errorText(e), undefined, 10_000);
@@ -218,6 +222,7 @@ export function OrgComposer({ coordinator, recipient, examples: showExamples, sh
         {engine.harnessId === 'codex' && <details className="org-assignment-runtime"><summary>{t('org.codex.title')}</summary><CodexStatus agent={engine} /></details>}
         {agentOverride && <p className="composer-note">{t('org.assignment.hint')}</p>}
       </div>}
+      {!recipient && target && engine && <OrgExecution cwd={cwd} agent={engine} />}
       {recipient && showRuntime && engine?.harnessId === 'codex' && <details className="org-assignment-runtime"><summary>{t('org.codex.title')}</summary><CodexStatus agent={engine} /></details>}
       {recipient?.agent.harnessId === 'codex' && <p className="composer-note">{recipient.name} · {recipient.agent.model} · {recipient.agent.effort ?? t('org.codex.inheritEffort')} · {t(`perm.${recipient.permissionMode}`)}</p>}
       <div className="composer-box">

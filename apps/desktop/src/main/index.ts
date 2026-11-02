@@ -362,7 +362,7 @@ void app.whenReady().then(async () => {
   const tasks = new TaskManager(join(userData, 'tasks.json'), runner, (cwd) => workspace.resolveInside(cwd), (task) => send(Channels.taskChanged, task));
   // Bot teams: bots reach the app's tools through a small MCP bridge run by Electron itself (as Node).
   const bots = new BotManager(
-    { configs: join(userData, 'bot-configs.json'), teams: join(userData, 'bot-teams.json'), org: join(userData, 'org.json') },
+    { configs: join(userData, 'bot-configs.json'), teams: join(userData, 'bot-teams.json'), org: join(userData, 'org.json'), queue: join(userData, 'org-queue.json') },
     runner,
     { command: process.execPath, script: writeBridge(userData) },
     (cwd) => workspace.projectFolder(cwd),

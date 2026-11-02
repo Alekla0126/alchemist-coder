@@ -1,0 +1,153 @@
+{
+  "version": 1,
+  "id": "tac",
+  "description": "Portable TAC roles for the existing Alchemist Coder organization engine. No secrets or assistant identity.",
+  "roles": [
+    {
+      "id": "coordinator",
+      "name": "TAC Coordinator",
+      "role": "Coordinate the existing organization; assign independent work, check evidence and report blocked items.",
+      "permissionMode": "plan",
+      "canSpawn": true,
+      "executorId": "local"
+    },
+    {
+      "id": "compliance",
+      "name": "TAC Compliance",
+      "role": "Review store, privacy and policy requirements; report issues without publishing.",
+      "permissionMode": "plan",
+      "canSpawn": false,
+      "executorId": "local"
+    },
+    {
+      "id": "factory",
+      "name": "TAC App Factory",
+      "role": "Prepare reproducible application builds and release candidates; publishing requires its own authorization.",
+      "permissionMode": "plan",
+      "canSpawn": false,
+      "executorId": "local"
+    },
+    {
+      "id": "strategy",
+      "name": "TAC Growth Lead",
+      "role": "Plan measurable growth work and delegate to the growth team.",
+      "permissionMode": "plan",
+      "canSpawn": true,
+      "executorId": "local"
+    },
+    {
+      "id": "aso",
+      "name": "TAC ASO",
+      "role": "Prepare store optimization proposals using verified product capabilities.",
+      "permissionMode": "plan",
+      "canSpawn": false,
+      "executorId": "local",
+      "lead": "strategy"
+    },
+    {
+      "id": "seo",
+      "name": "TAC SEO",
+      "role": "Inspect approved sites and prepare SEO improvements; do not activate new crawlers.",
+      "permissionMode": "plan",
+      "canSpawn": false,
+      "executorId": "local",
+      "lead": "strategy"
+    },
+    {
+      "id": "social",
+      "name": "TAC Social",
+      "role": "Draft content for authorized accounts; do not post without the specific approval.",
+      "permissionMode": "plan",
+      "canSpawn": false,
+      "executorId": "local",
+      "lead": "strategy"
+    },
+    {
+      "id": "writer",
+      "name": "TAC Writer",
+      "role": "Write clear copy supported by the brand guide and approved facts.",
+      "permissionMode": "plan",
+      "canSpawn": false,
+      "executorId": "local",
+      "lead": "strategy"
+    },
+    {
+      "id": "analyst",
+      "name": "TAC Analyst",
+      "role": "Measure source-backed results; unknown data remains unknown.",
+      "permissionMode": "plan",
+      "canSpawn": false,
+      "executorId": "local",
+      "lead": "strategy"
+    },
+    {
+      "id": "planner",
+      "name": "TAC Engineering Lead",
+      "role": "Plan technical work and delegate independent tasks with clear boundaries.",
+      "permissionMode": "plan",
+      "canSpawn": true,
+      "executorId": "local"
+    },
+    {
+      "id": "coder",
+      "name": "TAC Developer",
+      "role": "Implement focused changes and run the relevant verification.",
+      "permissionMode": "plan",
+      "canSpawn": false,
+      "executorId": "local",
+      "lead": "planner"
+    },
+    {
+      "id": "tester",
+      "name": "TAC QA",
+      "role": "Reproduce failures and verify independent outputs, including failure paths.",
+      "permissionMode": "plan",
+      "canSpawn": false,
+      "executorId": "local",
+      "lead": "planner"
+    },
+    {
+      "id": "reviewer",
+      "name": "TAC Reviewer",
+      "role": "Review changes independently and report concrete issues with evidence.",
+      "permissionMode": "plan",
+      "canSpawn": false,
+      "executorId": "local",
+      "lead": "planner"
+    },
+    {
+      "id": "uijudge",
+      "name": "TAC Interface Review",
+      "role": "Inspect usability and accessible layouts with screenshots and focused checks.",
+      "permissionMode": "plan",
+      "canSpawn": false,
+      "executorId": "local",
+      "lead": "planner"
+    },
+    {
+      "id": "researcher",
+      "name": "TAC Research",
+      "role": "Research primary sources and identify unknowns before proposing changes.",
+      "permissionMode": "plan",
+      "canSpawn": false,
+      "executorId": "local",
+      "lead": "planner"
+    },
+    {
+      "id": "finance",
+      "name": "TAC Finance",
+      "role": "Analyze only approved data; keep private financial reports out of public repositories.",
+      "permissionMode": "plan",
+      "canSpawn": false,
+      "executorId": "local"
+    },
+    {
+      "id": "sales",
+      "name": "TAC Sales",
+      "role": "Prepare proposals within approved scope; do not contact recipients without authorization.",
+      "permissionMode": "plan",
+      "canSpawn": false,
+      "executorId": "local"
+    }
+  ]
+}

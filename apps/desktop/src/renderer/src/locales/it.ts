@@ -1,6 +1,27 @@
 import type { Messages } from '../i18n';
 
 export const it: Messages = {
+  "org.queue.title": "Esecuzione persistente e risorse",
+  "org.queue.enable": "Salva questo incarico nella coda persistente",
+  "org.queue.parallel": "Attività parallele",
+  "org.queue.attempts": "Tentativi massimi",
+  "org.queue.preauthorize": "Riprendi automaticamente le attività in coda di questo incarico",
+  "org.queue.hint": "Permessi e Autopilot restano invariati. Le esecuzioni interrotte richiedono conferma; gli esiti incerti non vengono ripetuti silenziosamente. VPS non disponibile senza un esecutore compatibile configurato.",
+  "org.queue.import": "Importa il modello TAC del progetto",
+  "org.queue.importHint": "Legge .alchemist/organization/manifest.json. I nuovi agenti usano motore e progetto scelti; quelli esistenti mantengono le impostazioni.",
+  "org.queue.resume": "Verifica e riprendi",
+  "org.queue.cancel": "Annulla attività",
+  "org.queue.role": "ID ruolo portabile (opzionale)",
+  "org.queue.executor": "Esecutore preferito",
+  "org.queue.state.queued": "In coda",
+  "org.queue.state.running": "In esecuzione",
+  "org.queue.state.waiting": "In attesa",
+  "org.queue.state.blocked": "Bloccata",
+  "org.queue.state.interrupted": "Interrotta",
+  "org.queue.state.completed": "Completata",
+  "org.queue.state.failed": "Fallita",
+  "org.queue.state.cancelled": "Annullata",
+
   "org.assignment.engine": "Motore del coordinatore per questo incarico",
   "org.assignment.override": "Scegli un altro motore per il coordinatore",
   "org.assignment.hint": "Si applica al coordinatore di questo nuovo incarico. I collaboratori mantengono i propri motori; permessi e conversazioni esistenti mantengono la configurazione.",

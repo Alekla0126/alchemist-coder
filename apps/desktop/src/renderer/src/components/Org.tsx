@@ -182,6 +182,8 @@ interface Draft {
   canSpawn: boolean;
   ownWorktree: boolean;
   projects: string[];
+  contextRole?: string;
+  executorId?: 'local' | 'vps';
 }
 
 const draftOf = (c: Partial<BotConfig>, fallback: AgentChoice | null): Draft => ({
@@ -193,6 +195,8 @@ const draftOf = (c: Partial<BotConfig>, fallback: AgentChoice | null): Draft => 
   canSpawn: c.canSpawn ?? false,
   ownWorktree: c.ownWorktree ?? false,
   projects: c.projects ?? [],
+  contextRole: c.contextRole,
+  executorId: c.executorId,
 });
 
 const sameDraft = (a: Draft, b: Draft) => JSON.stringify(a) === JSON.stringify(b);
@@ -244,6 +248,8 @@ function MemberForm({ draft, set, coordinator, autoFocus = false }: { draft: Dra
         <textarea value={draft.about} rows={2} maxLength={ABOUT_MAX} onChange={(e) => set({ about: e.target.value })} placeholder={aboutOf({ role: draft.role })} />
         <small className="composer-note">{t('bots.aboutHint')}</small>
       </label>
+      <label className="bot-field"><span>{t('org.queue.role')}</span><input value={draft.contextRole ?? ''} placeholder="coder" onChange={e => set({ contextRole: e.target.value || undefined })} /></label>
+      <label className="bot-field"><span>{t('org.queue.executor')}</span><select value={draft.executorId ?? 'local'} onChange={e => set({ executorId: e.target.value as 'local' | 'vps' })}><option value="local">local</option><option value="vps">VPS · {t('org.codex.unavailable')}</option></select></label>
       <div className="bot-field">
         <span>{t('bots.agent')}</span>
         {draft.agent ? <AgentPicker value={draft.agent} onChange={(agent) => set({ agent })} showEffort /> : catalog ? <span className="composer-note">{t('bots.noAgent')}</span> : <span className="spin" />}

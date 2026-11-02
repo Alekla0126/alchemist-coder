@@ -1,6 +1,27 @@
 import type { Messages } from '../i18n';
 
 export const ko: Messages = {
+  "org.queue.title": "영구 실행 및 리소스",
+  "org.queue.enable": "이 작업을 영구 대기열에 저장",
+  "org.queue.parallel": "병렬 작업 수",
+  "org.queue.attempts": "최대 시도 횟수",
+  "org.queue.preauthorize": "이 의뢰의 대기 중 작업 자동 재개",
+  "org.queue.hint": "권한과 Autopilot은 유지됩니다. 중단된 실행은 확인이 필요하며 결과가 불확실한 작업은 자동 반복하지 않습니다. 호환 실행기를 설정하기 전에는 VPS를 사용할 수 없습니다.",
+  "org.queue.import": "프로젝트 TAC 템플릿 가져오기",
+  "org.queue.importHint": ".alchemist/organization/manifest.json을 읽습니다. 새 에이전트는 선택한 엔진과 프로젝트를 사용하고 기존 설정은 유지됩니다.",
+  "org.queue.resume": "검토 후 재개",
+  "org.queue.cancel": "작업 취소",
+  "org.queue.role": "이식 가능한 역할 ID (선택)",
+  "org.queue.executor": "선호 실행기",
+  "org.queue.state.queued": "대기열",
+  "org.queue.state.running": "실행 중",
+  "org.queue.state.waiting": "대기 중",
+  "org.queue.state.blocked": "차단됨",
+  "org.queue.state.interrupted": "중단됨",
+  "org.queue.state.completed": "완료",
+  "org.queue.state.failed": "실패",
+  "org.queue.state.cancelled": "취소됨",
+
   "org.assignment.engine": "이 작업의 코디네이터 엔진",
   "org.assignment.override": "코디네이터에 다른 엔진 선택",
   "org.assignment.hint": "이 새 작업의 코디네이터에 적용됩니다. 협업자는 각자의 엔진을 유지하며 권한과 기존 대화 설정도 유지됩니다.",

@@ -1,6 +1,27 @@
 import type { Messages } from '../i18n';
 
 export const zhCN: Messages = {
+  "org.queue.title": "持久执行与资源",
+  "org.queue.enable": "将此任务保存在持久队列中",
+  "org.queue.parallel": "并行任务数",
+  "org.queue.attempts": "最大尝试次数",
+  "org.queue.preauthorize": "自动恢复此委派中排队的任务",
+  "org.queue.hint": "保留权限与Autopilot。中断的执行需要确认；不会静默重试结果未知的操作。在配置兼容执行器之前，VPS不可用。",
+  "org.queue.import": "导入项目TAC模板",
+  "org.queue.importHint": "读取.alchemist/organization/manifest.json。新智能体使用所选引擎和项目；现有智能体保留设置。",
+  "org.queue.resume": "检查并恢复",
+  "org.queue.cancel": "取消任务",
+  "org.queue.role": "可移植角色ID（可选）",
+  "org.queue.executor": "首选执行器",
+  "org.queue.state.queued": "已排队",
+  "org.queue.state.running": "运行中",
+  "org.queue.state.waiting": "等待中",
+  "org.queue.state.blocked": "已阻止",
+  "org.queue.state.interrupted": "已中断",
+  "org.queue.state.completed": "已完成",
+  "org.queue.state.failed": "失败",
+  "org.queue.state.cancelled": "已取消",
+
   "org.assignment.engine": "本任务协调员的引擎",
   "org.assignment.override": "为协调员选择其他引擎",
   "org.assignment.hint": "适用于此新任务的协调员。协作者保留各自的引擎；权限和现有对话保留原配置。",

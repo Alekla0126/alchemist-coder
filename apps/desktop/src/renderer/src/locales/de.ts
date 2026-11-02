@@ -1,6 +1,27 @@
 import type { Messages } from '../i18n';
 
 export const de: Messages = {
+  "org.queue.title": "Persistente Ausführung und Ressourcen",
+  "org.queue.enable": "Diesen Auftrag in der persistenten Warteschlange speichern",
+  "org.queue.parallel": "Parallele Aufgaben",
+  "org.queue.attempts": "Maximale Versuche",
+  "org.queue.preauthorize": "Wartende Aufgaben dieses Auftrags automatisch fortsetzen",
+  "org.queue.hint": "Berechtigungen und Autopilot bleiben unverändert. Unterbrochene Ausführungen brauchen Bestätigung; unklare Ergebnisse werden nicht still wiederholt. VPS ist ohne konfigurierten kompatiblen Executor nicht verfügbar.",
+  "org.queue.import": "TAC-Projektvorlage importieren",
+  "org.queue.importHint": "Liest .alchemist/organization/manifest.json. Neue Agenten verwenden die gewählte Engine und das Projekt; bestehende Agenten behalten ihre Einstellungen.",
+  "org.queue.resume": "Prüfen und fortsetzen",
+  "org.queue.cancel": "Aufgabe abbrechen",
+  "org.queue.role": "Portable Rollen-ID (optional)",
+  "org.queue.executor": "Bevorzugter Executor",
+  "org.queue.state.queued": "Eingereiht",
+  "org.queue.state.running": "Läuft",
+  "org.queue.state.waiting": "Wartet",
+  "org.queue.state.blocked": "Blockiert",
+  "org.queue.state.interrupted": "Unterbrochen",
+  "org.queue.state.completed": "Abgeschlossen",
+  "org.queue.state.failed": "Fehlgeschlagen",
+  "org.queue.state.cancelled": "Abgebrochen",
+
   "org.assignment.engine": "Engine des Koordinators für diesen Auftrag",
   "org.assignment.override": "Andere Engine für den Koordinator wählen",
   "org.assignment.hint": "Gilt für den Koordinator dieses neuen Auftrags. Mitarbeitende behalten ihre eigenen Engines; Berechtigungen und bestehende Gespräche bleiben unverändert.",

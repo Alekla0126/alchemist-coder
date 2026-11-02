@@ -4,7 +4,7 @@ import { rosterOf } from './org-roster';
 import { openFolderAsProject, openNewProject } from './components/NewProject';
 import { create } from 'zustand';
 import type { AgentNode, AgentOption, FileDiff, PromptImage, SlashCommand, IndexProgress, PermissionChoice, PlanEntry, ProjectSummary, QuestionAnswer, SearchHit, SessionSummary, ToolState } from '@alchemist-coder/core';
-import type { AgentChoice, AgentReview, AppInfo, ArenaTask, AttachmentInput, AutomationState, BotConfig, BotTeam, Locale, Mode, OrgSettings, PlanUsage, RunnerCatalog, RunnerEventMessage, Settings, StartRunRequest } from '@shared/api';
+import type { OrgExecutionPolicy, AgentChoice, AgentReview, AppInfo, ArenaTask, AttachmentInput, AutomationState, BotConfig, BotTeam, Locale, Mode, OrgSettings, PlanUsage, RunnerCatalog, RunnerEventMessage, Settings, StartRunRequest } from '@shared/api';
 import { resolveLocale, translate, type MessageKey } from './i18n';
 import { moveComposerState } from './composer-state';
 import type { ConversationHandoff } from './conversation-handoff';
@@ -161,6 +161,8 @@ interface State {
   orgPage: 'work' | 'settings';
   /** The engine belongs to the unsent organization draft, across view/recipient changes. */
   orgAssignmentAgent: { coordinatorId: string; agent: AgentChoice } | null;
+  orgExecutionDraft: OrgExecutionPolicy | null;
+  orgRequestId: string | null;
   orgSettingsMemberId: string | null;
   officeTalkOpen: boolean;
   /** The project the organization view is filtered to ('' = all). */
@@ -352,6 +354,8 @@ export const useStore = create<State>((set, get) => ({
   orgSettings: null,
   orgPage: 'work',
   orgAssignmentAgent: null,
+  orgExecutionDraft: null,
+  orgRequestId: null,
   orgSettingsMemberId: null,
   officeTalkOpen: false,
   orgProject: '',

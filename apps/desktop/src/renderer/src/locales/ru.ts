@@ -1,6 +1,27 @@
 import type { Messages } from '../i18n';
 
 export const ru: Messages = {
+  "org.queue.title": "Постоянное выполнение и ресурсы",
+  "org.queue.enable": "Сохранить задание в постоянной очереди",
+  "org.queue.parallel": "Параллельные задачи",
+  "org.queue.attempts": "Максимум попыток",
+  "org.queue.preauthorize": "Автоматически возобновлять задачи этого задания в очереди",
+  "org.queue.hint": "Права и Autopilot не меняются. Прерванные запуски требуют подтверждения; неизвестный результат не повторяется молча. VPS недоступен без настроенного совместимого исполнителя.",
+  "org.queue.import": "Импортировать шаблон TAC проекта",
+  "org.queue.importHint": "Читает .alchemist/organization/manifest.json. Новые агенты используют выбранный движок и проект; настройки существующих сохраняются.",
+  "org.queue.resume": "Проверить и продолжить",
+  "org.queue.cancel": "Отменить задачу",
+  "org.queue.role": "ID переносимой роли (необязательно)",
+  "org.queue.executor": "Предпочтительный исполнитель",
+  "org.queue.state.queued": "В очереди",
+  "org.queue.state.running": "Выполняется",
+  "org.queue.state.waiting": "Ожидает",
+  "org.queue.state.blocked": "Заблокирована",
+  "org.queue.state.interrupted": "Прервана",
+  "org.queue.state.completed": "Завершена",
+  "org.queue.state.failed": "Ошибка",
+  "org.queue.state.cancelled": "Отменена",
+
   "org.assignment.engine": "Движок координатора для этого задания",
   "org.assignment.override": "Выбрать другой движок для координатора",
   "org.assignment.hint": "Применяется к координатору нового задания. Участники сохраняют свои движки; права и существующие беседы сохраняют настройки.",

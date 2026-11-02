@@ -1,6 +1,27 @@
 import type { Messages } from '../i18n';
 
 export const ptBR: Messages = {
+  "org.queue.title": "Execução persistente e recursos",
+  "org.queue.enable": "Guardar esta tarefa na fila persistente",
+  "org.queue.parallel": "Trabalhos paralelos",
+  "org.queue.attempts": "Máximo de tentativas",
+  "org.queue.preauthorize": "Retomar automaticamente as tarefas na fila desta missão",
+  "org.queue.hint": "Permissões e Autopilot são mantidos. Execuções interrompidas precisam de confirmação; resultados incertos não são repetidos silenciosamente. VPS indisponível até configurar um executor compatível.",
+  "org.queue.import": "Importar modelo TAC do projeto",
+  "org.queue.importHint": "Lê .alchemist/organization/manifest.json. Novos agentes usam o motor e projeto escolhidos; a equipe existente mantém suas configurações.",
+  "org.queue.resume": "Revisar e retomar",
+  "org.queue.cancel": "Cancelar tarefa",
+  "org.queue.role": "ID do papel portátil (opcional)",
+  "org.queue.executor": "Executor preferido",
+  "org.queue.state.queued": "Na fila",
+  "org.queue.state.running": "Executando",
+  "org.queue.state.waiting": "Aguardando",
+  "org.queue.state.blocked": "Bloqueada",
+  "org.queue.state.interrupted": "Interrompida",
+  "org.queue.state.completed": "Concluída",
+  "org.queue.state.failed": "Falhou",
+  "org.queue.state.cancelled": "Cancelada",
+
   "org.assignment.engine": "Motor do coordenador nesta tarefa",
   "org.assignment.override": "Escolher outro motor para o coordenador",
   "org.assignment.hint": "Aplica-se ao coordenador desta nova tarefa. Colaboradores mantêm seus próprios motores; permissões e conversas existentes mantêm a configuração.",

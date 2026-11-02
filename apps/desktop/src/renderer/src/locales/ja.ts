@@ -1,6 +1,27 @@
 import type { Messages } from '../i18n';
 
 export const ja: Messages = {
+  "org.queue.title": "永続実行とリソース",
+  "org.queue.enable": "この依頼を永続キューに保存",
+  "org.queue.parallel": "並列ジョブ数",
+  "org.queue.attempts": "最大試行回数",
+  "org.queue.preauthorize": "この依頼の待機中タスクを自動再開",
+  "org.queue.hint": "権限とAutopilotは維持されます。中断した実行は確認が必要です。結果が不明な処理を無断で再試行しません。対応する実行環境を設定するまでVPSは利用できません。",
+  "org.queue.import": "プロジェクトのTACテンプレートを読み込む",
+  "org.queue.importHint": ".alchemist/organization/manifest.jsonを読み込みます。新規エージェントは選択したエンジンとプロジェクトを使い、既存の設定は維持されます。",
+  "org.queue.resume": "確認して再開",
+  "org.queue.cancel": "タスクをキャンセル",
+  "org.queue.role": "移植可能なロールID（任意）",
+  "org.queue.executor": "優先実行環境",
+  "org.queue.state.queued": "キュー内",
+  "org.queue.state.running": "実行中",
+  "org.queue.state.waiting": "待機中",
+  "org.queue.state.blocked": "ブロック中",
+  "org.queue.state.interrupted": "中断",
+  "org.queue.state.completed": "完了",
+  "org.queue.state.failed": "失敗",
+  "org.queue.state.cancelled": "キャンセル済み",
+
   "org.assignment.engine": "このタスクのコーディネーターのエンジン",
   "org.assignment.override": "コーディネーターに別のエンジンを選ぶ",
   "org.assignment.hint": "この新規タスクのコーディネーターに適用します。共同作業者は各自のエンジンを維持し、権限と既存の会話の設定も維持されます。",

@@ -377,6 +377,10 @@ export function registerIpc(deps: IpcDeps): void {
     deps.bots.renewStaff(agent, cleanStarters(starters), typeof instructions === 'string' ? instructions.slice(0, 8000) : '', apply === true),
   );
   ipcMain.handle(Channels.deleteBotConfig, (_e, id: unknown) => deps.bots.deleteConfig(text(id, 'config id', 60)));
+  ipcMain.handle(Channels.portableOrg, (_e, cwd: unknown, agent: unknown, apply: unknown) => deps.bots.portableOrg(deps.workspace.projectFolder(cwd), agent as never, apply === true));
+  ipcMain.handle(Channels.orgQueue, () => deps.bots.queueSnapshot());
+  ipcMain.handle(Channels.resumeOrgJob, (_e, id: unknown) => deps.bots.resumeQueueJob(text(id, 'job id', 160)));
+  ipcMain.handle(Channels.cancelOrgJob, (_e, id: unknown) => deps.bots.cancelQueueJob(text(id, 'job id', 160)));
   ipcMain.handle(Channels.botTeams, () => deps.bots.listTeams());
   ipcMain.handle(Channels.startTeam, (_e, request: unknown) => deps.bots.startTeam(request));
   ipcMain.handle(Channels.startAgentTask, (_e, request: unknown) => {

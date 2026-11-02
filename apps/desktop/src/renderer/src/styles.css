@@ -2938,3 +2938,11 @@ body { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; 
 .org-assignment-engine-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; font-size: 12px; }
 .org-assignment-engine-head > span { color: var(--fg-2); overflow-wrap: anywhere; }
 .org-assignment-runtime > summary { cursor: pointer; font-size: 12px; color: var(--fg-2); }
+
+.org-execution { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font-size: 12px; }
+.org-execution > summary { cursor: pointer; }
+.org-execution-options { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 8px; }
+.org-execution-options input[type=number] { width: 52px; }
+.org-execution ul { list-style: none; padding: 0; display: grid; gap: 6px; }
+.org-execution li { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 10px; }
+.org-execution li small { color: var(--fg-2); }
