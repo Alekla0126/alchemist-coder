@@ -331,3 +331,9 @@ export function noAgentCause(catalog: RunnerCatalog | null): { kind: 'noCli' } |
   const said = usable.find((p) => !p.available && p.detail?.trim());
   return said ? { kind: 'detail', text: said.detail!.trim() } : null;
 }
+
+/** A full conversation belonging to an office agent stays on the bot's runtime and permissions. */
+export function officeSessionTeam(teams: BotTeam[], sessionId?: string | null): BotTeam | undefined {
+  if (!sessionId) return undefined;
+  return teams.find((team) => !team.origin && team.bots.some((bot) => bot.sessionId === sessionId));
+}

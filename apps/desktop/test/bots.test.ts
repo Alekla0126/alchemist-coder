@@ -729,6 +729,8 @@ it('starts separate Codex office agents with their saved model and permissions, 
     expect(first.id).not.toBe(second.id);
     expect(first.bots[0]).toMatchObject({ configId: codex.id, agent: { harnessId: 'codex', providerId: 'openai' }, permissionMode: 'plan', canSpawn: false });
     expect(fake.started).toHaveLength(2);
+    expect(fake.started[0]!.prompt).toContain('The user gave you this task directly in the office');
+    expect(fake.started[0]!.prompt).not.toContain('An automation gave you');
     expect(fake.started.every((r) => r.model === 'default' && r.permissionMode === 'plan')).toBe(true);
     fake.play(first.bots[0]!.runId!, 'Solar Cedar');
     await bots.message(first.id, first.bots[0]!.id, 'Repeat the name');

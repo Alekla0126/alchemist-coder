@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BotConfig, BotMember, BotTeam } from '../src/shared/api';
-import { agentsIn, filterOfficeProjects, channelOf, countsOf, departmentsOf, latestTeam, onFloor, projectOf, projectsOf, RECENT_MS } from '../src/renderer/src/org-office';
+import { agentsIn, officeSessionTeam, filterOfficeProjects, channelOf, countsOf, departmentsOf, latestTeam, onFloor, projectOf, projectsOf, RECENT_MS } from '../src/renderer/src/org-office';
 
 const agent = { harnessId: 'claude-code', providerId: 'anthropic', model: 'sonnet' };
 const config = (id: string, extra: Partial<BotConfig> = {}): BotConfig => ({ id, name: id, role: '', agent, permissionMode: 'acceptEdits', canSpawn: false, kind: 'member', ...extra });
@@ -210,4 +210,14 @@ describe('office navigation filters', () => {
     expect(filterOfficeProjects(floor, 'active', 'Tester')).toEqual([]);
     expect(filterOfficeProjects(floor, 'recent', 'nonexistent')).toEqual([]);
   });
+});
+
+
+it('keeps full office conversations linked to the original agent, including after a restart', () => {
+ const original = team('original', { bots: [lead({ sessionId: 'codex-office', runId: null, status: 'idle' })] });
+ const automation = team('automation', { bots: [lead({ sessionId: 'automatic' })], origin: { automationId: 'a' } as never });
+ expect(officeSessionTeam([original, automation], 'codex-office')).toBe(original);
+ expect(officeSessionTeam([original, automation], 'automatic')).toBeUndefined();
+ expect(officeSessionTeam([original], 'external')).toBeUndefined();
+ expect(officeSessionTeam([original], null)).toBeUndefined();
 });

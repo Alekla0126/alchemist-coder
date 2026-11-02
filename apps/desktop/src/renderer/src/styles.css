@@ -2913,3 +2913,7 @@ body { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; 
 .ofc-tools > input { background: var(--bg-input); color: var(--fg); border: 1px solid var(--line-2); border-radius: 8px; font-family: inherit; outline: 0; }
 .ofc-tools > input::placeholder { color: var(--fg-2); }
 .ofc-tools > input:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+
+.office-session-composer { flex: none; border-top: 1px solid var(--line); padding: 10px 18px 14px; background: var(--bg); }
+.office-session-composer > div { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.office-session-composer .of-write { margin: 0; }

@@ -1,3 +1,6 @@
+import { CardWrite } from './OrgLive';
+import { showOnChart } from '../actions/org';
+import { officeSessionTeam } from '../org-office';
 import { keys } from '../keys';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { SessionSummary, SlashCommand } from '@alchemist-coder/core';
@@ -75,7 +78,25 @@ const loadPrefs = (): Prefs => {
   }
 };
 
-export function Composer({ projectId, session }: { projectId: number; session?: SessionSummary | null }) {
+export function Composer(props: { projectId: number; session?: SessionSummary | null }) {
+  const t = useT();
+  const team = useStore((s) => officeSessionTeam(s.botTeams ?? [], props.session?.id));
+  const bot = team?.bots.find((b) => b.sessionId === props.session?.id);
+  useEffect(() => {
+    if (props.session && !useStore.getState().botTeams?.length) void useStore.getState().loadBots?.();
+  }, [props.session?.id]);
+  if (team && bot) return <section className="office-session-composer" aria-label={bot.name}>
+    <div><b>{bot.name}</b><span className="composer-sp" /><button className="btn-ghost small" onClick={() => {
+      useStore.getState().setMode('bots');
+      showOnChart();
+      useStore.setState({ orgOffice: true, officeTeamId: team.id });
+    }}>{t('org.office.back')} →</button></div>
+    <CardWrite key={`${team.id}:${bot.id}`} team={team} bot={bot} />
+  </section>;
+  return <ConversationComposer {...props} />;
+}
+
+function ConversationComposer({ projectId, session }: { projectId: number; session?: SessionSummary | null }) {
   const t = useT();
   const catalog = useStore((s) => s.catalog);
   // A catalog from last launch draws the pills, but warnings wait for real detection.

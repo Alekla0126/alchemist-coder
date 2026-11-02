@@ -362,9 +362,10 @@ async function copyUncommitted(root: string, dest: string): Promise<number> {
 }
 
 /** One organization agent doing a task by itself (an automation's step): no team, no bots to create. */
-function soloPrompt(config: BotConfig, task: string, orgName: string, orgInstructions: string, worktree: string | null, readOnly: boolean, brief?: OrgBrief): string {
+function soloPrompt(config: BotConfig, task: string, orgName: string, orgInstructions: string, worktree: string | null, readOnly: boolean, brief?: OrgBrief, automated = false): string {
   return [
-    `You are "${config.name}", an agent of the organization "${orgName}" in Alchemist Coder. An automation gave you this task; nobody is watching live, so work on it until it's done.`,
+    `You are "${config.name}", an agent of the organization "${orgName}" in Alchemist Coder.`,
+    automated ? "An automation gave you this task; nobody is watching live, so work on it until it's done." : "The user gave you this task directly in the office and can follow your activity and message you here.",
     config.role && `Your role: ${config.role}`,
     orgInstructions && `Organization instructions:\n${orgInstructions}`,
     brief?.lessons,
@@ -1110,7 +1111,7 @@ export class BotManager {
     // Not a git project: it works in the folder itself, asking first when told to.
     const workIn = input.ownWorktree && !input.readOnly ? await this.makeWorktree(team, bot).catch(() => cwd) : cwd;
     if (input.ownWorktree && !bot.worktree && input.noCopyPermission) bot.permissionMode = input.noCopyPermission;
-    this.launch(team, bot, soloPrompt(config, task, this.org.name, this.org.instructions, bot.worktree?.path ?? null, input.readOnly === true, this.brief(`${task} ${config.role}`)), workIn);
+    this.launch(team, bot, soloPrompt(config, task, this.org.name, this.org.instructions, bot.worktree?.path ?? null, input.readOnly === true, this.brief(`${task} ${config.role}`), !!input.origin), workIn);
     this.changed(team);
     return structuredClone(team);
   }
