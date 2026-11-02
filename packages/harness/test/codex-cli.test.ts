@@ -1,4 +1,4 @@
-import { chmodSync, mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, mkdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { afterAll, expect, it, vi } from 'vitest';
@@ -61,8 +61,14 @@ it('a missing catalog, a legacy invalid model and unsupported efforts block with
 });
 
 it.skipIf(process.platform !== 'win32')('validates an npm .cmd shim under a Windows path with spaces', async () => {
-  const folder = join(dir, 'Windows user with spaces'); mkdirSync(folder);
+  const folder = join(dir, 'Windows user with spaces~safe'); mkdirSync(folder);
   const path = join(folder, 'codex.cmd'); writeFileSync(path, '@echo off\r\necho codex-cli 0.166.0\r\n');
-  expect(await detectBinary(path)).toMatchObject({ installed: true, version: '0.166.0' });
+  expect(await detectBinary(path), `Version probe: ${path}`).toMatchObject({ installed: true, version: '0.166.0' });
   expect(await resolveCodexCli({ env: { CODEX_PATH: path } })).toMatchObject({ path: realpathSync(path), version: '0.166.0' });
+});
+
+it.skipIf(process.platform === 'win32')('probes an executable with literal tilde and spaces in its path', async () => {
+  const folder = join(dir, 'user~path with spaces'); mkdirSync(folder);
+  const path = join(folder, 'codex'); symlinkSync(process.execPath, path);
+  expect(await detectBinary(path)).toMatchObject({ installed: true, version: process.versions.node });
 });

@@ -22,7 +22,7 @@ export function binaryPath(bin: string, searchPath = process.env.PATH ?? ''): st
 /** Finds a CLI on PATH and reads its version (without a shell, except for Windows .cmd shims). */
 export function detectBinary(bin: string, env: NodeJS.ProcessEnv = process.env, signal?: AbortSignal): Promise<{ installed: boolean; version: string | null; path: string | null }> {
   return new Promise((resolve) => {
-    if (!/^[\w@.:/\\ -]+$/.test(bin)) return resolve({ installed: false, version: null, path: null });
+    if (!/^[\w@.:/\\ ~-]+$/.test(bin)) return resolve({ installed: false, version: null, path: null });
     // Only a validated, quoted path and the fixed version flag enter cmd.exe.
     const batch = isBatchShim(bin, env);
     const command = batch ? 'cmd.exe' : bin;
