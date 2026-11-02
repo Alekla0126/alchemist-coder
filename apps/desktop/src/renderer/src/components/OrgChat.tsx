@@ -4,7 +4,6 @@ import { relativeTime } from '../format';
 import { exchangesOf, teamState, YOU, type Exchange } from '../org-model';
 import { openAssignment } from '../actions/org';
 import { useStore, useT } from '../store';
-import { isDemo } from '../org-office';
 import { toast } from '../ui';
 import { appendSpoken } from '../voice';
 import { errorText } from './Bots';
@@ -66,7 +65,6 @@ export function OrgChat({ team }: { team: BotTeam | undefined }) {
   const send = async () => {
     const v = text.trim();
     if (!v || busy) return;
-    if (isDemo(team.id)) return void toast(t('org.office.demoNoSend'), undefined, 3000);
     setBusy(true);
     try {
       await messageBot(team.id, lead.id, v);

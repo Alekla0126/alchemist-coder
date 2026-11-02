@@ -11,13 +11,12 @@ import { AgentPicker, defaultChoice } from './AgentPicker';
 import { confirmDeleteTeam, doingText, errorText, teamActive, teamCost, teamState, TeamView } from './Bots';
 import { aboutOf, activityOf, inFolder, inProject, resultIn, type Focus, type Need } from '../org-model';
 import { AgentAvatar } from './AgentAvatar';
-import { addToTeam, approvePlan, askPlanChanges, changeAvatar, dismissMember, giveTask, keepMember, openAssignment, removeMember, renameMember, setLead, showOnChart } from '../actions/org';
+import { addToTeam, approvePlan, saveConfig, askPlanChanges, changeAvatar, dismissMember, giveTask, keepMember, openAssignment, removeMember, renameMember, setLead, showOnChart } from '../actions/org';
 import { OrgChart } from './OrgChart';
 import { LivePick, OrgLive } from './OrgLive';
 import { OrgComposer } from './OrgComposer';
 import { OrgMap } from './OrgMap';
 import { OrgOffice } from './OrgOffice';
-import { isDemo } from '../org-office';
 import { OrgChat } from './OrgChat';
 import { ROSTER, ROSTER_DEPARTMENTS, rosterOf, tierModels } from '../org-roster';
 import { AutomationList, AutomationView, NewAutomationDialog } from './Automations';
@@ -309,7 +308,7 @@ function AddAgentDialog({ leadId, onClose }: { leadId: string | null; onClose: (
   const save = async () => {
     if (!draft.agent) return;
     try {
-      const saved = await window.alchemist.saveBotConfig({ ...draft, agent: draft.agent, kind: 'member', leadId });
+      const saved = await saveConfig({ ...draft, agent: draft.agent, kind: 'member', leadId });
       await useStore.getState().loadBots();
       useStore.setState({ activeMemberId: saved.id, activeTeamId: null, activeBotId: null });
       toast(leadName ? t('org.joinedTeam', { name: saved.name, lead: leadName }) : t('org.joined', { name: saved.name }), undefined, 3000);
@@ -1029,10 +1028,8 @@ function MapEditor({ member }: { member: BotConfig }) {
   useEffect(() => () => clearTimeout(savedTimer.current ?? undefined), []);
   const save = async () => {
     if (!draft.agent) return;
-    // The example office's agents (screenshots) are in the window only.
-    if (isDemo(member.id)) return void toast(t('org.office.demoNoSave'), undefined, 3000);
     try {
-      await window.alchemist.saveBotConfig({ ...member, ...draft, agent: draft.agent });
+      await saveConfig({ ...member, ...draft, agent: draft.agent });
       clear();
       await useStore.getState().loadBots();
       toast(t('org.saved'), undefined, 2500);
@@ -1134,7 +1131,7 @@ function MemberPanel({ member }: { member: BotConfig }) {
   const save = async (extra: Partial<BotConfig> = {}, message = t('org.saved')) => {
     if (!draft.agent) return;
     try {
-      await window.alchemist.saveBotConfig({ ...member, ...draft, agent: draft.agent, ...extra });
+      await saveConfig({ ...member, ...draft, agent: draft.agent, ...extra });
       clear();
       await useStore.getState().loadBots();
       toast(message, undefined, 2500);

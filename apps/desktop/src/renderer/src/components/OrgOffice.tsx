@@ -5,9 +5,9 @@ import { relativeTime } from '../format';
 import { useLayout } from '../layout';
 import { baseName, isInside } from '../paths';
 import { aboutOf, inFolder, teamState } from '../org-model';
-import { channelOf, countsOf, isDemo, waitingBot, departmentsOf, latestTeam, projectsOf, type Department, type OfficeAgent, type OfficeMember, type OfficeProject, type OfficeState } from '../org-office';
+import { channelOf, countsOf, waitingBot, departmentsOf, latestTeam, projectsOf, type Department, type OfficeAgent, type OfficeMember, type OfficeProject, type OfficeState } from '../org-office';
 import { useOpenProjects, useStore, useT } from '../store';
-import { confirmAction, toast, useUi } from '../ui';
+import { confirmAction, useUi } from '../ui';
 import { AgentAvatar } from './AgentAvatar';
 import { defaultChoice } from './AgentPicker';
 import { doingText } from './Bots';
@@ -186,10 +186,10 @@ function Sheet({ member, floor, editor, onWrite, onClose }: { member: BotConfig;
           <div className="org-proposed">
             <span>{t('org.proposedHint')}</span>
             <span className="composer-sp" />
-            <button className="btn-ghost small" onClick={() => (isDemo(member.id) ? toast(t('org.office.demoNoSave'), undefined, 3000) : (onClose(), void dismissMember(member)))}>
+            <button className="btn-ghost small" onClick={() => (onClose(), void dismissMember(member))}>
               {t('org.dismiss')}
             </button>
-            <button className="btn-send" onClick={() => (isDemo(member.id) ? toast(t('org.office.demoNoSave'), undefined, 3000) : void keepMember(member))}>
+            <button className="btn-send" onClick={() => void keepMember(member)}>
               {t('org.keep')}
             </button>
           </div>

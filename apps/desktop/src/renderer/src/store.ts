@@ -1,4 +1,4 @@
-import { demoConfigs, demoTeams } from './org-office';
+import { demoConfigs, demoTeams, isDemo } from './org-office';
 import { rosterOf } from './org-roster';
 import { openFolderAsProject, openNewProject } from './components/NewProject';
 import { create } from 'zustand';
@@ -853,6 +853,8 @@ export const useStore = create<State>((set, get) => ({
   },
 
   async messageBot(teamId, botId, text) {
+    // The example office's assignments (screenshots) have no one to hear it: the caller shows why.
+    if (isDemo(teamId)) throw new Error(translate(get().locale, 'org.office.demoNoSend'));
     await api.messageBot(teamId, botId, text);
     const runId = get().botTeams.find((t) => t.id === teamId)?.bots.find((b) => b.id === botId)?.runId;
     if (runId) patchRun(runId, (r) => ({ ...r, status: 'running', turns: startTurn(r.turns, text) }));
