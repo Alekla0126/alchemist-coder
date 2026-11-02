@@ -7,7 +7,7 @@ import { baseName, isInside } from '../paths';
 import { aboutOf, inFolder, teamState } from '../org-model';
 import { channelOf, countsOf, isDemo, waitingBot, departmentsOf, latestTeam, projectsOf, type Department, type OfficeAgent, type OfficeMember, type OfficeProject, type OfficeState } from '../org-office';
 import { useOpenProjects, useStore, useT } from '../store';
-import { confirmAction, toast } from '../ui';
+import { confirmAction, toast, useUi } from '../ui';
 import { AgentAvatar } from './AgentAvatar';
 import { defaultChoice } from './AgentPicker';
 import { doingText } from './Bots';
@@ -133,30 +133,46 @@ function Sheet({ member, floor, editor, onWrite, onClose }: { member: BotConfig;
   const t = useT();
   const box = useRef<HTMLElement>(null);
   useEffect(() => box.current?.focus(), [member.id]);
-  // Escape closes it from inside it (a menu or a picker that used the key keeps it); Tab stays in it.
-  const onKey = (e: React.KeyboardEvent<HTMLElement>) => {
-    if (e.key === 'Escape' && !e.defaultPrevented) {
-      e.preventDefault();
-      onClose();
-      return;
-    }
-    if (e.key !== 'Tab') return;
-    const all = [...(box.current?.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, summary, [tabindex]:not([tabindex="-1"])') ?? [])].filter((x) => !x.hasAttribute('disabled') && x.offsetParent !== null);
-    const [first, last] = [all[0], all[all.length - 1]];
-    if (!first || !last) return;
-    if (e.shiftKey && (document.activeElement === first || document.activeElement === box.current)) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
-    }
-  };
+  const close = useRef(onClose);
+  close.current = onClose;
+  // While it's open, from wherever the focus is (inside it, or nowhere after a dialog): Escape leaves a
+  // field first and closes on the next press; Tab goes round inside it. A key something else already
+  // used (a menu, a picker, the confirmation in front) is left alone.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const sheet = box.current;
+      const at = document.activeElement as HTMLElement | null;
+      const mine = !at || at === document.body || !!sheet?.contains(at);
+      if (e.defaultPrevented || !sheet || !mine || useUi.getState().dialog) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        if (at && at !== sheet && /^(INPUT|TEXTAREA|SELECT)$/.test(at.tagName)) {
+          at.blur();
+          sheet.focus();
+        } else close.current();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const all = [...sheet.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, summary, [tabindex]:not([tabindex="-1"])')].filter((x) => !x.hasAttribute('disabled') && x.offsetParent !== null);
+      const [first, last] = [all[0], all[all.length - 1]];
+      if (!first || !last) return;
+      const outside = !at || !sheet.contains(at) || at === sheet;
+      if (e.shiftKey && (outside || at === first)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (outside || at === last)) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
   const mine = floor.filter((a) => a.configId === member.id);
   // Its state says the same as "Now" below: the most telling of its parts on the floor, else available.
   const head = (['waiting', 'working', 'failed', 'done'] as const).find((x) => mine.some((a) => a.state === x));
   return (
-    <aside className="ofc-sheet" role="dialog" aria-modal="true" aria-label={t('org.office.settingsOf', { name: member.name })} tabIndex={-1} ref={box} onKeyDown={onKey}>
+    <aside className="ofc-sheet" role="dialog" aria-label={t('org.office.settingsOf', { name: member.name })} tabIndex={-1} ref={box}>
       <header className="ofc-sheet-head">
         <AgentAvatar name={member.name} avatar={member.avatar} size={30} />
         <b>{member.name}</b>
@@ -333,7 +349,12 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
     const draft = id ? useStore.getState().orgDrafts[id] : undefined;
     if (!id || !draft) return true;
     const name = configs.find((c) => c.id === id)?.name ?? '';
-    if (!(await confirmAction({ title: t('org.office.discardTitle', { name }), message: t('org.office.discardHint'), confirmLabel: t('org.office.discard'), cancelLabel: t('org.office.keepEditing'), danger: true }))) return false;
+    const before = document.activeElement as HTMLElement | null;
+    if (!(await confirmAction({ title: t('org.office.discardTitle', { name }), message: t('org.office.discardHint'), confirmLabel: t('org.office.discard'), cancelLabel: t('org.office.keepEditing'), danger: true }))) {
+      // Back where you were editing (or on the sheet), not on the page with nowhere to type.
+      (before?.isConnected && before !== document.body ? before : document.querySelector<HTMLElement>('.ofc-sheet'))?.focus();
+      return false;
+    }
     useStore.setState((st) => {
       const drafts = { ...st.orgDrafts };
       delete drafts[id];
@@ -343,8 +364,14 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
   };
   const openSheet = async (member: BotConfig, from: HTMLElement | null) => {
     if (!(await leave())) return;
+    // A second click on the same agent closes it, the focus staying on what you clicked.
+    if (sheet === member.id) {
+      setSheet(null);
+      from?.focus();
+      return;
+    }
     opener.current = from;
-    setSheet((s) => (s === member.id ? null : member.id));
+    setSheet(member.id);
   };
   const closeSheet = async () => {
     if (!(await leave())) return;
