@@ -13,7 +13,7 @@ export function roleContext(cwd: string, roleId: string | undefined): string {
   return `\nPortable role context (${roleId}.md):\n${text.slice(0, 6000)}`;
 }
 
-export interface PortableRole { id: string; name: string; role: string; lead?: string; permissionMode: 'plan' | 'default' | 'acceptEdits'; canSpawn?: boolean; executorId?: 'local' | 'vps' }
+export interface PortableRole { id: string; name: string; role: string; configId?: string; lead?: string; permissionMode: 'plan' | 'default' | 'acceptEdits'; canSpawn?: boolean; executorId?: 'local' | 'vps' }
 export interface PortableTemplate { version: 1; id: string; roles: PortableRole[] }
 /** Preview/import uses the same project boundary and bounded role files as execution. */
 export function portableTemplate(cwd: string): PortableTemplate {
@@ -26,6 +26,7 @@ export function portableTemplate(cwd: string): PortableTemplate {
   for (const r of raw.roles) {
     if (!r || typeof r.id !== 'string' || !/^[a-z][a-z0-9-]{0,39}$/.test(r.id) || ids.has(r.id) || typeof r.name !== 'string' || !r.name.trim() || r.name.length > 60 || typeof r.role !== 'string' || r.role.length > 1000 || !['plan','default','acceptEdits'].includes(r.permissionMode) || (r.executorId !== undefined && !['local','vps'].includes(r.executorId))) throw new Error('Invalid portable organization role');
     ids.add(r.id); roleContext(cwd, r.id);
+    if (r.configId !== undefined && (typeof r.configId !== 'string' || !/^[\w-]{1,100}$/.test(r.configId))) throw new Error('Invalid existing profile ID');
   }
   if (!ids.has('coordinator')) throw new Error('The portable template needs a coordinator');
   for (const r of raw.roles) if (r.lead && (!ids.has(r.lead) || r.lead === r.id || raw.roles.find(p => p.id === r.lead)?.lead)) throw new Error('Portable departments may be one level deep');

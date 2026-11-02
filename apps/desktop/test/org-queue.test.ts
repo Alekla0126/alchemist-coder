@@ -107,11 +107,10 @@ it('reconciles a durable queue counter when a simulated crash left the teams che
  const saved=JSON.parse(readFileSync(f.files.teams,'utf8'));saved[0].bots[0].queueTurn=0;writeFileSync(f.files.teams,JSON.stringify(saved));
  const r=f.make();r.message(t.id,'b1','Reviewed new follow-up');expect(r.queueSnapshot().jobs.at(-1)?.id).toMatch(/:2$/);expect(f.calls).toHaveLength(2);r.stopAll();
 });
-it('imports a project-scoped TAC template idempotently without changing the saved coordinator or existing model choices',()=>{
+it('does not create new profiles when a generic TAC template has no existing identity matches',()=>{
  const f=botFixture();cpSync(resolve(__dirname,'../../../templates/tac/.alchemist'),join(f.root,'.alchemist'),{recursive:true});const agent={harnessId:'codex',providerId:'openai',model:'fixture-codex',effort:'low'};
- const before=f.bots.listConfigs();expect(f.bots.portableOrg(f.root,agent,false).names).toHaveLength(16);expect(f.bots.listConfigs()).toEqual(before);f.bots.portableOrg(f.root,agent,true);
- const first=f.bots.listConfigs();expect(first.find(c=>c.id===f.ceo.id)).toEqual(f.ceo);const coder=first.find(c=>c.contextRole==='coder')!;expect(coder).toMatchObject({agent,permissionMode:'plan',projects:[f.root]});expect(coder.leadId).toBeTruthy();
- f.bots.saveConfig({...coder,agent:{harnessId:'gemini',providerId:'other',model:'fixture-other'}});f.bots.portableOrg(f.root,agent,true);expect(f.bots.listConfigs()).toHaveLength(first.length);expect(f.bots.listConfigs().find(c=>c.id===coder.id)?.agent.model).toBe('fixture-other');f.bots.stopAll();
+ const before=f.bots.listConfigs(),preview=f.bots.portableOrg(f.root,agent,false);expect(preview.names).toHaveLength(17);expect(preview.entries.find(e=>e.roleId==='coordinator')?.configId).toBe(f.ceo.id);expect(f.bots.listConfigs()).toEqual(before);
+ expect(()=>f.bots.portableOrg(f.root,agent,true,preview.revision)).toThrow(/Select an existing/);expect(f.bots.listConfigs()).toEqual(before);expect(f.bots.portableOrgState(f.root).roles).toEqual({});f.bots.stopAll();
 });
 it('a late event from a replaced run cannot overwrite the new job or checkpoint',()=>{
  const f=botFixture();const t=f.bots.startTeam({goal:'Fixture',cwd:f.root,configId:f.ceo.id,durable:{maxParallel:2,maxAttempts:2,resumePreauthorized:true}});const old=String(f.calls[0]!.runId);f.emit(old,{type:'started',sessionId:'session-fixture-root'});f.bots.stop(t.id);f.bots.message(t.id,'b1','Reviewed new intent');expect(f.calls).toHaveLength(2);const job=f.bots.queueSnapshot().jobs.at(-1)!.id;f.emit(old,{type:'started',sessionId:'wrong-late-session'});f.emit(old,{type:'status',status:'interrupted'});expect(f.bots.queueSnapshot().jobs.find(j=>j.id===job)?.state).toBe('running');expect(f.bots.listTeams()[0]?.bots[0]?.sessionId).toBe('session-fixture-root');f.bots.stopAll();

@@ -449,6 +449,10 @@ export interface BotConfig {
   avatar?: string | null;
 }
 
+export interface PortableOrgEntry { roleId: string; name: string; state: 'ready' | 'missing' | 'ambiguous' | 'out_of_scope'; configId?: string; configName?: string }
+export interface PortableOrgState { roles: Record<string, string>; revision: string; rollbackId?: string }
+export interface PortableOrgPreview { names: string[]; entries: PortableOrgEntry[]; applied: boolean; revision: string; state: PortableOrgState }
+
 /**
  * One agent of a staff template (the house one is The Alchemist Code's, in org-roster.ts), in the
  * app's language. `lead`: the key of the agent whose team it's on; none, it reports to the coordinator.
@@ -1290,7 +1294,9 @@ export interface AlchemistApi {
   ensureOrg(agent: AgentChoice, starters: Record<string, StarterAgent>): Promise<BotConfig[]>;
   /** Brings the organization to a staff template: adds who's missing, sets teams, models and permissions, drops copies. `apply: false` only says what it would do. */
   renewStaff(agent: AgentChoice, starters: Record<string, StarterAgent>, instructions: string, apply: boolean): Promise<RosterChange>;
-  portableOrg(cwd: string, agent: AgentChoice, apply: boolean): Promise<{ names: string[]; applied: boolean }>;
+  portableOrg(cwd: string, agent: AgentChoice, apply: boolean, revision?: string): Promise<PortableOrgPreview>;
+  portableOrgState(cwd: string): Promise<PortableOrgState>;
+  rollbackPortableOrg(cwd: string, changeId: string, revision: string): Promise<PortableOrgState>;
   orgQueue(): Promise<OrgQueueSnapshot>;
   resumeOrgJob(jobId: string): Promise<void>;
   cancelOrgJob(jobId: string): Promise<void>;
@@ -1491,6 +1497,8 @@ export const Channels = {
   ensureOrg: 'bots:ensureOrg',
   renewStaff: 'bots:renewStaff',
   portableOrg: 'org:portable',
+  portableOrgState: 'org:portable-state',
+  rollbackPortableOrg: 'org:portable-rollback',
   orgQueue: 'org:queue',
   resumeOrgJob: 'org:queue:resume',
   cancelOrgJob: 'org:queue:cancel',

@@ -8,6 +8,7 @@ import { ABOUT_MAX, type AgentChoice, type BotConfig, type RosterChange, type St
 import type { RunnerManager } from './runner';
 import { OrgQueue, type OrgJobPayload } from './org-queue';
 import { portableTemplate, roleContext } from './org-context';
+import { bindingApplies, bindingDigest, canonicalProject, OrgBindings, previewBindings } from './org-bindings';
 
 /** Coordinator (0), the bots it creates (1), and theirs (2). */
 export const MAX_DEPTH = 2;
@@ -465,6 +466,7 @@ function starterConfig(key: string, s: StarterAgent, agent: AgentChoice): Partia
 }
 
 export class BotManager {
+  private readonly bindings: OrgBindings;
   private configs: BotConfig[] = [];
   private teams: BotTeam[] = [];
   private org: OrgSettings = { name: 'My organization', instructions: '', autopilot: false, lessons: [] };
@@ -504,7 +506,7 @@ export class BotManager {
   private saveTimer: NodeJS.Timeout | null = null;
 
   constructor(
-    private readonly files: { configs: string; teams: string; org?: string; queue?: string },
+    private readonly files: { configs: string; teams: string; org?: string; queue?: string; bindings?: string },
     private readonly runner: RunnerManager,
     private readonly bridge: { command: string; script: string },
     private readonly resolveProject: (cwd: unknown) => string,
@@ -516,6 +518,7 @@ export class BotManager {
   ) {
     this.pilot = pilotFor?.(() => this.decidesAlone());
     this.configs = this.read<BotConfig[]>(files.configs) ?? [];
+    this.bindings = new OrgBindings(files.bindings ?? join(dirname(files.configs), 'org-bindings.json'));
     try {
       const o = JSON.parse(readFileSync(this.orgFile, 'utf8')) as Partial<OrgSettings>;
       this.org = { name: str(o.name, 80) || this.org.name, instructions: str(o.instructions), autopilot: o.autopilot === true, lessons: lessonsOf(o.lessons), ...(o.groups === undefined ? {} : { groups: groupsOf(o.groups) }) };
@@ -623,20 +626,33 @@ export class BotManager {
 
   // ---------- configurations ----------
 
-  portableOrg(cwdInput: unknown, agent: AgentChoice, apply: boolean) {
-    const cwd = this.resolveProject(cwdInput), template = portableTemplate(cwd);
-    const roles = template.roles.filter(r => r.id !== 'coordinator');
-    if (!agent?.harnessId || !agent.providerId || !agent.model) throw new Error('Choose the template agents runtime first');
-    if (!apply) return { names: roles.map(r => r.name), applied: false };
-    // Existing staff keep their engines and permissions. Imported staff are scoped to this project.
-    const mapped = new Map<string, BotConfig>();
-    for (const role of [...roles.filter(r => !r.lead), ...roles.filter(r => r.lead)]) {
-      const existing = this.configs.find(c => c.contextRole === role.id && c.projects?.includes(cwd));
-      const lead = role.lead ? mapped.get(role.lead) : undefined;
-      const config = this.saveConfig(existing ?? { name: role.name, role: role.role, contextRole: role.id, executorId: role.executorId ?? 'local', agent, permissionMode: role.permissionMode, canSpawn: role.canSpawn === true, kind: 'member', projects: [cwd], leadId: lead?.id });
-      mapped.set(role.id, config);
-    }
-    return { names: roles.map(r => r.name), applied: true };
+  portableOrgState(cwdInput: unknown) { return this.bindings.state(this.resolveProject(cwdInput)); }
+
+  private assertBindingsIdle(cwd: string) {
+    const queue = this.queue.snapshot();
+    if (queue.error) throw new Error('Organization queue state is unknown; review before linking contexts');
+    if (this.teams.some(t => canonicalProject(t.cwd) === cwd && (t.bots.some(b => ACTIVE_STATUSES.includes(b.status)) || (!t.finished && !t.stoppedReason && t.plan?.status === 'pending') || queue.jobs.some(j => j.teamId === t.id && !['completed', 'cancelled'].includes(j.state))))) throw new Error('Finish or cancel pending organization work in this project before linking or rolling back contexts');
+  }
+
+  portableOrg(cwdInput: unknown, _agent: AgentChoice, apply: boolean, expectedRevision?: string) {
+    const cwd = canonicalProject(this.resolveProject(cwdInput)), template = portableTemplate(cwd), state = this.bindings.state(cwd);
+    // Another open copy or exporter must not silently replace the profiles this window reviewed.
+    if (existsSync(this.files.configs) && bindingDigest(JSON.parse(readFileSync(this.files.configs, 'utf8'))) !== bindingDigest(this.configs)) throw new Error('Saved profiles changed outside this window; refresh the organization before linking contexts');
+    const entries = previewBindings(template, this.configs, cwd, state.roles);
+    const revision = bindingDigest({ template, context: template.roles.map(r => roleContext(cwd, r.id)), configs: this.configs, state: state.revision });
+    const preview = { names: entries.map(e => `${e.name} → ${e.configName ?? e.state}${e.configId ? ` (${e.configId})` : ''}`), entries, revision, state, applied: false };
+    if (!apply) return preview;
+    this.assertBindingsIdle(cwd);
+    if (!expectedRevision || expectedRevision !== revision) throw new Error('Profiles, template or contexts changed; preview again before applying');
+    if (entries.some(e => e.state !== 'ready')) throw new Error('Select an existing in-scope configId for every missing or ambiguous role; no profiles were created');
+    const next = this.bindings.apply(cwd, Object.fromEntries(entries.map(e => [e.roleId, e.configId!])), state.revision);
+    return { ...preview, state: next, applied: true };
+  }
+
+  rollbackPortableOrg(cwdInput: unknown, changeId: string, revision: string) {
+    const cwd = canonicalProject(this.resolveProject(cwdInput));
+    this.assertBindingsIdle(cwd);
+    return this.bindings.rollback(cwd, changeId, revision);
   }
 
   queueSnapshot() { return this.queue.snapshot(); }
@@ -744,7 +760,7 @@ export class BotManager {
 
   /** Whether an agent works in the project at `cwd` (no projects = all of them). */
   private inProject(c: BotConfig, cwd: string) {
-    const contains = (root: string, path: string) => { const rel = relative(root, path); return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel)); };
+    const contains = (root: string, path: string) => { const rel = relative(canonicalProject(root), canonicalProject(path)); return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel)); };
     return !c.projects?.length || c.projects.some(p => contains(p, cwd) || contains(cwd, p));
   }
 
@@ -1325,8 +1341,15 @@ export class BotManager {
     this.releaseBotRun(team, bot);
     if (bot.executorId === 'vps') { bot.status = 'error'; bot.error = bot.lastReply = 'executor_unavailable: no VPS executor is connected'; return; }
     if (!resumeSessionId) {
-      const context = bot.contextRole ?? (bot.depth === 0 && bot.canSpawn && existsSync(join(team.cwd, '.alchemist', 'organization', 'manifest.json')) ? 'coordinator' : undefined);
-      prompt += roleContext(cwd, context);
+      const links = this.bindings.state(team.cwd).roles;
+      const linked = Object.entries(links).find(([, id]) => id === bot.configId)?.[0];
+      if (linked) {
+        const config = this.configs.find(c => c.id === bot.configId);
+        if (!config || !bindingApplies(config, team.cwd) || (linked === 'coordinator') !== (config.kind === 'coordinator')) throw new Error('The linked organization profile is missing or outside this project');
+      }
+      const context = linked ?? bot.contextRole ?? (bot.depth === 0 && bot.canSpawn && existsSync(join(team.cwd, '.alchemist', 'organization', 'manifest.json')) ? 'coordinator' : undefined);
+      if (context && Object.hasOwn(links, context) && links[context] !== bot.configId) throw new Error('Portable role is linked to a different profile in this project; review the context link');
+      prompt += roleContext(linked ? team.cwd : cwd, context);
     }
     const mcpServers: SessionMcpServer[] = [];
     if (bot.canSpawn && bot.depth < MAX_DEPTH && this.port) {
