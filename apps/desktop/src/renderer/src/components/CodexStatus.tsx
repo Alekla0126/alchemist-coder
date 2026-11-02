@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { AgentChoice } from '@shared/api';
 import { useStore, useT } from '../store';
 import { errorText } from './Bots';
@@ -11,12 +11,14 @@ export function CodexStatus({ agent }: { agent: AgentChoice }) {
   const provider = useStore((s) => s.catalog?.providers.find((p) => p.id === agent.providerId));
   const runtime = provider?.codexRuntime;
   const [busy, setBusy] = useState(false);
+  const refreshing = useRef(false);
   const refresh = async () => {
-    if (busy) return;
+    if (refreshing.current) return;
+    refreshing.current = true;
     setBusy(true);
-    try { useStore.setState({ catalog: await window.alchemist.runnerCatalog() }); }
+    try { await useStore.getState().loadCatalog(); }
     catch (e) { toast(errorText(e)); }
-    finally { setBusy(false); }
+    finally { refreshing.current = false; setBusy(false); }
   };
   // Older cached catalogs have no runtime snapshot. Ask once when this provider is opened,
   // so saved models remain usable after upgrading/restarting without a manual refresh.
