@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { BotConfig, BotTeam } from '@shared/api';
 import { dismissMember, keepMember, openAssignment } from '../actions/org';
 import { relativeTime } from '../format';
-import { useLayout } from '../layout';
+import { useLayout, useViewport } from '../layout';
 import { baseName, isInside } from '../paths';
 import { aboutOf, inFolder, teamState } from '../org-model';
 import { channelOf, countsOf, waitingBot, departmentsOf, latestTeam, projectsOf, type Department, type OfficeAgent, type OfficeMember, type OfficeProject, type OfficeState } from '../org-office';
@@ -395,6 +395,9 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
   const automations = useStore((s) => (orgProject ? s.automations.filter((x) => isInside(x.automation.cwd, orgProject)) : s.automations).length);
   const showAutomations = () => {
     useStore.setState({ orgOffice: false, orgLive: false, orgMap: false });
+    // The column they're in has to show: the floating sidebar on a narrow window, the folded one unfolded.
+    if (useViewport.getState().narrow) useViewport.setState({ drawer: true });
+    else if (useLayout.getState().sideHidden) useLayout.setState({ sideHidden: false });
     requestAnimationFrame(() => document.getElementById('org-automations')?.scrollIntoView({ block: 'start' }));
   };
   return (
