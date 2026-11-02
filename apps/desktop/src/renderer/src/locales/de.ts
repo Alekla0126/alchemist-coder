@@ -1,6 +1,20 @@
 import type { Messages } from '../i18n';
 
 export const de: Messages = {
+  "org.codex.inheritEffort": "Laufzeitkonfiguration übernehmen",
+  "org.codex.title": "Codex-Laufzeit",
+  "org.codex.connected": "Katalog verbunden; Modellzugriff wird bei Ausführung geprüft",
+  "org.codex.unavailable": "Nicht verfügbar",
+  "org.codex.accountUnknown": "Konto unbekannt",
+  "org.codex.quotaUnknown": "Kontingent unbekannt: Codex hat es nicht gemeldet.",
+  "org.codex.used": "{percent}% genutzt",
+  "org.codex.window": "Fenster: {minutes} Min.",
+  "org.codex.hint": "Pro Agent gespeichert. Kurzer Kontext je Aufgabe; Ergebnisse vor Abschluss prüfen. Der Katalog bestätigt keinen Kontozugriff.",
+  "org.codex.permissions.default": "Nur-Lese-Sandbox; Codex fragt vor einer Eskalation. Autopilot behält die Sandbox bei.",
+  "org.codex.permissions.acceptEdits": "Schreibzugriff im Projekt; Anfragen folgen Ihren Genehmigungsregeln.",
+  "org.codex.permissions.plan": "Planung mit Lesezugriff; Dateiänderungen werden blockiert.",
+  "org.codex.permissions.bypassPermissions": "Vollzugriff deaktiviert die Codex-Sandbox. Bewusst wählen; Autopilot erfordert dies nicht.",
+
   'mode.agents': 'Agenten',
   'mode.arena': 'Arena',
   'mode.bots': 'Organisation',

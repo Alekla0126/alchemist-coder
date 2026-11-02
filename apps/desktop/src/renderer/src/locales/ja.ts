@@ -1,6 +1,20 @@
 import type { Messages } from '../i18n';
 
 export const ja: Messages = {
+  "org.codex.inheritEffort": "ランタイムの設定を継承",
+  "org.codex.title": "Codex ランタイム",
+  "org.codex.connected": "カタログ接続済み。モデルへのアクセスは実行時に確認します",
+  "org.codex.unavailable": "利用不可",
+  "org.codex.accountUnknown": "アカウント不明",
+  "org.codex.quotaUnknown": "使用枠は不明です。Codex から報告されていません。",
+  "org.codex.used": "{percent}% 使用",
+  "org.codex.window": "期間：{minutes} 分",
+  "org.codex.hint": "エージェントごとに保存します。タスクには短いコンテキストを渡し、完了前に結果を検証してください。カタログは利用権限を保証しません。",
+  "org.codex.permissions.default": "読み取り専用サンドボックス。権限昇格には確認が必要です。Autopilot でも維持します。",
+  "org.codex.permissions.acceptEdits": "プロジェクト内に書き込み可能。承認ルールは維持されます。",
+  "org.codex.permissions.plan": "読み取り専用の計画。ファイル変更をブロックします。",
+  "org.codex.permissions.bypassPermissions": "フルアクセスは Codex サンドボックスを無効化します。明示的に選択してください。Autopilot には不要です。",
+
   'mode.agents': 'エージェント',
   'mode.arena': 'アリーナ',
   'mode.bots': '組織',

@@ -3,8 +3,8 @@ import { cliStatus } from './cli-status';
 import { installStep } from './install';
 import { cliSearchPath } from './shell-path';
 import { storeMcpServers } from './store-tools';
-import { detectBinary, stageData, stageFile } from '@alchemist-coder/harness';
-import { isLocalEndpoint, type Autopilot, type ExtensionRegistry, type PromptFile, type QuestionAnswer, type RunHandle, type RunnerEvent, type SessionMcpServer, validImages } from '@alchemist-coder/core';
+import { detectBinary, readCodexRuntime, stageData, stageFile } from '@alchemist-coder/harness';
+import { isLocalEndpoint, type Autopilot, type CodexRuntimeSnapshot, type ExtensionRegistry, type PromptFile, type QuestionAnswer, type RunHandle, type RunnerEvent, type SessionMcpServer, validImages } from '@alchemist-coder/core';
 import type { PermissionMode, RunnerCatalog, RunnerEventMessage, StartRunRequest } from '../shared/api';
 
 const PERMISSION_MODES: PermissionMode[] = ['default', 'acceptEdits', 'plan', 'bypassPermissions'];
@@ -84,12 +84,16 @@ export class RunnerManager {
     const harnesses = found.map((h) => ({ ...h, install: installStep(h.id, { installed: h.installed, hasNpx, hasBrew, platform: process.platform }) }));
     const providers = await Promise.all(
       [...this.registry.providers.values()].map(async (p) => {
-        const status = p.status ? await p.status() : { available: true };
-        const models = status.available ? await p.models().catch(() => []) : [];
+        let status = p.status ? await p.status() : { available: true };
+        // Only enrich the existing account provider; licensing remains the extension's decision.
+        const codexRuntime = p.id === 'openai' && p.harnesses.includes('codex')
+          ? await p.env('default', 'codex').then((env) => readCodexRuntime({ env })).catch((): CodexRuntimeSnapshot => ({ connected: false, error: 'Could not read the configured Codex provider. Reconnect it and refresh models.', models: [], account: null, accountError: null, limits: null, limitsError: null, checkedAt: Date.now() })) : undefined;
+        if (codexRuntime && (!codexRuntime.connected || (!codexRuntime.account && !codexRuntime.usesApiKey))) status = { available: false, detail: codexRuntime.error ?? codexRuntime.accountError ?? 'Sign in to the installed Codex CLI.' };
+        const models = codexRuntime ? codexRuntime.models : status.available ? await p.models().catch(() => []) : [];
         const credential = p.credential
           ? { label: p.credential.label, placeholder: p.credential.placeholder ?? null, isSet: await this.registry.secrets.has(p.credential.key), optional: p.credential.optional === true }
           : null;
-        return { id: p.id, label: p.label, edition: p.edition, harnesses: p.harnesses, available: status.available, detail: status.detail ?? null, models, credential };
+        return { id: p.id, label: p.label, edition: p.edition, harnesses: p.harnesses, available: status.available, detail: status.detail ?? null, models, credential, ...(codexRuntime ? { codexRuntime } : {}) };
       }),
     );
     return { harnesses, providers };

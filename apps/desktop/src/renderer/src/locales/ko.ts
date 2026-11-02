@@ -1,6 +1,20 @@
 import type { Messages } from '../i18n';
 
 export const ko: Messages = {
+  "org.codex.inheritEffort": "런타임 설정 상속",
+  "org.codex.title": "Codex 런타임",
+  "org.codex.connected": "카탈로그 연결됨. 모델 접근은 실행 시 확인합니다",
+  "org.codex.unavailable": "사용 불가",
+  "org.codex.accountUnknown": "계정 알 수 없음",
+  "org.codex.quotaUnknown": "할당량 알 수 없음: Codex가 보고하지 않았습니다.",
+  "org.codex.used": "{percent}% 사용",
+  "org.codex.window": "기간: {minutes}분",
+  "org.codex.hint": "에이전트별로 저장합니다. 작업마다 짧은 맥락을 제공하고 완료 전에 결과를 검증하세요. 카탈로그는 접근 권한을 보장하지 않습니다.",
+  "org.codex.permissions.default": "읽기 전용 샌드박스. 권한 확대 전에 확인합니다. Autopilot도 샌드박스를 유지합니다.",
+  "org.codex.permissions.acceptEdits": "프로젝트 쓰기 허용. 승인 요청은 권한 규칙을 따릅니다.",
+  "org.codex.permissions.plan": "읽기 전용 계획. 파일 변경을 차단합니다.",
+  "org.codex.permissions.bypassPermissions": "전체 접근은 Codex 샌드박스를 해제합니다. 명시적으로 선택하세요. Autopilot에는 필요하지 않습니다.",
+
   'mode.agents': '에이전트',
   'mode.arena': '아레나',
   'mode.bots': '조직',

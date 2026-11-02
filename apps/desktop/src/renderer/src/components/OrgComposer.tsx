@@ -8,7 +8,7 @@ import { isDemo, projectOf } from '../org-office';
 import { openMenu, promptText, toast } from '../ui';
 import { errorText } from './Bots';
 import { Chip } from './ComposerChips';
-import { defaultChoice } from './AgentPicker';
+import { defaultChoice, isRunnable } from './AgentPicker';
 import { Icon } from './Icon';
 import { VoiceButton } from './VoiceButton';
 import { appendSpoken } from '../voice';
@@ -134,9 +134,10 @@ export function OrgComposer({ coordinator, recipient, examples: showExamples }: 
   };
 
   const target = recipient ?? coordinator;
-  const ready = !!goal.trim() && !!cwd && !!target;
   const catalog = useStore((s) => s.catalog);
-  const why = !target ? (catalog && !defaultChoice(catalog) ? t('org.office.noAgent') : t('org.setup')) : !cwd ? t('org.pickProject') : '';
+  const unavailable = target?.agent.harnessId === 'codex' && target.agent.providerId === 'openai' && !isRunnable(catalog, target.agent);
+  const ready = !!goal.trim() && !!cwd && !!target && !unavailable;
+  const why = !target ? (catalog && !defaultChoice(catalog) ? t('org.office.noAgent') : t('org.setup')) : !cwd ? t('org.pickProject') : unavailable ? t('org.codex.unavailable') : '';
   const start = async () => {
     if (!ready || !target || busy) return;
     if (isDemo(target.id)) return void toast(t('org.office.demoNoSend'), undefined, 3000);
@@ -186,13 +187,14 @@ export function OrgComposer({ coordinator, recipient, examples: showExamples }: 
   const projectName = open.find((p) => p.cwd === cwd)?.name ?? (cwd ? baseName(cwd) : t('org.pickProject'));
   return (
     <section className="org-composer" aria-label={t('bots.newTeam')}>
+      {target?.agent.harnessId === 'codex' && <p className="composer-note">{target.name} · {target.agent.model} · {target.agent.effort ?? t('org.codex.inheritEffort')} · {t(`perm.${target.permissionMode}`)}</p>}
       <div className="composer-box">
         <textarea
           ref={box}
           rows={2}
           value={goal}
           autoFocus
-          placeholder={t('org.composePlaceholder')}
+          placeholder={recipient ? t('org.giveTask', { name: recipient.name }) : t('org.composePlaceholder')}
           aria-label={t('bots.goal')}
           onChange={(e) => setGoal(e.target.value)}
           onKeyDown={(e) => {

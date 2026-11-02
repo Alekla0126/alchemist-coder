@@ -252,7 +252,7 @@ function ConversationComposer({ projectId, session }: { projectId: number; sessi
     provider?.models[0]?.id ??
     '';
   const chooseNewAgent = (agent: AgentChoice) => {
-    setPrefs({ ...prefs, ...agent });
+    setPrefs({ ...prefs, harnessId: agent.harnessId, providerId: agent.providerId, model: agent.model });
     if (handoff) useStore.setState({ conversationHandoff: { ...handoff, agent } });
   };
   const choose = (providerId: string, modelId: string) => {
@@ -332,7 +332,7 @@ function ConversationComposer({ projectId, session }: { projectId: number; sessi
         });
       }
       if (handoff && useStore.getState().conversationHandoff === handoff) {
-        setPrefs({ ...prefs, ...handoff.agent });
+        setPrefs({ ...prefs, harnessId: handoff.agent.harnessId, providerId: handoff.agent.providerId, model: handoff.agent.model });
         useStore.setState({ conversationHandoff: null });
       }
       setPrompt('');

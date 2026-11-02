@@ -1,4 +1,4 @@
-import type { AgentNode, IndexProgress, ModelSpec, PermissionMode, ProjectSummary, QuestionAnswer, RunnerEvent, SearchHit, SessionSummary, SlashCommand, PromptImage, TranscriptPage } from '@alchemist-coder/core';
+import type { AgentNode, CodexRuntimeSnapshot, IndexProgress, ModelSpec, PermissionMode, ProjectSummary, QuestionAnswer, RunnerEvent, SearchHit, SessionSummary, SlashCommand, PromptImage, TranscriptPage } from '@alchemist-coder/core';
 
 export type { PermissionMode };
 
@@ -311,6 +311,7 @@ export interface RunnerCatalog {
     available: boolean;
     detail: string | null;
     models: ModelSpec[];
+    codexRuntime?: CodexRuntimeSnapshot;
     credential: { label: string; placeholder: string | null; isSet: boolean; optional: boolean } | null;
   }>;
 }
@@ -738,6 +739,8 @@ export interface AgentChoice {
   harnessId: string;
   providerId: string;
   model: string;
+  /** Undefined explicitly inherits the installed runtime configuration, including resumed sessions. */
+  effort?: string;
 }
 
 /** One entry of a right-click menu (shown natively by the main process). */

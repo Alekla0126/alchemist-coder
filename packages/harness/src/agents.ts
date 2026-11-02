@@ -62,6 +62,7 @@ export function codexAgent(options: AgentOptions & { detectBinary?: typeof detec
     {
       id: 'codex',
       label: 'Codex',
+      strictConfig: true,
       async resolve() {
         const launch = await adapter();
         if (!launch || process.env.CODEX_PATH) return launch;

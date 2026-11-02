@@ -1,3 +1,4 @@
+import { CodexStatus } from './CodexStatus';
 import { useEffect, useRef, useState } from 'react';
 import { ABOUT_MAX, type AgentChoice, type BotConfig, type BotMember, type BotTeam, type OrgSettings, type PermissionMode } from '@shared/api';
 import type { LiveQuestion } from '../live-turns';
@@ -245,8 +246,9 @@ function MemberForm({ draft, set, coordinator, autoFocus = false }: { draft: Dra
       </label>
       <div className="bot-field">
         <span>{t('bots.agent')}</span>
-        {draft.agent ? <AgentPicker value={draft.agent} onChange={(agent) => set({ agent })} /> : catalog ? <span className="composer-note">{t('bots.noAgent')}</span> : <span className="spin" />}
+        {draft.agent ? <AgentPicker value={draft.agent} onChange={(agent) => set({ agent })} showEffort /> : catalog ? <span className="composer-note">{t('bots.noAgent')}</span> : <span className="spin" />}
       </div>
+      {draft.agent?.harnessId === 'codex' && <CodexStatus agent={draft.agent} />}
       <label className="bot-field">
         <span>{t('run.permissions')}</span>
         <select value={draft.permissionMode} onChange={(e) => set({ permissionMode: e.target.value as PermissionMode })}>
@@ -257,6 +259,7 @@ function MemberForm({ draft, set, coordinator, autoFocus = false }: { draft: Dra
           ))}
         </select>
       </label>
+      {draft.agent?.harnessId === 'codex' && <p className="composer-note org-codex-permissions">{t(`org.codex.permissions.${draft.permissionMode}`)}</p>}
       {!coordinator && (
         <>
           <label className="bot-check">
@@ -1391,6 +1394,7 @@ function OrganizationSettings() {
   const t = useT();
   const configs = useStore((s) => s.botConfigs);
   const selected = useStore((s) => s.orgSettingsMemberId);
+  const drafts = useStore((s) => s.orgDrafts);
   const member = configs.find((c) => c.id === selected);
   return (
     <section className="org-config-page" aria-label={t('org.config.title')}>
@@ -1410,6 +1414,7 @@ function OrganizationSettings() {
           {member ? <section key={member.id} className="org-form">
             <header className="org-config-agent"><button className="av-edit" onClick={() => void changeAvatar(member)} aria-label={t('avatar.change')}><AgentAvatar name={member.name} avatar={member.avatar} size={40} /></button><h3>{member.name}</h3></header>
             <MapEditor member={member} />
+            {!drafts[member.id] && <OrgComposer coordinator={undefined} recipient={member} examples={false} />}
             {member.kind !== 'coordinator' && <><TeamSection member={member} coordinatorName={configs.find((c) => c.kind === 'coordinator')?.name ?? ''} /><button className="btn-ghost small danger" onClick={() => void removeMember(member)}>{t('org.deleteAgent')}</button></>}
           </section> : <>
             <section className="org-config-name"><h3>{t('org.rename')}</h3><OrgName /></section>

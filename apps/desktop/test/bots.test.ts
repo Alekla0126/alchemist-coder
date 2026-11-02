@@ -14,13 +14,13 @@ afterAll(() => rmSync(dir, { recursive: true, force: true }));
 function fakeRunner() {
   let n = 0;
   const listeners: Array<(m: RunnerEventMessage) => void> = [];
-  const started: Array<{ runId: string; prompt: string; model: string; permissionMode?: string; mcp: number; cwd?: string; pilot?: unknown }> = [];
+  const started: Array<{ runId: string; prompt: string; model: string; effort?: string; permissionMode?: string; mcp: number; cwd?: string; pilot?: unknown }> = [];
   const sent: Array<[string, string]> = [];
   const stopped: string[] = [];
   const runner = {
-    start(req: { prompt: string; model: string; permissionMode?: string; cwd?: string }, internal: { mcpServers?: unknown[]; autopilot?: unknown } = {}) {
+    start(req: { prompt: string; model: string; effort?: string; permissionMode?: string; cwd?: string }, internal: { mcpServers?: unknown[]; autopilot?: unknown } = {}) {
       const runId = `run-${++n}`;
-      started.push({ runId, prompt: req.prompt, model: req.model, permissionMode: req.permissionMode, mcp: internal.mcpServers?.length ?? 0, cwd: req.cwd, resume: (req as { resumeSessionId?: string }).resumeSessionId, pilot: internal.autopilot } as never);
+      started.push({ runId, prompt: req.prompt, model: req.model, effort: req.effort, permissionMode: req.permissionMode, mcp: internal.mcpServers?.length ?? 0, cwd: req.cwd, resume: (req as { resumeSessionId?: string }).resumeSessionId, pilot: internal.autopilot } as never);
       return { runId };
     },
     send: (runId: string, text: string) => void sent.push([runId, text]),
@@ -736,4 +736,28 @@ it('starts separate Codex office agents with their saved model and permissions, 
     await bots.message(first.id, first.bots[0]!.id, 'Repeat the name');
     expect(fake.sent).toContainEqual([first.bots[0]!.runId, 'Repeat the name']);
   } finally { bots.stopAll(); }
+});
+
+
+it('persists per-agent Codex settings across restart and uses them for direct, coordinator and child runs', async () => {
+  const files = { configs: join(dir, 'codex-config.json'), teams: join(dir, 'codex-teams.json') };
+  const fake = fakeRunner();
+  const make = () => new BotManager(files, fake.runner as never, { command: process.execPath, script: writeBridge(dir) }, (cwd) => String(cwd), () => {});
+  const original = make();
+  const saved = original.saveConfig({ name: 'Codex QA', role: 'Verify results', kind: 'coordinator', agent: { harnessId: 'codex', providerId: 'openai', model: 'future-large', effort: 'ultra' }, permissionMode: 'plan', canSpawn: true });
+  const member = original.saveConfig({ name: 'Codex Dev', role: 'Implement', agent: { harnessId: 'codex', providerId: 'openai', model: 'future-small', effort: 'low' }, permissionMode: 'default', canSpawn: false });
+  const bots = make();
+  expect(bots.listConfigs().find((c) => c.id === saved.id)?.agent).toEqual(saved.agent);
+  await bots.startSolo({ configId: member.id, cwd: '/p', task: 'Check the result' });
+  expect(fake.started.at(-1)).toMatchObject({ model: 'future-small', effort: 'low', permissionMode: 'default' });
+  expect(fake.started.at(-1)?.prompt).toContain('report verification evidence');
+  const team = bots.startTeam({ goal: 'Implement and verify', cwd: '/p', configId: saved.id });
+  expect(fake.started.at(-1)).toMatchObject({ model: 'future-large', effort: 'ultra', permissionMode: 'plan' });
+  const parent = { teamId: team.id, botId: 'b1' };
+  await bots.callTool(parent, 'create_bot', { name: 'Coder', config: member.id, task: 'Implement' });
+  expect(fake.started.at(-1)).toMatchObject({ model: 'future-small', effort: 'low', permissionMode: 'default' });
+  bots.saveConfig({ ...saved, agent: { ...saved.agent, model: 'future-small', effort: 'low' } });
+  bots.startTeam({ goal: 'Next task', cwd: '/p', configId: saved.id });
+  expect(fake.started.at(-1)).toMatchObject({ model: 'future-small', effort: 'low', permissionMode: 'plan' });
+  bots.stopAll(); original.stopAll();
 });

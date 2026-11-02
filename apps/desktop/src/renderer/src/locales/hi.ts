@@ -1,6 +1,20 @@
 import type { Messages } from '../i18n';
 
 export const hi: Messages = {
+  "org.codex.inheritEffort": "रनटाइम सेटिंग विरासत में लें",
+  "org.codex.title": "Codex रनटाइम",
+  "org.codex.connected": "कैटलॉग जुड़ा है; मॉडल की पहुँच कार्य चलने पर जाँची जाएगी",
+  "org.codex.unavailable": "उपलब्ध नहीं",
+  "org.codex.accountUnknown": "खाता अज्ञात",
+  "org.codex.quotaUnknown": "कोटा अज्ञात: Codex ने इसकी जानकारी नहीं दी।",
+  "org.codex.used": "{percent}% उपयोग",
+  "org.codex.window": "अवधि: {minutes} मिनट",
+  "org.codex.hint": "हर एजेंट के लिए सहेजा जाता है। हर कार्य को छोटा संदर्भ दें और समाप्त करने से पहले परिणाम जाँचें। कैटलॉग पहुँच की पुष्टि नहीं है।",
+  "org.codex.permissions.default": "केवल पढ़ने वाला सैंडबॉक्स; अधिकार बढ़ाने से पहले अनुमति माँगी जाती है। Autopilot सैंडबॉक्स बनाए रखता है।",
+  "org.codex.permissions.acceptEdits": "प्रोजेक्ट में लिखने की अनुमति; अनुरोध आपके अनुमति नियमों का पालन करते हैं।",
+  "org.codex.permissions.plan": "केवल पढ़ने की योजना; फ़ाइल बदलने वाले कार्य रोके जाते हैं।",
+  "org.codex.permissions.bypassPermissions": "पूर्ण पहुँच Codex सैंडबॉक्स बंद करती है। इसे स्पष्ट रूप से चुनें; Autopilot को इसकी जरूरत नहीं है।",
+
   'mode.agents': 'एजेंट',
   'mode.arena': 'एरीना',
   'mode.bots': 'संगठन',

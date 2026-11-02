@@ -293,6 +293,7 @@ function coordinatorPrompt(goal: string, role: string, cwd: string, approvePlan 
       : null,
     '',
     `You can create other bots with the tools of the "${SERVER_NAME}" MCP server: list_bot_configs, create_bot, message_bot, wait_for_bot, bot_reply, list_bots, bot_changes, apply_bot_work, stop_bot, finish_team, record_lesson and org_lessons.`,
+    'Keep the context small and task-specific. Before finishing, run the relevant checks, inspect their results, fix failures, and report verification evidence and any remaining blockers. Never claim completion based only on a successful model reply.',
     'Split the work into clear tasks, give each bot everything it needs in its task, wait for their answers, check them, and ask for fixes when needed.',
     `Bots work in the project folder (${cwd}) unless you give them their own copy with own_worktree: then check their result with bot_changes and bring it in with apply_bot_work. Give bots in the shared folder separate files or steps so they don't overwrite each other.`,
     `At most ${MAX_BOTS} bots per team. When the goal is done, call finish_team with a short summary of what was done and by whom (and anything left open), then end your turn.${org?.alone ? '' : " If you need the user's input instead, ask in your reply and don't call finish_team."}`,
@@ -332,6 +333,7 @@ function workerPrompt(bot: BotMember, parentName: string, orgInstructions = '', 
         : '',
     bot.worktree ? `You work in your own copy of the project (${bot.worktree.path}). Your changes reach the main folder only when "${parentName}" applies them, so finish them completely there.` : '',
     brief?.alone ? ALONE_AGENT : '',
+    'Keep the context small and task-specific. Before finishing, run the relevant checks, inspect their results, fix failures, and report verification evidence and any remaining blockers. Never claim completion based only on a successful model reply.',
     'When you finish, reply with what you did and anything the coordinator needs to know (files changed, open problems, and what went wrong and why, so the organization can learn from it).',
   ]
     .filter(Boolean)
@@ -373,6 +375,7 @@ function soloPrompt(config: BotConfig, task: string, orgName: string, orgInstruc
     readOnly ? "Don't change any file: read, think and answer." : '',
     worktree ? `You work in your own copy of the project (${worktree}); the user decides whether your changes reach the main folder, so finish them completely there.` : '',
     brief?.alone ? ALONE_AGENT : '',
+    'Keep the context small and task-specific. Before finishing, run the relevant checks, inspect their results, fix failures, and report verification evidence and any remaining blockers. Never claim completion based only on a successful model reply.',
     'End your turn with a short summary of what you did and anything left open, in the language of the task.',
   ]
     .filter(Boolean)
@@ -433,7 +436,7 @@ const sameLesson = (a: string, b: string) => {
 };
 
 /** The agent with a template's model (already one of its provider's); none keeps the agent's own. */
-const withModel = (agent: AgentChoice, model: string | undefined): AgentChoice => ({ ...agent, ...(model ? { model } : {}) });
+const withModel = (agent: AgentChoice, model: string | undefined): AgentChoice => ({ ...agent, ...(model && model !== agent.model ? { model, effort: undefined } : {}) });
 
 /** A template's agents with every lead before its team, so the team knows its lead's id. */
 function leadsFirst(entries: Array<[string, StarterAgent]>): Array<[string, StarterAgent]> {
@@ -443,7 +446,7 @@ function leadsFirst(entries: Array<[string, StarterAgent]>): Array<[string, Star
 
 /** Two configurations the same in what a staff template sets (no lead and a null one are the same). */
 const sameStaffing = (a: BotConfig, b: BotConfig) =>
-  a.agent.model === b.agent.model && a.permissionMode === b.permissionMode && a.canSpawn === b.canSpawn && !!a.ownWorktree === !!b.ownWorktree && (a.about ?? '') === (b.about ?? '') && a.role === b.role && !!a.proposed === !!b.proposed && (a.leadId ?? null) === (b.leadId ?? null);
+  a.agent.model === b.agent.model && a.agent.effort === b.agent.effort && a.permissionMode === b.permissionMode && a.canSpawn === b.canSpawn && !!a.ownWorktree === !!b.ownWorktree && (a.about ?? '') === (b.about ?? '') && a.role === b.role && !!a.proposed === !!b.proposed && (a.leadId ?? null) === (b.leadId ?? null);
 
 /** A new configuration from a template's agent. The ones that only read ask before acting. */
 function starterConfig(key: string, s: StarterAgent, agent: AgentChoice): Partial<BotConfig> {
@@ -686,6 +689,7 @@ export class BotManager {
     if (!name) throw new Error('Give the bot a name');
     const agent = c.agent as AgentChoice | undefined;
     if (!agent?.harnessId || !agent.providerId || !agent.model) throw new Error('Choose an agent and a model');
+    if (agent.effort !== undefined && (typeof agent.effort !== 'string' || !/^[\w-]{1,24}$/.test(agent.effort))) throw new Error('Choose a valid reasoning effort');
     // Written by you or by the coordinator; none shows the opening of its role.
     const about = str(c.about, ABOUT_MAX).replace(/\s+/g, ' ');
     const config: BotConfig = {
@@ -693,7 +697,7 @@ export class BotManager {
       name,
       role: str(c.role, 8000),
       ...(about ? { about } : {}),
-      agent: { harnessId: String(agent.harnessId), providerId: String(agent.providerId), model: String(agent.model) },
+      agent: { harnessId: String(agent.harnessId), providerId: String(agent.providerId), model: String(agent.model), ...(agent.effort ? { effort: agent.effort } : {}) },
       permissionMode: PERMISSION_MODES.includes(c.permissionMode as PermissionMode) ? (c.permissionMode as PermissionMode) : 'acceptEdits',
       canSpawn: c.canSpawn === true,
       ownWorktree: c.ownWorktree === true,
@@ -808,7 +812,7 @@ export class BotManager {
       const next: BotConfig = {
         ...there,
         // The template's model is one of the coordinator's provider: an agent on another one keeps its own.
-        agent: s.model && there.agent.harnessId === agent.harnessId && there.agent.providerId === agent.providerId ? { ...there.agent, model: s.model } : there.agent,
+        agent: s.model && there.agent.harnessId === agent.harnessId && there.agent.providerId === agent.providerId ? withModel(there.agent, s.model) : there.agent,
         permissionMode: s.permissionMode ?? there.permissionMode,
         canSpawn: there.kind === 'coordinator' || (s.canSpawn ?? there.canSpawn),
         ownWorktree: s.ownWorktree ?? there.ownWorktree,
@@ -877,7 +881,7 @@ export class BotManager {
       name: base?.name ?? (str(inline?.name, 60) || 'Coordinator'),
       configId: base?.id ?? null,
       role: base?.role ?? str(inline?.role, 8000),
-      agent: { harnessId: agent.harnessId, providerId: agent.providerId, model: agent.model },
+      agent: { harnessId: agent.harnessId, providerId: agent.providerId, model: agent.model, ...(agent.effort ? { effort: agent.effort } : {}) },
       permissionMode: base?.permissionMode ?? (PERMISSION_MODES.includes(inline?.permissionMode as PermissionMode) ? (inline!.permissionMode as PermissionMode) : 'acceptEdits'),
       canSpawn: true,
       parentId: null,
@@ -905,6 +909,7 @@ export class BotManager {
                 // Only what sets it apart: a model other than the coordinator's, permissions other than the usual.
                 const notes = [
                   c.agent.model !== agent.model ? c.agent.model : '',
+                  c.agent.effort ? `reasoning effort ${c.agent.effort}` : '',
                   c.permissionMode !== 'acceptEdits' ? `permissions ${c.permissionMode}` : '',
                   c.ownWorktree ? 'own copy' : '',
                   members.length ? `leads a team: ${members.join(', ')}` : '',
@@ -1207,7 +1212,7 @@ export class BotManager {
       if (!resumeSessionId) prompt = `${prompt}\n${BROWSER_LINE}`;
     }
     try {
-      const { runId } = this.runner.start({ cwd, harnessId: bot.agent.harnessId, providerId: bot.agent.providerId, model: bot.agent.model, prompt, permissionMode: bot.permissionMode, resumeSessionId }, { mcpServers, autopilot: this.pilot });
+      const { runId } = this.runner.start({ cwd, harnessId: bot.agent.harnessId, providerId: bot.agent.providerId, model: bot.agent.model, effort: bot.agent.effort, prompt, permissionMode: bot.permissionMode, resumeSessionId }, { mcpServers, autopilot: this.pilot });
       if (web) {
         this.browser!.bind(web, runId);
         this.webRuns.set(runId, web);
@@ -1445,7 +1450,7 @@ export class BotManager {
           .map((c) => {
             const team = this.teamOf(c.id).map((x) => x.name);
             const on = nameOf(c.leadId);
-            return `- ${c.name} (id ${c.id}): ${c.role.slice(0, 200) || 'no role set'} · ${c.agent.harnessId} / ${c.agent.model} · permissions ${c.permissionMode}${c.canSpawn || team.length ? ' · may create bots' : ''}${team.length ? ` · leads a team: ${team.join(', ')}` : ''}${on ? ` · on ${on}'s team` : ''}${c.proposed ? ' · proposed (not kept yet)' : ''}`;
+            return `- ${c.name} (id ${c.id}): ${c.role.slice(0, 200) || 'no role set'} · ${c.agent.harnessId} / ${c.agent.model}${c.agent.effort ? ` · reasoning effort ${c.agent.effort}` : ''} · permissions ${c.permissionMode}${c.canSpawn || team.length ? ' · may create bots' : ''}${team.length ? ` · leads a team: ${team.join(', ')}` : ''}${on ? ` · on ${on}'s team` : ''}${c.proposed ? ' · proposed (not kept yet)' : ''}`;
           })
           .join('\n');
       }
@@ -1510,7 +1515,7 @@ export class BotManager {
           name: childName,
           configId: config?.id ?? null,
           role: config?.role ?? str(args.role, 8000),
-          agent: config ? { ...config.agent } : { ...me.agent, model: model ?? me.agent.model },
+          agent: config ? { ...config.agent } : withModel(me.agent, model ?? undefined),
           // A bot defined on the spot gets its creator's permissions, never more.
           permissionMode: config?.permissionMode ?? me.permissionMode,
           canSpawn: wantsSpawn && me.canSpawn && depth < MAX_DEPTH,

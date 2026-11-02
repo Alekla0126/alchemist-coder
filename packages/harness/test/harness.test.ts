@@ -76,13 +76,15 @@ describe('harness adapters', () => {
   it('resumes the codex thread for follow-up turns', async () => {
     const calls: Array<{ args: string[]; env: Record<string, string> }> = [];
     const lines = ['{"type":"thread.started","thread_id":"t-9"}', '{"type":"item.completed","item":{"type":"agent_message","text":"Hi"}}', '{"type":"turn.completed"}'];
-    const run = codexHarness({ spawn: fakeSpawn(lines, calls, []) }).run({ cwd: '/tmp', prompt: 'hello', provider, model: 'gpt-oss:20b' });
+    const run = codexHarness({ spawn: fakeSpawn(lines, calls, []) }).run({ cwd: '/tmp', prompt: 'hello', provider, model: 'gpt-oss:20b', effort: 'high', permissionMode: 'default' });
     await collect(run);
     expect(calls[0]!.args.slice(0, 2)).toEqual(['exec', '--json']);
     expect(calls[0]!.args).toEqual(expect.arrayContaining(['-c', 'model_provider="ollama"', '-m', 'gpt-oss:20b', 'hello']));
+    expect(calls[0]!.args).toEqual(expect.arrayContaining(['sandbox_mode="read-only"', 'approval_policy="never"', 'model_reasoning_effort="high"']));
     const second = collect(run);
     run.send('and now?');
     await second;
+    expect(calls[1]!.args).toContain('model_reasoning_effort="high"');
     expect(calls[1]!.args.slice(0, 3)).toEqual(['exec', 'resume', '--json']);
     expect(calls[1]!.args.slice(-3)).toEqual(['--', 't-9', 'and now?']);
     // A prompt that looks like a flag stays a prompt.

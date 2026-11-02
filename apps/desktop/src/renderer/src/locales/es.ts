@@ -1,6 +1,20 @@
 import type { Messages } from '../i18n';
 
 export const es: Messages = {
+  "org.codex.inheritEffort": "Heredar configuración del runtime",
+  "org.codex.title": "Runtime de Codex",
+  "org.codex.connected": "Catálogo conectado; el acceso al modelo se comprueba al ejecutar",
+  "org.codex.unavailable": "No disponible",
+  "org.codex.accountUnknown": "Cuenta desconocida",
+  "org.codex.quotaUnknown": "Cuota desconocida: Codex no la ha informado.",
+  "org.codex.used": "{percent}% utilizado",
+  "org.codex.window": "Ventana: {minutes} min",
+  "org.codex.hint": "Se guarda por agente. Da a cada tarea un contexto pequeño y concreto; verifica resultados antes de terminar. El catálogo no confirma el acceso de la cuenta.",
+  "org.codex.permissions.default": "Sandbox de solo lectura; Codex pide autorización para escalar. Autopilot no elimina el sandbox.",
+  "org.codex.permissions.acceptEdits": "Sandbox con escritura en el proyecto; las solicitudes siguen tus reglas de autorización.",
+  "org.codex.permissions.plan": "Planificación de solo lectura; se bloquean ediciones y comandos que cambien archivos.",
+  "org.codex.permissions.bypassPermissions": "Acceso completo: se desactiva el sandbox de Codex. Elígelo expresamente; Autopilot no lo requiere.",
+
   'mode.agents': 'Agentes',
   'mode.bots': 'Organización',
   'mode.arena': 'Arena',

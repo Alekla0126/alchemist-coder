@@ -37,6 +37,8 @@ export interface AcpModeRule {
 export interface AcpAgentSpec {
   id: string;
   label: string;
+  /** Explicit Codex choices must be applied exactly before any inference. */
+  strictConfig?: boolean;
   resolve(): Promise<AcpLaunch | null>;
   modes: Record<PermissionMode, AcpModeRule>;
   /**
@@ -148,6 +150,7 @@ class AcpRun extends RunBase {
   private readonly pending = new Map<string, { choices: Set<string>; resolve: (choiceId: string | null) => void }>();
   private readonly forms = new Map<string, { keys: Set<string>; resolve: (answer: QuestionAnswer | null) => void }>();
   private formCounter = 0;
+  private failed = false;
 
   constructor(
     private readonly options_: RunOptions,
@@ -160,6 +163,7 @@ class AcpRun extends RunBase {
 
   private fail(error: unknown) {
     if (this.stopped) return;
+    this.failed = true;
     const message = error instanceof Error ? error.message : typeof error === 'object' ? JSON.stringify(error) : String(error);
     this.emit({ type: 'error', message });
     this.emit({ type: 'status', status: 'error' });
@@ -269,7 +273,7 @@ class AcpRun extends RunBase {
     child.on('exit', (code) => {
       if (this.child === child) this.child = null;
       this.closePermissions();
-      this.emit({ type: 'status', status: this.stopped ? 'interrupted' : code === 0 || code === null ? 'done' : 'error' });
+      this.emit({ type: 'status', status: this.stopped ? 'interrupted' : this.failed ? 'error' : code === 0 || code === null ? 'done' : 'error' });
     });
   }
 
@@ -489,10 +493,15 @@ class AcpRun extends RunBase {
   private async setOption(id: string, value: string) {
     if (!this.conn || !this.sessionId) return;
     const option = this.options.find((c) => c.id === id);
-    if (!option || option.type !== 'select' || option.currentValue === value) return;
+    if (!option || option.type !== 'select') {
+      if (this.spec.strictConfig) throw new Error(`Runtime setting ${id} is unavailable.`);
+      return;
+    }
+    if (option.currentValue === value) return;
     if (!flatChoices(option).some((c) => c.value === value)) throw new Error(`${option.name}: unknown value ${value}`);
     const r = await this.conn.setSessionConfigOption({ sessionId: this.sessionId, configId: id, value });
     this.options = r.configOptions ?? this.options;
+    if (this.spec.strictConfig && (this.options.find((c) => c.id === id) as { currentValue?: string } | undefined)?.currentValue !== value) throw new Error(`The runtime did not apply ${id}=${value}; stopped before sending the task.`);
   }
 
   private async setMode(modeId: string) {
@@ -522,10 +531,11 @@ class AcpRun extends RunBase {
       }
     } catch (error) {
       const why = error instanceof Error ? error.message : String(error);
-      if (mode === 'plan' || mode === 'default') throw new Error(`Could not switch ${label} to ${mode} mode (${why}); stopped so it can't change files without asking.`);
+      if (this.spec.strictConfig || mode === 'plan' || mode === 'default') throw new Error(`Could not switch ${label} to ${mode} mode (${why}); stopped so it can't change files without asking.`);
       this.emit({ type: 'notice', level: 'warning', text: `Could not switch ${label} to ${mode}: ${why}` });
     }
     if (!applied && rule.modes?.length) {
+      if (this.spec.strictConfig) throw new Error(`${label} cannot apply the requested ${mode} permissions; stopped before sending the task.`);
       if (mode === 'plan') throw new Error(`${label} has no plan mode here; stopped so it can't change files while planning.`);
       const permissive = [...(this.spec.modes.bypassPermissions.modes ?? []), ...(this.spec.modes.acceptEdits.modes ?? [])].filter((id) => !rule.modes!.includes(id));
       const current = this.modes?.currentModeId;
@@ -535,6 +545,13 @@ class AcpRun extends RunBase {
   }
 
   private async applyModel(model: string) {
+    if (this.spec.strictConfig && model !== 'default') {
+      const option = this.modelOption();
+      if (!option || !flatChoices(option).some((c) => c.value === model)) throw new Error(`${model} is unavailable in ${this.spec.label}; choose a model from its current catalog.`);
+      await this.setOption(option.id, model);
+      if (this.modelValue() !== model) throw new Error(`${this.spec.label} did not apply model ${model}; stopped before sending the task.`);
+      return;
+    }
     const option = this.modelOption();
     if (!option) return;
     const value = pickChoice(flatChoices(option), model);
@@ -556,12 +573,15 @@ class AcpRun extends RunBase {
     if (!effort) return;
     const option = this.effortOption();
     if (!option || !flatChoices(option).some((c) => c.value === effort)) {
+      if (this.spec.strictConfig) throw new Error(`${this.spec.label} does not offer reasoning effort ${effort} for this model; stopped before sending the task.`);
       this.emit({ type: 'notice', level: 'info', text: `This model doesn't offer the "${effort}" reasoning effort; it uses its default.` });
       return;
     }
     try {
       await this.setOption(option.id, effort);
+      if (this.spec.strictConfig && (this.effortOption() as { currentValue?: string } | undefined)?.currentValue !== effort) throw new Error(`The runtime did not apply reasoning effort ${effort}.`);
     } catch (error) {
+      if (this.spec.strictConfig) throw error;
       this.emit({ type: 'notice', level: 'warning', text: `Could not set the effort to ${effort}: ${error instanceof Error ? error.message : String(error)}` });
     }
   }
@@ -624,7 +644,7 @@ class AcpRun extends RunBase {
       const r = await this.conn.prompt({ sessionId: this.sessionId, prompt: this.promptBlocks(next) });
       if (this.stopped) return;
       if (r.stopReason === 'refusal') this.emit({ type: 'notice', level: 'warning', text: `${this.spec.label} declined this request.` });
-      this.emit({ type: 'result', ok: r.stopReason !== 'refusal', sessionId: this.sessionId, costUsd: this.costUsd });
+      this.emit({ type: 'result', ok: r.stopReason !== 'refusal' && r.stopReason !== 'cancelled', sessionId: this.sessionId, costUsd: this.costUsd });
     } catch (error) {
       if (!this.stopped) {
         this.emit({ type: 'error', message: error instanceof Error ? error.message : JSON.stringify(error) });

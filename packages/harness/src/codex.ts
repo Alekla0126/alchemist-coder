@@ -4,7 +4,7 @@ import { RunBase, spawn, type SpawnFn } from './process.ts';
 import { parseCodexLine } from './stream.ts';
 
 const SANDBOX: Record<NonNullable<RunOptions['permissionMode']>, string> = {
-  default: 'workspace-write',
+  default: 'read-only',
   acceptEdits: 'workspace-write',
   plan: 'read-only',
   bypassPermissions: 'danger-full-access',
@@ -42,7 +42,7 @@ class CodexRun extends RunBase {
       return;
     }
     if (this.stopped) return;
-    const common = ['--json', '--skip-git-repo-check', '-c', `sandbox_mode="${SANDBOX[o.permissionMode ?? 'acceptEdits']}"`, ...(o.provider.cliArgs?.('codex', o.model) ?? ['-m', o.model])];
+    const common = ['--json', '--skip-git-repo-check', '-c', 'approval_policy="never"', '-c', `sandbox_mode="${SANDBOX[o.permissionMode ?? 'acceptEdits']}"`, ...(o.effort ? ['-c', `model_reasoning_effort=${JSON.stringify(o.effort)}`] : []), ...(o.provider.cliArgs?.('codex', o.model) ?? ['-m', o.model])];
     // `--` ends the options: a prompt (or thread id) starting with a dash can't pass as a flag.
     const args = this.threadId ? ['exec', 'resume', ...common, '--', this.threadId, prompt] : ['exec', ...common, '--', prompt];
     let child: ReturnType<SpawnFn>;

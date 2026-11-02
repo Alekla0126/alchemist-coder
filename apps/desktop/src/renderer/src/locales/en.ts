@@ -1,5 +1,19 @@
 /** English: the source every other language translates (and the fallback for a missing text). */
 export const en = {
+  "org.codex.inheritEffort": "Inherit runtime configuration",
+  "org.codex.title": "Codex runtime",
+  "org.codex.connected": "Catalog connected; model access is checked when the task runs",
+  "org.codex.unavailable": "Unavailable",
+  "org.codex.accountUnknown": "Account unknown",
+  "org.codex.quotaUnknown": "Quota unknown: Codex has not reported it.",
+  "org.codex.used": "{percent}% used",
+  "org.codex.window": "Window: {minutes} min",
+  "org.codex.hint": "Saved per agent. Give each task a small, focused context; verify results before finishing. Catalog presence does not confirm account access.",
+  "org.codex.permissions.default": "Read-only sandbox; Codex asks before escalation. Autopilot does not remove the sandbox.",
+  "org.codex.permissions.acceptEdits": "Workspace-write sandbox; approval requests remain subject to your authorization rules.",
+  "org.codex.permissions.plan": "Read-only planning; edits and commands that change files are blocked.",
+  "org.codex.permissions.bypassPermissions": "Full access: the Codex sandbox is disabled. Choose this explicitly; Autopilot does not require it.",
+
   'mode.agents': 'Agents',
   'mode.arena': 'Arena',
   'mode.bots': 'Organization',

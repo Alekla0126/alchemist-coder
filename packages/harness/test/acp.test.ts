@@ -315,3 +315,42 @@ describe('agent questions (ACP forms)', () => {
     expect(formFields(null)).toEqual([]);
   });
 });
+
+
+it('strict Codex selection applies model, effort and permissions before inference and supports a model change', async () => {
+  const run = acpHarness(spec({ strictConfig: true })).run({ cwd, prompt: 'hi', provider: provider(), model: 'sonnet', effort: 'high', permissionMode: 'plan' });
+  try {
+    const first = await collect(run, null, (e) => e.type === 'result');
+    expect(first.find((e) => e.type === 'config')).toMatchObject({ mode: 'plan', options: expect.arrayContaining([{ id: 'effort', label: 'Effort', category: 'thought_level', value: 'high', choices: expect.any(Array) }]) });
+    expect(first.find((e) => e.type === 'started')).toMatchObject({ model: 'sonnet' });
+    await run.configure!({ option: { id: 'model', value: 'opus[1m]' } });
+    const next = collect(run, null, (e) => e.type === 'result');
+    run.send('second');
+    expect((await next).filter((e) => e.type === 'text').map((e) => e.text).join('')).toContain('model=opus[1m]');
+  } finally { run.stop(); }
+});
+
+it('strict Codex selection fails before any prompt on unavailable model/effort, ignored configuration or missing permissions', async () => {
+  const cases: Array<{ model: string; effort?: string; env?: Record<string, string> }> = [
+    { model: 'unavailable' }, { model: 'sonnet', effort: 'ultra' },
+    { model: 'sonnet', env: { FAKE_IGNORE_CONFIG: '1' } },
+    { model: 'sonnet', env: { FAKE_MODES: 'yolo' } },
+  ];
+  for (const options of cases) {
+    const run = acpHarness(spec({ strictConfig: true })).run({ cwd, prompt: 'MUST_NOT_RUN', provider: provider(options.env), model: options.model, effort: options.effort, permissionMode: 'acceptEdits' });
+    try {
+      const events = await collect(run, null, (e) => e.type === 'status' && e.status === 'error');
+      expect(events.some((e) => e.type === 'error')).toBe(true);
+      expect(events.some((e) => ['text', 'tool', 'started', 'result'].includes(e.type))).toBe(false);
+    } finally { run.stop(); }
+  }
+});
+
+it('cancelling a Codex turn is never reported as a successful result', async () => {
+  const run = acpHarness(spec({ strictConfig: true })).run({ cwd, prompt: 'cancel', provider: provider(), model: 'sonnet', permissionMode: 'acceptEdits' });
+  const off = run.onEvent((e) => { if (e.type === 'permission') run.interrupt!(); });
+  try {
+    const events = await collect(run, null, (e) => e.type === 'result');
+    expect(events.find((e) => e.type === 'result')).toMatchObject({ ok: false });
+  } finally { off(); run.stop(); }
+});

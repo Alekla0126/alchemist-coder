@@ -1,6 +1,20 @@
 import type { Messages } from '../i18n';
 
 export const zhCN: Messages = {
+  "org.codex.inheritEffort": "继承运行时配置",
+  "org.codex.title": "Codex 运行时",
+  "org.codex.connected": "目录已连接；模型访问权限在执行时检查",
+  "org.codex.unavailable": "不可用",
+  "org.codex.accountUnknown": "账户未知",
+  "org.codex.quotaUnknown": "配额未知：Codex 尚未报告。",
+  "org.codex.used": "已使用 {percent}%",
+  "org.codex.window": "周期：{minutes} 分钟",
+  "org.codex.hint": "按智能体保存。为每项任务提供简短上下文，并在结束前验证结果。目录不保证账户访问权限。",
+  "org.codex.permissions.default": "只读沙箱；提升权限前需确认。Autopilot 不会移除沙箱。",
+  "org.codex.permissions.acceptEdits": "可写入项目；审批请求仍遵守授权规则。",
+  "org.codex.permissions.plan": "只读规划；阻止文件修改。",
+  "org.codex.permissions.bypassPermissions": "完全访问将停用 Codex 沙箱。请明确选择；Autopilot 不需要此权限。",
+
   'mode.agents': '智能体',
   'mode.arena': '竞技场',
   'mode.bots': '组织',

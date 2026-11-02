@@ -1,6 +1,20 @@
 import type { Messages } from '../i18n';
 
 export const ru: Messages = {
+  "org.codex.inheritEffort": "Наследовать настройки среды",
+  "org.codex.title": "Среда Codex",
+  "org.codex.connected": "Каталог подключён; доступ к модели проверяется при запуске",
+  "org.codex.unavailable": "Недоступно",
+  "org.codex.accountUnknown": "Аккаунт неизвестен",
+  "org.codex.quotaUnknown": "Квота неизвестна: Codex её не сообщил.",
+  "org.codex.used": "Использовано {percent}%",
+  "org.codex.window": "Окно: {minutes} мин",
+  "org.codex.hint": "Сохраняется для агента. Короткий контекст для каждой задачи; проверяйте результат до завершения. Каталог не подтверждает доступ.",
+  "org.codex.permissions.default": "Песочница только для чтения; повышение прав требует разрешения. Autopilot сохраняет песочницу.",
+  "org.codex.permissions.acceptEdits": "Запись в проекте; запросы подчиняются вашим правилам разрешений.",
+  "org.codex.permissions.plan": "Планирование только для чтения; изменения файлов блокируются.",
+  "org.codex.permissions.bypassPermissions": "Полный доступ отключает песочницу Codex. Выбирайте явно; Autopilot этого не требует.",
+
   'mode.agents': 'Агенты',
   'mode.arena': 'Арена',
   'mode.bots': 'Организация',

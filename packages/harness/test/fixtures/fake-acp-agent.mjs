@@ -44,8 +44,8 @@ new AgentSideConnection((conn) => ({
     return {};
   },
   async setSessionConfigOption({ configId, value }) {
-    if (configId === 'model') state.model = value;
-    if (configId === 'effort') state.effort = value;
+    if (configId === 'model' && process.env.FAKE_IGNORE_CONFIG !== '1') state.model = value;
+    if (configId === 'effort' && process.env.FAKE_IGNORE_CONFIG !== '1') state.effort = value;
     return { configOptions: config() };
   },
   async cancel() {
