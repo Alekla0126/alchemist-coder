@@ -490,6 +490,8 @@ export interface OrgLesson {
   /** The assignment it came from. */
   from: string;
   at: number;
+  /** You pinned it: every agent is told it, whatever its task. */
+  pinned?: boolean;
 }
 
 export type BotStatus = 'starting' | 'working' | 'waiting' | 'idle' | 'done' | 'error' | 'stopped';

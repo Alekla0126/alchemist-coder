@@ -22,7 +22,7 @@ const REPLY_CHARS = 12_000;
 /** wait_for_bot returns this much of an answer; bot_reply, all of it (up to REPLY_CHARS). */
 const WAIT_REPLY_CHARS = 4_000;
 /** How much of each agent's role the coordinator's list of agents shows. */
-const ROSTER_ROLE_CHARS = 120;
+const ROSTER_ROLE_CHARS = 200;
 /** How much of what was said an activity line keeps. */
 const DETAIL_CHARS = 300;
 /** The kinds whose detail starts with the other bot's id ("b2|…"). */
@@ -81,6 +81,11 @@ const TOOLS: Record<string, ToolDef> = {
     name: 'bot_reply',
     description: "One of your bots' latest answer in full, when wait_for_bot cut it.",
     inputSchema: { type: 'object', properties: { bot_id: { type: 'string' } }, required: ['bot_id'] },
+  },
+  org_lessons: {
+    name: 'org_lessons',
+    description: 'Every lesson the organization learned (you were told the ones nearest your task and all about safety).',
+    inputSchema: { type: 'object', properties: {} },
   },
   list_bots: {
     name: 'list_bots',
@@ -201,30 +206,54 @@ interface OrgContext extends OrgBrief {
   guidance: string;
 }
 
-/** The lessons as a prompt block, newest first; `more` says how many were left out. */
+/** The lessons as a prompt block, newest first; `more` says how many were left out (org_lessons has them). */
 export function lessonsBlock(lessons: OrgLesson[], more = 0): string {
   if (!lessons.length) return '';
-  const tail = more > 0 ? `\n(${more} more ${more === 1 ? 'lesson' : 'lessons'} in the organization.)` : '';
+  const tail = more > 0 ? `\n(${more} more ${more === 1 ? 'lesson' : 'lessons'}: call org_lessons)` : '';
   return `Lessons this organization learned from earlier mistakes (follow them):\n${lessons.map((l) => `- ${l.text}`).join('\n')}${tail}`;
 }
 
-/** The words a lesson and a task can share: three letters or more, in any language. */
-const wordsOf = (text: string) => new Set(text.toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) ?? []);
+/** Lowercase and without accents, so "políticas" is "politicas". */
+const plain = (text: string) => text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 
 /**
- * The `max` lessons nearest to an agent's task and role: the most words in common, newest first on
- * a tie (they come newest first). Never none when there are lessons.
+ * What makes a lesson about safety: stores and publishing, the owner's phrase and authorizations,
+ * permissions, credentials, money, state/ and the store policies, confirmations, deploying and
+ * deleting. Every agent is told those, whatever its task: a bot that misses one can publish, spend or
+ * delete what it shouldn't. Matched on the lesson without accents.
+ */
+const SAFETY_LESSON = /tienda|store|publica|publish|push|frase|autoriza|permis|credencial|token|dinero|money|state\/|politicas|confirm|despleg|deploy|borra|delete/;
+
+/** A lesson every agent gets: you pinned it, or it's about safety. */
+export const alwaysTold = (l: OrgLesson) => l.pinned === true || SAFETY_LESSON.test(plain(l.text));
+
+/** The words a lesson and a task can share: four letters or more, in any language. */
+const wordsOf = (text: string) => new Set(plain(text).match(/[\p{L}\p{N}]{4,}/gu) ?? []);
+
+/** A word in more than this share of the lessons says nothing about any of them. */
+const COMMON_SHARE = 0.3;
+
+/**
+ * What an agent is told of the lessons: every one about safety (or pinned), and the `max` others
+ * nearest to its task and role (the most telling words in common, newest first on a tie; they come
+ * newest first). Never none when there are lessons.
  */
 export function lessonsFor(lessons: OrgLesson[], about: string, max = LESSONS_PER_BOT): OrgLesson[] {
-  if (lessons.length <= max) return lessons;
-  const want = wordsOf(about);
-  const score = (l: OrgLesson) => [...wordsOf(l.text)].filter((w) => want.has(w)).length;
-  return lessons
-    .map((l, i) => ({ l, i, s: score(l) }))
-    .sort((a, b) => b.s - a.s || a.i - b.i)
-    .slice(0, max)
-    .sort((a, b) => a.i - b.i)
-    .map((x) => x.l);
+  const others = lessons.filter((l) => !alwaysTold(l));
+  if (others.length <= max) return lessons;
+  const words = new Map(lessons.map((l) => [l, wordsOf(l.text)]));
+  const seen = new Map<string, number>();
+  for (const set of words.values()) for (const w of set) seen.set(w, (seen.get(w) ?? 0) + 1);
+  const want = [...wordsOf(about)].filter((w) => (seen.get(w) ?? 0) <= lessons.length * COMMON_SHARE);
+  const score = (l: OrgLesson) => want.filter((w) => words.get(l)!.has(w)).length;
+  const picked = new Set(
+    others
+      .map((l, i) => ({ l, i, s: score(l) }))
+      .sort((a, b) => b.s - a.s || a.i - b.i)
+      .slice(0, max)
+      .map((x) => x.l),
+  );
+  return lessons.filter((l) => alwaysTold(l) || picked.has(l));
 }
 
 const LEARN =
@@ -253,7 +282,7 @@ function coordinatorPrompt(goal: string, role: string, cwd: string, approvePlan 
         : "The organization has no agents for this project yet: define them in create_bot with role. They join the organization as proposed agents the user can keep."
       : null,
     '',
-    `You can create other bots with the tools of the "${SERVER_NAME}" MCP server: list_bot_configs, create_bot, message_bot, wait_for_bot, list_bots, bot_changes, apply_bot_work, stop_bot, finish_team and record_lesson.`,
+    `You can create other bots with the tools of the "${SERVER_NAME}" MCP server: list_bot_configs, create_bot, message_bot, wait_for_bot, bot_reply, list_bots, bot_changes, apply_bot_work, stop_bot, finish_team, record_lesson and org_lessons.`,
     'Split the work into clear tasks, give each bot everything it needs in its task, wait for their answers, check them, and ask for fixes when needed.',
     `Bots work in the project folder (${cwd}) unless you give them their own copy with own_worktree: then check their result with bot_changes and bring it in with apply_bot_work. Give bots in the shared folder separate files or steps so they don't overwrite each other.`,
     `At most ${MAX_BOTS} bots per team. When the goal is done, call finish_team with a short summary of what was done and by whom (and anything left open), then end your turn.${org?.alone ? '' : " If you need the user's input instead, ask in your reply and don't call finish_team."}`,
@@ -361,7 +390,7 @@ function lessonsOf(v: unknown): OrgLesson[] {
   for (const x of v as Array<Partial<OrgLesson>>) {
     const text = str(x?.text, LESSON_CHARS);
     if (!text || typeof x.id !== 'string' || !/^[\w-]{1,40}$/.test(x.id)) continue;
-    out.push({ id: x.id, text, by: str(x.by, 80), from: str(x.from, 120), at: typeof x.at === 'number' && Number.isFinite(x.at) ? x.at : 0 });
+    out.push({ id: x.id, text, by: str(x.by, 80), from: str(x.from, 120), at: typeof x.at === 'number' && Number.isFinite(x.at) ? x.at : 0, ...(x.pinned === true ? { pinned: true } : {}) });
   }
   return out.sort((a, b) => b.at - a.at).slice(0, MAX_LESSONS);
 }
@@ -588,7 +617,13 @@ export class BotManager {
     const at = Date.now();
     const known = this.org.lessons.find((l) => sameLesson(l.text, clean));
     const lesson = known ? { ...known, at, by: by || known.by, from: from || known.from } : { id: randomBytes(6).toString('hex'), text: clean, by, from, at };
-    this.org.lessons = [lesson, ...this.org.lessons.filter((l) => l.id !== lesson.id)].slice(0, MAX_LESSONS);
+    const list = [lesson, ...this.org.lessons.filter((l) => l.id !== lesson.id)];
+    // Over the limit the oldest go first, but never one you pinned.
+    while (list.length > MAX_LESSONS) {
+      const i = list.findLastIndex((l) => !l.pinned);
+      list.splice(i < 0 ? list.length - 1 : i, 1);
+    }
+    this.org.lessons = list;
     this.write(this.orgFile, this.org);
     return { ...lesson };
   }
@@ -1515,6 +1550,10 @@ export class BotManager {
       case 'bot_reply': {
         const target = mine(args.bot_id);
         return `${target.name} (${target.status}):\n${target.lastReply || '(no answer)'}`;
+      }
+      case 'org_lessons': {
+        const all = lessonsBlock(this.org.lessons);
+        return all ? clip(all, REPLY_CHARS) : 'The organization has no lessons yet.';
       }
       case 'list_bots': {
         const visible = me.depth === 0 ? team.bots : team.bots.filter((b) => this.subtree(team, me.id).includes(b.id));
