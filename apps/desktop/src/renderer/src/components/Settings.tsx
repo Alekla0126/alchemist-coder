@@ -454,7 +454,7 @@ function About() {
         <b>{t('settings.edition')}</b>
         <span>{info?.edition === 'pro' ? 'Pro' : t('status.edition')}</span>
       </div>
-      {info?.proModule && <ProCode checkout={info.proCheckout} account={info.proAccount} />}
+      {info?.proModule && (info.edition !== 'pro' || info.proAccount) && <ProCode checkout={info.proCheckout} account={info.proAccount} />}
       <div className="set-row">
         <b>{t('settings.license')}</b>
         <a href="https://github.com/Alekla0126/alchemist-coder" target="_blank" rel="noreferrer">
