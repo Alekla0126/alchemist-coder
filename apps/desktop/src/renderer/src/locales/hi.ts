@@ -1627,6 +1627,8 @@ export const hi: Messages = {
   'org.office.noProjects': 'अभी काम वाले कोई प्रोजेक्ट नहीं। नीचे लिखें कि आपको क्या चाहिए: कोऑर्डिनेटर बाँट देगा।',
   'org.office.floor': 'अभी का काम, प्रोजेक्ट के हिसाब से',
   'org.office.departments': 'विभाग',
+  'org.office.noAgentCli': 'कोई एजेंट CLI इंस्टॉल नहीं है (Claude Code, Codex…)।',
+  'org.office.noAgentCredential': '{provider}: {label} नहीं है।',
   'org.office.back': 'दफ़्तर पर वापस',
   'org.office.noAgent': 'अपना संगठन तैयार करने के लिए एजेंट और मॉडल चुनें।',
   'org.office.pickAgent': 'सेटिंग › एजेंट',

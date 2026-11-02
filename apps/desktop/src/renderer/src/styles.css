@@ -2815,3 +2815,10 @@ body { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; 
 .ofc.depts-off { grid-template-columns: minmax(0, 1fr); }
 .ofc.depts-off .ofc-depts { display: none; }
 .ofc-no-agent { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 4px 6px; font-size: 12px; color: var(--fg); }
+/* The departments folded away: a tab on the office's right edge brings them back. */
+.ofc-depts-tab { position: absolute; top: 64px; right: 0; z-index: 5; padding: 10px 5px; border: 1px solid var(--line-2); border-right: 0; border-radius: 8px 0 0 8px; font-size: 11.5px; font-weight: 600; color: var(--fg); background: var(--bg-side); writing-mode: vertical-rl; }
+.ofc-depts-tab:hover { background: var(--bg-hl); }
+.ofc-depts-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* The project menu and «Automations» stand the same height side by side. */
+.ofc-head .ofc-filter, .ofc-head .ofc-auto { box-sizing: border-box; height: 28px; }
+.ofc-head .ofc-auto { display: inline-flex; align-items: center; }

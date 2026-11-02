@@ -1811,6 +1811,8 @@ export const ru: Messages = {
   'org.office.noProjects': 'Пока нет проектов с работой. Напишите ниже, что нужно: координатор распределит.',
   'org.office.floor': 'Работа сейчас, по проектам',
   'org.office.departments': 'Отделы',
+  'org.office.noAgentCli': 'Не установлен ни один CLI агента (Claude Code, Codex…).',
+  'org.office.noAgentCredential': '{provider}: нет {label}.',
   'org.office.back': 'Назад в офис',
   'org.office.noAgent': 'Выберите агента и модель, чтобы подготовить организацию.',
   'org.office.pickAgent': 'Настройки › Агенты',

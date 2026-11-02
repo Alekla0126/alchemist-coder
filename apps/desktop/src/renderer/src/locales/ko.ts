@@ -1627,6 +1627,8 @@ export const ko: Messages = {
   'org.office.noProjects': '아직 작업이 있는 프로젝트가 없어요. 필요한 것을 아래에 쓰면 코디네이터가 나눠요.',
   'org.office.floor': '지금의 작업, 프로젝트별',
   'org.office.departments': '부서',
+  'org.office.noAgentCli': '설치된 에이전트 CLI가 없어요 (Claude Code, Codex…).',
+  'org.office.noAgentCredential': '{provider}: {label}이(가) 없어요.',
   'org.office.back': '사무실로 돌아가기',
   'org.office.noAgent': '조직을 준비하려면 에이전트와 모델을 고르세요.',
   'org.office.pickAgent': '설정 › 에이전트',

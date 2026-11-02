@@ -2,10 +2,10 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { BotConfig, BotTeam } from '@shared/api';
 import { dismissMember, keepMember, openAssignment } from '../actions/org';
 import { relativeTime } from '../format';
-import { useLayout, useViewport } from '../layout';
+import { toggleSidebar, useLayout, useViewport } from '../layout';
 import { baseName, isInside } from '../paths';
 import { aboutOf, inFolder, teamState } from '../org-model';
-import { channelOf, countsOf, waitingBot, departmentsOf, latestTeam, projectsOf, type Department, type OfficeAgent, type OfficeMember, type OfficeProject, type OfficeState } from '../org-office';
+import { channelOf, countsOf, noAgentCause, waitingBot, departmentsOf, latestTeam, projectsOf, type Department, type OfficeAgent, type OfficeMember, type OfficeProject, type OfficeState } from '../org-office';
 import { useOpenProjects, useStore, useT } from '../store';
 import { confirmAction, useUi } from '../ui';
 import { AgentAvatar } from './AgentAvatar';
@@ -242,8 +242,12 @@ function Talk({ to, setTo, configs, teams, floor, departments, coordinator }: { 
   useEffect(() => {
     const goal = useStore.getState().orgGoal;
     const next = member && !channel ? t('org.giveTaskGoal', { name: member.name }) : '';
-    if (goal.trim() && goal !== prefilled.current) return;
-    if (goal !== next) useStore.setState({ orgGoal: next });
+    // Only its own start changes ("Ask Writer to fix…" → "Ask Analyst to fix…"); a box you emptied or rewrote stays yours.
+    const was = prefilled.current;
+    const rest = was && goal.startsWith(was) ? goal.slice(was.length) : null;
+    if (rest === null && goal.trim()) return;
+    const value = next + (rest ?? '');
+    if (goal !== value) useStore.setState({ orgGoal: value });
     prefilled.current = next || null;
   }, [to]);
   const chat = !member && mode === 'chat' && !!latest;
@@ -324,6 +328,8 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
   const deptsHidden = useLayout((l) => l.deptsHidden);
   // The organization is set up with your default agent: with none to run (catalog read), say so instead of "Setting up…" for ever.
   const noAgent = useStore((s) => !!s.catalog && !defaultChoice(s.catalog));
+  const catalog = useStore((s) => s.catalog);
+  const cause = noAgent ? noAgentCause(catalog) : null;
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), TICK_MS);
@@ -410,7 +416,7 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
         {callout}
         <span className="composer-sp" />
         <ProjectFilter />
-        <button className="btn-ghost small" onClick={showAutomations} title={t('auto.title')}>
+        <button className="btn-ghost small ofc-auto" onClick={showAutomations} title={t('auto.title')}>
           ⚡ {t('auto.title')}
           {automations > 0 && ` · ${automations}`}
         </button>
@@ -438,6 +444,7 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
           (noAgent ? (
             <div className="ofc-no-agent" role="status">
               <p>{t('org.office.noAgent')}</p>
+              {cause && <p className="composer-note">{cause.kind === 'noCli' ? t('org.office.noAgentCli') : cause.kind === 'credential' ? t('org.office.noAgentCredential', { provider: cause.provider, label: cause.label }) : cause.text}</p>}
               <button className="btn-send" onClick={() => useStore.setState({ settingsOpen: true, settingsSection: 'agents' })}>
                 {t('org.office.pickAgent')}
               </button>
@@ -486,6 +493,12 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
           </section>
         )}
       </aside>
+      {/* Folded away, the departments leave a tab on the edge to bring them back. */}
+      {deptsHidden && (
+        <button className="ofc-depts-tab" onClick={toggleSidebar} aria-label={t('org.office.showDepts')} title={t('org.office.showDepts')}>
+          ‹ {t('org.office.departments')}
+        </button>
+      )}
       {shown && <Sheet key={shown.id} member={shown} floor={agents} editor={editor} onWrite={() => void writeTo(shown)} onClose={() => void closeSheet()} />}
     </div>
   );

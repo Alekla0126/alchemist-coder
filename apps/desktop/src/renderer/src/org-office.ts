@@ -1,4 +1,4 @@
-import type { AgentChoice, BotConfig, BotMember, BotStatus, BotTeam, StarterAgent } from '@shared/api';
+import type { AgentChoice, BotConfig, BotMember, BotStatus, BotTeam, RunnerCatalog, StarterAgent } from '@shared/api';
 import { ACTIVE, activityOf, botState, chartOf, teamState } from './org-model';
 import { baseName, isInside } from './paths';
 
@@ -253,4 +253,19 @@ export function demoConfigs(staff: Record<string, StarterAgent>, agent: AgentCho
     leadId: s.lead ? `demo-${s.lead}` : null,
     ...(s.proposed ? { proposed: true } : {}),
   }));
+}
+
+/**
+ * Why no agent can run, from what the catalog says: no agent CLI installed, a provider missing its key,
+ * or what an unavailable provider said; null when it says nothing.
+ */
+export function noAgentCause(catalog: RunnerCatalog | null): { kind: 'noCli' } | { kind: 'credential'; provider: string; label: string } | { kind: 'detail'; text: string } | null {
+  if (!catalog) return null;
+  const installed = catalog.harnesses.filter((h) => h.installed).map((h) => h.id);
+  if (!installed.length) return { kind: 'noCli' };
+  const usable = catalog.providers.filter((p) => p.harnesses.some((h) => installed.includes(h)));
+  const keyless = usable.find((p) => p.available && p.credential && !p.credential.isSet && !p.credential.optional);
+  if (keyless) return { kind: 'credential', provider: keyless.label, label: keyless.credential!.label };
+  const said = usable.find((p) => !p.available && p.detail?.trim());
+  return said ? { kind: 'detail', text: said.detail!.trim() } : null;
 }

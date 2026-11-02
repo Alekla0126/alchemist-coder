@@ -1627,6 +1627,8 @@ export const ja: Messages = {
   'org.office.noProjects': 'まだ作業のあるプロジェクトはありません。必要なことを下に書けば、コーディネーターが割り振ります。',
   'org.office.floor': '今の仕事、プロジェクト別',
   'org.office.departments': '部署',
+  'org.office.noAgentCli': 'エージェントの CLI がインストールされていません (Claude Code, Codex…)。',
+  'org.office.noAgentCredential': '{provider}: {label} がありません。',
   'org.office.back': 'オフィスに戻る',
   'org.office.noAgent': '組織を準備するにはエージェントとモデルを選んでください。',
   'org.office.pickAgent': '設定 › エージェント',

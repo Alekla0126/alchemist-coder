@@ -180,3 +180,16 @@ describe('who hears you', () => {
     expect(isDemo('3f2a')).toBe(false);
   });
 });
+
+describe('why no agent can run', () => {
+  const harness = (installed: boolean) => ({ id: 'claude-code', label: 'Claude Code', installed, version: null, cliVersion: null, signedIn: null, account: null, cliPath: null, install: null });
+  const provider = (extra: object) => ({ id: 'anthropic', label: 'Anthropic', edition: 'community' as const, harnesses: ['claude-code'], available: true, detail: null, models: [], credential: null, ...extra });
+  it('says what the catalog says: no CLI, a missing key, or the provider’s own words', async () => {
+    const { noAgentCause } = await import('../src/renderer/src/org-office');
+    expect(noAgentCause(null)).toBeNull();
+    expect(noAgentCause({ harnesses: [harness(false)], providers: [] })).toEqual({ kind: 'noCli' });
+    expect(noAgentCause({ harnesses: [harness(true)], providers: [provider({ credential: { label: 'API key', placeholder: null, isSet: false, optional: false } })] })).toEqual({ kind: 'credential', provider: 'Anthropic', label: 'API key' });
+    expect(noAgentCause({ harnesses: [harness(true)], providers: [provider({ available: false, detail: ' Sign in with `claude login` ' })] })).toEqual({ kind: 'detail', text: 'Sign in with `claude login`' });
+    expect(noAgentCause({ harnesses: [harness(true)], providers: [provider({})] })).toBeNull();
+  });
+});

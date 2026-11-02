@@ -1627,6 +1627,8 @@ export const es: Messages = {
   'org.office.noProjects': 'Aún no hay proyectos con trabajo. Escribe abajo lo que necesitas: el coordinador lo reparte.',
   'org.office.floor': 'El trabajo de ahora, por proyecto',
   'org.office.departments': 'Departamentos',
+  'org.office.noAgentCli': 'No hay ningún CLI de agente instalado (Claude Code, Codex…).',
+  'org.office.noAgentCredential': '{provider}: falta su {label}.',
   'org.office.back': 'Volver a la oficina',
   'org.office.noAgent': 'Elige agente y modelo para preparar tu organización.',
   'org.office.pickAgent': 'Ajustes › Agentes',

@@ -1627,6 +1627,8 @@ export const de: Messages = {
   'org.office.noProjects': 'Noch keine Projekte mit Arbeit. Schreib unten, was du brauchst: der Koordinator verteilt es.',
   'org.office.floor': 'Die Arbeit gerade, nach Projekt',
   'org.office.departments': 'Abteilungen',
+  'org.office.noAgentCli': 'Kein Agenten-CLI installiert (Claude Code, Codex…).',
+  'org.office.noAgentCredential': '{provider}: {label} fehlt.',
   'org.office.back': 'Zurück zum Büro',
   'org.office.noAgent': 'Wähle Agent und Modell, um deine Organisation einzurichten.',
   'org.office.pickAgent': 'Einstellungen › Agenten',
