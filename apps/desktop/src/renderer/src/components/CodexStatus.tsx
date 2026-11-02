@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { AgentChoice } from '@shared/api';
 import { useStore, useT } from '../store';
 import { errorText } from './Bots';
@@ -18,6 +18,11 @@ export function CodexStatus({ agent }: { agent: AgentChoice }) {
     catch (e) { toast(errorText(e)); }
     finally { setBusy(false); }
   };
+  // Older cached catalogs have no runtime snapshot. Ask once when this provider is opened,
+  // so saved models remain usable after upgrading/restarting without a manual refresh.
+  useEffect(() => {
+    if (provider?.id === 'openai' && !runtime) void refresh();
+  }, [provider?.id]);
   if (agent.providerId !== 'openai') return null;
   return <section className="org-codex-status" aria-label={t('org.codex.title')}>
     <header><b>{t('org.codex.title')}</b><button className="btn-ghost small" disabled={busy} onClick={() => void refresh()}>{busy ? '…' : t('run.refresh')}</button></header>
