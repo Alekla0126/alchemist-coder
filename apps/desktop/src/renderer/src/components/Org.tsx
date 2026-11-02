@@ -796,7 +796,7 @@ function CoordinatorAutopilot() {
                   aria-label={l.pinned ? t('org.unpin') : t('org.pin')}
                   onClick={() => void save({ lessons: lessons.map((x) => (x.id === l.id ? { ...x, pinned: !l.pinned } : x)) })}
                 >
-                  📌
+                  <Icon name="pin" size={15} />
                 </button>
                 <button className="icon-btn ic-btn" title={t('org.forget')} aria-label={t('org.forget')} onClick={() => void save({ lessons: lessons.filter((x) => x.id !== l.id) })}>
                   <Icon name="close" size={12} />

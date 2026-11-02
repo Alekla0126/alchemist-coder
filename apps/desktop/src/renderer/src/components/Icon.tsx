@@ -44,6 +44,7 @@ const PATHS = {
   open: <path d="M14 4h6v6M20 4l-8.5 8.5M18 14v4.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10" />,
   close: <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />,
   check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
+  pin: <path d="M16 9V3H8v6l-3 3v2h14v-2l-3-3ZM12 14v7" />,
   done: (
     <>
       <circle cx="12" cy="12" r="8.5" />

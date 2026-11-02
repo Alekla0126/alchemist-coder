@@ -2840,10 +2840,10 @@ body { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; 
 .ofc-chip-project { flex: none; color: var(--fg-2); }
 .ofc-chip-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ofc-chip-n { flex: none; font-variant-numeric: tabular-nums; color: var(--fg-2); }
-/* A lesson's pin: faint until pinned. */
-/* Unpinned: faint but still 3:1 against the column. */
-.org-lesson-pin { opacity: 0.7; filter: grayscale(1); }
-.org-lesson-pin.on, .org-lesson-pin:hover, .org-lesson-pin:focus-visible { opacity: 1; filter: none; }
+/* A theme-colored line icon stays readable; emoji pixels ignore the text color. */
+.org-lesson-pin { color: var(--fg); }
+.org-lesson-pin.on { background: var(--bg-hl); }
+.org-lesson-pin.on .ic { fill: currentColor; }
 /* Both filters on and nothing left in the sidebar. */
 .org-filter-empty { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 2px 6px; font-size: 12px; color: var(--fg); }
 /* The focused office's bar: its buttons keep their words on one line. */
