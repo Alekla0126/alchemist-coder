@@ -1,5 +1,5 @@
 import type { BotConfig, BotTeam, OrgGroup, OrgSettings } from '@shared/api';
-import { isInside } from './paths';
+import { baseName, isInside } from './paths';
 
 /**
  * Organizations (Claude Coder, LinkedIn…) as groups of project folders, to look at the organization
@@ -30,3 +30,22 @@ export function newGroupId(name: string, groups: OrgGroup[]): string {
 /** The organizations with `cwd` added to or taken out of one of them. */
 export const toggleFolder = (groups: OrgGroup[], id: string, cwd: string): OrgGroup[] =>
   groups.map((g) => (g.id !== id ? g : { ...g, projects: g.projects.includes(cwd) ? g.projects.filter((p) => p !== cwd) : [...g.projects, cwd] }));
+
+/**
+ * Where an assignment is when the filters hide it, to say so next to what needs you ("1 needs you (in
+ * Claude Coder)"): the organization it's in ('' = one you don't look at, unnamed), or its project.
+ * Null while it's in sight.
+ */
+export function hiddenWhere(team: BotTeam, group: OrgGroup | null, project: string, groups: OrgGroup[]): string | null {
+  if (teamInGroup(team, group) && (!project || isInside(team.cwd, project))) return null;
+  if (group && !teamInGroup(team, group)) return groups.find((g) => teamInGroup(team, g))?.name ?? '';
+  return baseName(team.cwd);
+}
+
+/** "3 need you", and where the ones out of sight are: "(in Claude Coder)" when all of them are, "(1 in Claude Coder)" when some. */
+export function needsYouText(t: (key: 'org.inboxN' | 'org.inboxIn' | 'org.inboxSomeIn', vars: Record<string, string | number>) => string, urgent: number, hidden: string[]): string {
+  if (!urgent) return '';
+  const where = [...new Set(hidden)].join(', ');
+  const suffix = !hidden.length ? '' : hidden.length === urgent ? t('org.inboxIn', { where }) : t('org.inboxSomeIn', { n: hidden.length, where });
+  return [t('org.inboxN', { n: urgent }), suffix].filter(Boolean).join(' ');
+}

@@ -515,7 +515,7 @@ export function OrgOffice({ title, editor, views, callout }: { title: string; ed
               <OrgGroupEmpty group={group} />
             </div>
           ) : focusTeam ? (
-            <FocusRoom team={focusTeam} teams={allTeams} configs={everyone} onOpen={openDesk} />
+            <FocusRoom team={focusTeam} teams={every} configs={everyone} onOpen={openDesk} />
           ) : floor.length ? (
             floor.map((p) => <ProjectRoom key={p.cwd} p={p} onOpen={openDesk} />)
           ) : (

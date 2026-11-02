@@ -19,7 +19,7 @@ import { OrgMap } from './OrgMap';
 import { OrgOffice } from './OrgOffice';
 import { OrgChat } from './OrgChat';
 import { OrgGroupEmpty, OrgGroupPicker } from './OrgGroups';
-import { groupOf, memberInGroup, teamInGroup } from '../org-groups';
+import { groupOf, hiddenWhere, memberInGroup, needsYouText, teamInGroup } from '../org-groups';
 import { ROSTER, ROSTER_DEPARTMENTS, rosterOf, tierModels } from '../org-roster';
 import { AutomationList, AutomationView, NewAutomationDialog } from './Automations';
 import { PermissionCard } from './LiveRun';
@@ -77,20 +77,43 @@ function inboxGroups(items: InboxItem[]) {
 }
 
 /**
+ * What needs you, from every assignment whatever the filters (it's never hidden), in words: "1 needs
+ * you (in Claude Coder)" when it's in an organization or project out of sight. `skipPlan`: a plan
+ * answered elsewhere on screen.
+ */
+function useNeedsYou(proposed: BotConfig[], skipPlan?: string) {
+  const t = useT();
+  const allTeams = useStore((s) => s.botTeams);
+  const org = useStore((s) => s.orgSettings);
+  const chosen = useStore((s) => s.orgGroup);
+  const project = useStore((s) => s.orgProject);
+  const items = useInbox(allTeams, proposed).filter((x) => !(x.kind === 'plan' && x.team.id === skipPlan));
+  const groups = inboxGroups(items);
+  const group = groupOf(org, chosen);
+  const placeOf = (team: BotTeam) => {
+    const where = hiddenWhere(team, group, project, org?.groups ?? []);
+    return where === null ? null : where || t('org.groups.another');
+  };
+  const hidden = [...groups.blocking, ...groups.plans].map((x) => placeOf(x.team)).filter((x): x is string => x !== null);
+  return { items, ...groups, placeOf, text: needsYouText(t, groups.urgent, hidden) };
+}
+
+/**
  * The "needs you" inbox, most urgent first: agents blocked on you now (answered right here, without
  * number-key shortcuts so no stray key answers another agent), plans to review, then suggested agents.
  */
-function Inbox({ items }: { items: InboxItem[] }) {
+function Inbox({ items, title, placeOf }: { items: InboxItem[]; title: string; placeOf: (team: BotTeam) => string | null }) {
   const t = useT();
   const locale = useStore((s) => s.locale);
   const { blocking, plans, suggested, urgent } = inboxGroups(items);
   if (!items.length) return null;
-  const where = (team: BotTeam) => team.title || team.goal;
+  // One out of sight says where it is.
+  const where = (team: BotTeam) => [team.title || team.goal, placeOf(team)].filter(Boolean).join(' · ');
   return (
     <section className={`org-inbox ${urgent ? '' : 'calm'}`} id="org-inbox" aria-label={t('org.inbox')}>
       {urgent > 0 && (
         <h3 aria-live="polite">
-          <span className="org-dot st-waiting" aria-hidden /> {t('org.inboxN', { n: urgent })}
+          <span className="org-dot st-waiting" aria-hidden /> {title}
         </h3>
       )}
       {blocking.length > 0 && <h4>{t('org.groupBlocking')}</h4>}
@@ -574,8 +597,7 @@ export function OrgSidebar() {
   // An assignment open from elsewhere (e.g. from "needs you") still shows in the list.
   const elsewhere = allTeams.filter((x) => x.id === current && !teams.includes(x));
   const projectName = orgProject ? (open.find((p) => p.cwd === orgProject)?.name ?? folderName(orgProject)) : '';
-  const inbox = useInbox(teams, proposed);
-  const { urgent, suggested } = inboxGroups(inbox);
+  const { items: inbox, urgent, suggested, text: needsYou } = useNeedsYou(proposed);
   // With an assignment open, its agents stand out in the chart: those in it, and those its pending plan names.
   const activeTeam = allTeams.find((x) => x.id === current);
   const planned = new Set(
@@ -635,7 +657,7 @@ export function OrgSidebar() {
       {inbox.length > 0 && (
         <button className={`org-callout ${urgent ? '' : 'calm'}`} onClick={showInbox}>
           {urgent > 0 && <span className="org-dot st-waiting" aria-hidden />}
-          <span className="org-callout-text">{[urgent ? t('org.inboxN', { n: urgent }) : '', suggested.length ? t('org.suggestionsN', { n: suggested.length }) : ''].filter(Boolean).join(' · ')}</span>
+          <span className="org-callout-text">{[needsYou, suggested.length ? t('org.suggestionsN', { n: suggested.length }) : ''].filter(Boolean).join(' · ')}</span>
           <span className="org-callout-go">{t('org.review')} →</span>
         </button>
       )}
@@ -925,11 +947,11 @@ function OrgHome() {
   const allTeams = useStore((s) => s.botTeams);
   const focus = useStore((s) => s.botTeams.find((x) => x.id === s.orgFocusTeamId));
   const teams = orgProject ? allTeams.filter((x) => inFolder(x, orgProject)) : allTeams;
-  // The plan of the assignment on the chart is answered there, not twice.
-  const inbox = useInbox(
-    teams,
+  // The plan of the assignment on the chart is answered there, not twice. What needs you comes from every assignment.
+  const { items: inbox, text: needsYou, placeOf } = useNeedsYou(
     configs.filter((c) => c.proposed && (!orgProject || inProject(c, orgProject))),
-  ).filter((x) => !(x.kind === 'plan' && x.team.id === focus?.id));
+    focus?.id,
+  );
   const agents = configs.filter((c) => c.kind !== 'coordinator' && !c.proposed && (!orgProject || inProject(c, orgProject))).length;
   const { urgent } = inboxGroups(inbox);
   // The chart, the company's map of tokens, or the chosen assignment live; only your click switches.
@@ -967,7 +989,7 @@ function OrgHome() {
           urgent > 0 && (
             <button className="org-callout ofc-callout" onClick={showInbox}>
               <span className="org-dot st-waiting" aria-hidden />
-              <span className="org-callout-text">{t('org.inboxN', { n: urgent })}</span>
+              <span className="org-callout-text">{needsYou}</span>
               <span className="org-callout-go">{t('org.review')} →</span>
             </button>
           )
@@ -988,7 +1010,7 @@ function OrgHome() {
       {/* The conversation with the organization: what you asked and what it answered, without leaving the chart. */}
       <OrgChat team={focus ?? latestOf(teams)} />
       {/* What blocks an agent goes first; suggestions can wait under the chart. */}
-      {urgent > 0 && <Inbox items={inbox} />}
+      {urgent > 0 && <Inbox items={inbox} title={needsYou} placeOf={placeOf} />}
       <section className="oc-wrap" aria-label={t('org.chart')}>
         <div className="oc-top">
           <h3>{shown === 'live' ? t('org.live.title') : shown === 'map' ? t('org.map.title') : t('org.chart')}</h3>
@@ -1012,7 +1034,7 @@ function OrgHome() {
           <LivePick teams={teams} tabs={teams.some((x) => WATCH.includes(teamState(x)))} />
         )}
       </section>
-      {urgent === 0 && <Inbox items={inbox} />}
+      {urgent === 0 && <Inbox items={inbox} title={needsYou} placeOf={placeOf} />}
       <StaffTemplate />
       <OrgInstructions />
     </div>

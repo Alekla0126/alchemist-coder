@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { BotConfig, BotMember, BotTeam, OrgGroup, OrgSettings } from '../src/shared/api';
 import { translate } from '../src/renderer/src/i18n';
-import { groupOf, memberInGroup, newGroupId, teamInGroup, toggleFolder } from '../src/renderer/src/org-groups';
+import { groupOf, hiddenWhere, memberInGroup, needsYouText, newGroupId, teamInGroup, toggleFolder } from '../src/renderer/src/org-groups';
 
 const agent = { harnessId: 'claude-code', providerId: 'anthropic', model: 'sonnet' };
 const config = (id: string, name: string, extra: Partial<BotConfig> = {}): BotConfig => ({ id, name, role: '', agent, permissionMode: 'acceptEdits', canSpawn: false, kind: 'member', ...extra });
@@ -38,6 +38,21 @@ describe('organizations as groups of folders', () => {
     expect(once[1]!.projects).toEqual(['/p/li']);
     expect(toggleFolder(once, 'linkedin', '/p/li')[1]!.projects).toEqual([]);
     expect(once[0]).toBe(coder);
+  });
+
+  it('says where what needs you is when the filters hide it', () => {
+    const li = { ...linkedin, projects: ['/p/li'] };
+    expect(hiddenWhere(team('a', '/p/coder/x'), coder, '', [coder, li])).toBeNull();
+    expect(hiddenWhere(team('b', '/p/li/app'), coder, '', [coder, li])).toBe('LinkedIn');
+    // In no organization: unnamed.
+    expect(hiddenWhere(team('c', '/p/other'), coder, '', [coder, li])).toBe('');
+    // Hidden by the project filter: its folder.
+    expect(hiddenWhere(team('d', '/p/coder/web'), null, '/p/coder/app', [coder])).toBe('web');
+    const es = (key: never, vars?: Record<string, string | number>) => translate('es', key, vars);
+    expect(needsYouText(es, 1, ['Claude Coder'])).toBe('1 te necesita (en Claude Coder)');
+    expect(needsYouText(es, 3, ['Claude Coder'])).toBe('3 te necesitan (1 en Claude Coder)');
+    expect(needsYouText(es, 2, [])).toBe('2 te necesitan');
+    expect(needsYouText(es, 0, [])).toBe('');
   });
 
   it('forgets a chosen organization that no longer exists', () => {
@@ -100,6 +115,16 @@ describe('the office filtered by organization', () => {
     expect(one).toContain('>Anyone</option>');
     expect(depts(all)).toContain('No department');
     state.orgGroup = '';
+  });
+
+  it('keeps what runs in another organization on the focused office’s strip', () => {
+    state.orgGroup = 'claude-coder';
+    state.officeTeamId = 'Coder work';
+    const html = render();
+    state.officeTeamId = null;
+    state.orgGroup = '';
+    expect(html).toContain('Also running in other projects: 1');
+    expect(html).toMatch(/ofc-chip[^>]*>.*Komodo.*VPN work/);
   });
 
   it('asks for folders when the organization has none, and shows its work once it has some', () => {
