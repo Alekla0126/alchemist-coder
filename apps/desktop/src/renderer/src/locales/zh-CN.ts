@@ -963,7 +963,7 @@ export const zhCN: Messages = {
   'org.autopilotPill': '协调者自行决定',
   'org.autopilotPillTip': '组织不会等你。点击查看协调者。',
   'org.lessons': '它学到的东西',
-  'org.lessonsHint': '出错时，协调者会记下下次该怎么做，每个代理在每次任务中都会收到。删除不再适用的内容。',
+  'org.lessonsHint': '每个智能体会收到与其任务最相关的 8 条、关于安全的和置顶 📌 的教训。删除不再适用的内容。',
   'org.noLessons': '暂无：第一次出错后，教训会显示在这里。',
   'org.forget': '忘记',
   'org.pin': '置顶:告诉每个智能体',

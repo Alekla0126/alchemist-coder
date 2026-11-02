@@ -963,7 +963,7 @@ export const de: Messages = {
   'org.autopilotPill': 'Koordinator entscheidet allein',
   'org.autopilotPillTip': 'Die Organisation wartet nicht auf dich. Klicke, um den Koordinator zu sehen.',
   'org.lessons': 'Was er gelernt hat',
-  'org.lessonsHint': 'Wenn etwas schiefgeht, speichert der Koordinator, was künftig anders zu tun ist, und jeder Agent bekommt es bei jedem Auftrag. Entferne, was nicht mehr gilt.',
+  'org.lessonsHint': 'Jeder Agent bekommt die 8, die seiner Aufgabe am nächsten sind, die zur Sicherheit und die angehefteten 📌. Entferne, was nicht mehr gilt.',
   'org.noLessons': 'Noch nichts: Lektionen erscheinen hier nach seinen ersten Fehlern.',
   'org.forget': 'Vergessen',
   'org.pin': 'Anheften: jeder Agent bekommt sie',

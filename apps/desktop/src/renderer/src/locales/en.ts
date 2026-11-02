@@ -962,7 +962,7 @@ export const en = {
   'org.autopilotPill': 'Coordinator decides alone',
   'org.autopilotPillTip': 'The organization doesn\'t wait for you. Click to see the Coordinator.',
   'org.lessons': 'What it has learned',
-  'org.lessonsHint': 'When something goes wrong, the coordinator saves what to do differently, and every agent is told in each assignment. Remove what no longer applies.',
+  'org.lessonsHint': 'Each agent gets the 8 nearest to its task, the ones about safety and the pinned ones 📌. Remove what no longer applies.',
   'org.noLessons': 'Nothing yet: lessons show up here after its first mistakes.',
   'org.forget': 'Forget',
   'org.pin': 'Pin: every agent is told it',

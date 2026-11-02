@@ -963,7 +963,7 @@ export const ptBR: Messages = {
   'org.autopilotPill': 'O coordenador decide sozinho',
   'org.autopilotPillTip': 'A organização não espera por você. Clique para ver o coordenador.',
   'org.lessons': 'O que aprendeu',
-  'org.lessonsHint': 'Quando algo dá errado, o coordenador guarda o que fazer diferente, e todos os agentes recebem isso em cada tarefa. Remova o que não vale mais.',
+  'org.lessonsHint': 'Cada agente recebe as 8 mais próximas da sua tarefa, as de segurança e as fixadas 📌. Remova o que não vale mais.',
   'org.noLessons': 'Nada ainda: as lições aparecem aqui depois dos primeiros erros.',
   'org.forget': 'Esquecer',
   'org.pin': 'Fixar: todo agente recebe',

@@ -963,7 +963,7 @@ export const ko: Messages = {
   'org.autopilotPill': '코디네이터가 스스로 결정',
   'org.autopilotPillTip': '조직이 당신을 기다리지 않습니다. 클릭하면 코디네이터를 봅니다.',
   'org.lessons': '배운 것',
-  'org.lessonsHint': '문제가 생기면 코디네이터가 다음에 다르게 할 일을 저장하고, 모든 에이전트가 매 작업마다 이를 받습니다. 더 이상 맞지 않는 것은 지우세요.',
+  'org.lessonsHint': '각 에이전트는 작업에 가장 가까운 8개, 안전에 관한 것, 고정 📌 한 것을 받습니다. 더 이상 맞지 않는 것은 지우세요.',
   'org.noLessons': '아직 없음: 첫 실수 후 여기에 교훈이 표시됩니다.',
   'org.forget': '잊기',
   'org.pin': '고정: 모든 에이전트에게 알립니다',

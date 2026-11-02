@@ -963,7 +963,7 @@ export const it: Messages = {
   'org.autopilotPill': 'Il coordinatore decide da solo',
   'org.autopilotPillTip': 'L\'organizzazione non ti aspetta. Clicca per vedere il coordinatore.',
   'org.lessons': 'Cosa ha imparato',
-  'org.lessonsHint': 'Quando qualcosa va storto, il coordinatore salva cosa fare diversamente e ogni agente lo riceve in ogni incarico. Rimuovi ciò che non vale più.',
+  'org.lessonsHint': 'Ogni agente riceve le 8 più vicine al suo incarico, quelle sulla sicurezza e quelle fissate 📌. Rimuovi ciò che non vale più.',
   'org.noLessons': 'Ancora niente: le lezioni compaiono qui dopo i primi errori.',
   'org.forget': 'Dimentica',
   'org.pin': 'Fissa: ogni agente la riceve',
