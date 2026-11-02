@@ -81,6 +81,8 @@ export const fr: Messages = {
   "org.codex.inheritEffort": "Hériter de la configuration du runtime",
   "org.codex.title": "Runtime Codex",
   "org.codex.connected": "Catalogue connecté ; accès au modèle vérifié à l’exécution",
+  "org.codex.cliSkipped": "Installations Codex défectueuses ignorées ; le catalogue et les tâches utilisent le CLI ci-dessus.",
+  "org.codex.chooseAvailable": "Choisissez un modèle et un effort disponibles pour continuer. La conversation et le brouillon sont conservés.",
   "org.codex.unavailable": "Indisponible",
   "org.codex.accountUnknown": "Compte inconnu",
   "org.codex.quotaUnknown": "Quota inconnu : Codex ne l’a pas indiqué.",

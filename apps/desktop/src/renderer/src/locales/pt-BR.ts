@@ -81,6 +81,8 @@ export const ptBR: Messages = {
   "org.codex.inheritEffort": "Herdar configuração do runtime",
   "org.codex.title": "Runtime Codex",
   "org.codex.connected": "Catálogo conectado; acesso ao modelo verificado na execução",
+  "org.codex.cliSkipped": "Instalações do Codex com falha foram ignoradas; catálogo e tarefas usam o CLI acima.",
+  "org.codex.chooseAvailable": "Escolha modelo e esforço disponíveis para continuar. A conversa e o rascunho são preservados.",
   "org.codex.unavailable": "Indisponível",
   "org.codex.accountUnknown": "Conta desconhecida",
   "org.codex.quotaUnknown": "Cota desconhecida: Codex não a informou.",

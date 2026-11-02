@@ -81,6 +81,8 @@ export const hi: Messages = {
   "org.codex.inheritEffort": "रनटाइम सेटिंग विरासत में लें",
   "org.codex.title": "Codex रनटाइम",
   "org.codex.connected": "कैटलॉग जुड़ा है; मॉडल की पहुँच कार्य चलने पर जाँची जाएगी",
+  "org.codex.cliSkipped": "खराब Codex इंस्टॉलेशन छोड़े गए; कैटलॉग और कार्य ऊपर दिखाए गए CLI का उपयोग करते हैं।",
+  "org.codex.chooseAvailable": "जारी रखने के लिए उपलब्ध मॉडल और तर्क स्तर चुनें। बातचीत और ड्राफ़्ट सुरक्षित हैं।",
   "org.codex.unavailable": "उपलब्ध नहीं",
   "org.codex.accountUnknown": "खाता अज्ञात",
   "org.codex.quotaUnknown": "कोटा अज्ञात: Codex ने इसकी जानकारी नहीं दी।",

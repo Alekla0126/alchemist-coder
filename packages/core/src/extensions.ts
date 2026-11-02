@@ -42,6 +42,10 @@ export interface ModelSpec {
 /** A read-only snapshot from the installed Codex App Server. No tokens or session history. */
 export interface CodexRuntimeSnapshot {
   connected: boolean;
+  /** The validated installed CLI used for this catalog and pinned for execution. */
+  cliPath?: string | null;
+  cliVersion?: string | null;
+  skippedCliPaths?: string[];
   /** Explicit provider credential mode; account identity remains unknown unless reported. */
   usesApiKey?: boolean;
   error: string | null;

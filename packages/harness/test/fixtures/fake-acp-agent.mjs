@@ -4,10 +4,10 @@ import { AgentSideConnection, ndJsonStream, PROTOCOL_VERSION, RequestError } fro
 
 // FAKE_MODES / FAKE_START_MODE: which modes it offers and starts in (like a CLI set to bypassPermissions).
 const available = (process.env.FAKE_MODES ?? 'default,acceptEdits,plan').split(',');
-const state = { authed: false, mode: process.env.FAKE_START_MODE ?? 'default', model: 'opus[1m]', effort: 'low', cancelled: false };
+const state = { authed: false, mode: process.env.FAKE_START_MODE ?? 'default', model: process.env.FAKE_START_MODEL ?? 'opus[1m]', effort: process.env.FAKE_START_EFFORT ?? 'low', cancelled: false };
 const modes = () => ({ currentModeId: state.mode, availableModes: available.map((id) => ({ id, name: id })) });
-const config = () => [
-  { id: 'model', name: 'Model', type: 'select', currentValue: state.model, options: [{ value: 'opus[1m]', name: 'Opus' }, { value: 'sonnet', name: 'Sonnet' }] },
+const config = () => process.env.FAKE_NO_CATALOG === '1' ? [] : [
+  { id: 'model', name: 'Model', type: 'select', currentValue: state.model, options: [{ value: 'opus[1m]', name: 'Opus' }, { value: 'sonnet', name: 'Sonnet' }, ...(process.env.FAKE_APPEND_SAVED_MODEL === '1' ? [{ value: state.model, name: state.model }] : [])] },
   { id: 'effort', name: 'Effort', category: 'thought_level', type: 'select', currentValue: state.effort, options: [{ group: 'g', name: 'All', options: [{ value: 'low', name: 'Low' }, { value: 'high', name: 'High' }] }] },
 ];
 
@@ -19,8 +19,8 @@ new AgentSideConnection((conn) => ({
       protocolVersion: PROTOCOL_VERSION,
       authMethods: [{ id: 'api-key', name: 'API key' }],
       agentCapabilities: {
-        loadSession: true,
-        sessionCapabilities: process.env.FAKE_NO_FORK === '1' ? { resume: {} } : { resume: {}, fork: {} },
+        loadSession: process.env.FAKE_NO_RESUME !== '1',
+        sessionCapabilities: process.env.FAKE_NO_RESUME === '1' ? {} : process.env.FAKE_NO_FORK === '1' ? { resume: {} } : { resume: {}, fork: {} },
         ...(process.env.FAKE_IMAGES === '1' ? { promptCapabilities: { image: true } } : {}),
       },
     };
@@ -52,6 +52,10 @@ new AgentSideConnection((conn) => ({
     state.cancelled = true;
   },
   async prompt({ sessionId, prompt }) {
+    if (process.env.FAKE_MODEL_400 === '1') {
+      await new Promise((r) => setTimeout(r, 30));
+      throw new RequestError(-32603, JSON.stringify({ type: 'error', status: 400, error: { type: 'invalid_request_error', message: "The 'old-model' model is not supported when using Codex with a ChatGPT account.", code: 'model_not_found' } }));
+    }
     const say = (update) => conn.sessionUpdate({ sessionId, update });
     const words = prompt.filter((b) => b.type === 'text').map((b) => b.text).join(' ');
     // FAKE_BLOCKS: say what came in, one block per line (text, image, resource_link with its uri).

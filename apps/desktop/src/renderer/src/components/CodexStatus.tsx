@@ -29,6 +29,8 @@ export function CodexStatus({ agent }: { agent: AgentChoice }) {
   return <section className="org-codex-status" aria-label={t('org.codex.title')}>
     <header><b>{t('org.codex.title')}</b><button className="btn-ghost small" disabled={busy} onClick={() => void refresh()}>{busy ? '…' : t('run.refresh')}</button></header>
     <p role="status">{runtime?.connected ? t('org.codex.connected') : t('org.codex.unavailable')}{runtime?.account ? ` · ${[runtime.account.email ?? runtime.account.type, runtime.account.plan].filter(Boolean).join(' · ')}` : ` · ${t('org.codex.accountUnknown')}`}</p>
+    {runtime?.cliPath && <p className="composer-note">Codex CLI {runtime.cliVersion ?? '?'} · <code>{runtime.cliPath}</code></p>}
+    {!!runtime?.skippedCliPaths?.length && <p className="picker-warn">{t('org.codex.cliSkipped')} {runtime.skippedCliPaths.map((path) => <code key={path}>{path} </code>)}</p>}
     {(!provider?.available || runtime?.error || runtime?.accountError) && <p className="picker-warn">{runtime?.error ?? runtime?.accountError ?? provider?.detail ?? t('org.codex.unavailable')}</p>}
     {runtime?.limits?.length ? <ul>{runtime.limits.map((w, i) => <li key={i}>
       {w.label} · {t('org.codex.used', { percent: w.usedPercent })}{w.windowMinutes !== null && ` · ${t('org.codex.window', { minutes: w.windowMinutes })}`}{w.resetsAt !== null && ` · ${t('usage.resets', { when: new Date(w.resetsAt).toLocaleString(locale) })}`}

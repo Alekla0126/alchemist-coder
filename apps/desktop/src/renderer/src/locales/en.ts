@@ -80,6 +80,8 @@ export const en = {
   "org.codex.inheritEffort": "Inherit runtime configuration",
   "org.codex.title": "Codex runtime",
   "org.codex.connected": "Catalog connected; model access is checked when the task runs",
+  "org.codex.cliSkipped": "Broken Codex installations skipped; the catalog and tasks use the CLI shown above.",
+  "org.codex.chooseAvailable": "Choose an available model and reasoning effort to continue. Your conversation and draft are preserved.",
   "org.codex.unavailable": "Unavailable",
   "org.codex.accountUnknown": "Account unknown",
   "org.codex.quotaUnknown": "Quota unknown: Codex has not reported it.",

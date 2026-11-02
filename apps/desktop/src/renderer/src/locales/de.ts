@@ -81,6 +81,8 @@ export const de: Messages = {
   "org.codex.inheritEffort": "Laufzeitkonfiguration übernehmen",
   "org.codex.title": "Codex-Laufzeit",
   "org.codex.connected": "Katalog verbunden; Modellzugriff wird bei Ausführung geprüft",
+  "org.codex.cliSkipped": "Defekte Codex-Installationen übersprungen; Katalog und Aufgaben verwenden die oben angezeigte CLI.",
+  "org.codex.chooseAvailable": "Wähle ein verfügbares Modell und eine Denkstufe. Gespräch und Entwurf bleiben erhalten.",
   "org.codex.unavailable": "Nicht verfügbar",
   "org.codex.accountUnknown": "Konto unbekannt",
   "org.codex.quotaUnknown": "Kontingent unbekannt: Codex hat es nicht gemeldet.",

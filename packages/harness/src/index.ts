@@ -4,6 +4,7 @@ export { readCodexRuntime } from './codex-runtime.ts';
 export { acpHarness, pickChoice, type AcpAgentSpec, type AcpLaunch, type AcpModeRule } from './acp.ts';
 export { claudeAgent, codexAgent, geminiAgent, grokAgent, npxOrHeadless, CLAUDE_ACP, CODEX_ACP, GROK_CLI } from './agents.ts';
 export { detectBinary } from './detect.ts';
+export { resolveCodexCli, type CodexCliResolution } from './codex-cli.ts';
 export { parseClaudeLine, parseCodexLine } from './stream.ts';
 export type { SpawnFn } from './process.ts';
 export { ATTACHMENTS_DIR, COPY_LIMIT, attachmentsDir, insideProject, mimeOf, safeName, stageData, stageFile, stageImage } from './attachments.ts';

@@ -81,6 +81,8 @@ export const ko: Messages = {
   "org.codex.inheritEffort": "런타임 설정 상속",
   "org.codex.title": "Codex 런타임",
   "org.codex.connected": "카탈로그 연결됨. 모델 접근은 실행 시 확인합니다",
+  "org.codex.cliSkipped": "작동하지 않는 Codex 설치를 건너뛰었습니다. 카탈로그와 작업은 위 CLI를 사용합니다.",
+  "org.codex.chooseAvailable": "계속하려면 사용 가능한 모델과 추론 수준을 선택하세요. 대화와 초안은 보존됩니다.",
   "org.codex.unavailable": "사용 불가",
   "org.codex.accountUnknown": "계정 알 수 없음",
   "org.codex.quotaUnknown": "할당량 알 수 없음: Codex가 보고하지 않았습니다.",

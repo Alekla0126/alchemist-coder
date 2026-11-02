@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, join } from 'node:path';
-import { detectBinary } from '@alchemist-coder/harness';
+import { detectBinary, resolveCodexCli } from '@alchemist-coder/harness';
 
 export interface CliStatus {
   /** The CLI's own version (the ACP adapter has its own). */
@@ -35,6 +35,11 @@ const BINARY: Record<string, string> = { 'claude-code': 'claude', codex: 'codex'
  * tokens are never read or returned.
  */
 export async function cliStatus(harnessId: string): Promise<CliStatus> {
+  if (harnessId === 'codex') {
+    const cli = await resolveCodexCli();
+    const auth = join(process.env.CODEX_HOME ?? join(homedir(), '.codex'), 'auth.json');
+    return { cliVersion: cli.version, signedIn: existsSync(auth), account: null, cliPath: cli.path };
+  }
   const bin = BINARY[harnessId];
   const version = bin ? (await detectBinary(bin)).version : null;
   const cliPath = bin ? onPath(bin) : null;
@@ -47,10 +52,6 @@ export async function cliStatus(harnessId: string): Promise<CliStatus> {
     } catch {
       return { cliVersion: version, signedIn: false, account: null, cliPath };
     }
-  }
-  if (harnessId === 'codex') {
-    const auth = join(process.env.CODEX_HOME ?? join(home, '.codex'), 'auth.json');
-    return { cliVersion: version, signedIn: existsSync(auth), account: null, cliPath };
   }
   return { cliVersion: version, signedIn: null, account: null, cliPath };
 }

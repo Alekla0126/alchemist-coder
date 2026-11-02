@@ -81,6 +81,8 @@ export const ru: Messages = {
   "org.codex.inheritEffort": "Наследовать настройки среды",
   "org.codex.title": "Среда Codex",
   "org.codex.connected": "Каталог подключён; доступ к модели проверяется при запуске",
+  "org.codex.cliSkipped": "Неисправные установки Codex пропущены; каталог и задачи используют указанную выше CLI.",
+  "org.codex.chooseAvailable": "Выберите доступную модель и уровень рассуждений. Разговор и черновик сохранены.",
   "org.codex.unavailable": "Недоступно",
   "org.codex.accountUnknown": "Аккаунт неизвестен",
   "org.codex.quotaUnknown": "Квота неизвестна: Codex её не сообщил.",

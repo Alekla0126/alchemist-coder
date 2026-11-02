@@ -81,6 +81,8 @@ export const zhCN: Messages = {
   "org.codex.inheritEffort": "继承运行时配置",
   "org.codex.title": "Codex 运行时",
   "org.codex.connected": "目录已连接；模型访问权限在执行时检查",
+  "org.codex.cliSkipped": "已跳过损坏的 Codex 安装；目录和任务使用上方显示的 CLI。",
+  "org.codex.chooseAvailable": "请选择可用的模型和推理级别以继续。对话和草稿会保留。",
   "org.codex.unavailable": "不可用",
   "org.codex.accountUnknown": "账户未知",
   "org.codex.quotaUnknown": "配额未知：Codex 尚未报告。",

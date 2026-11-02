@@ -6,6 +6,10 @@ En **Escribe a tu organización → Nuevo encargo**, se muestra el motor real de
 
 **Actualizar modelos** consulta el App Server del Codex instalado. El catálogo y los esfuerzos vienen del runtime; no se deducen del nombre del modelo. Que un modelo aparezca no garantiza que tu cuenta pueda usarlo: la ejecución debe confirmarlo. Si el adaptador no puede aplicar el modelo, esfuerzo o permisos solicitados, detiene la tarea antes de enviar el prompt. No sustituye otro modelo ni proveedor.
 
+El catálogo, ACP y el ejecutor headless validan las instalaciones de Codex en el PATH y fijan una ruta absoluta. Si una instalación anterior está averiada, se muestra que se omitió y cuál se utiliza. Un `CODEX_PATH` explícito que no funciona bloquea la ejecución. El adaptador no cambia en silencio al Codex que incluye como dependencia; ese binario puede ofrecer modelos distintos. La cuenta, los permisos y las reglas de licencia conservan su alcance.
+
+Al continuar una conversación, una selección antigua que ya no esté disponible sigue visible y requiere elegir un modelo y esfuerzo del catálogo actual. No se cambia a otro proveedor ni a una API de pago. Se conserva el identificador de conversación, su historial, el borrador y los mensajes pendientes. Un rechazo `400 / model_not_found` detiene ese ejecutor y sus mensajes pendientes; no reintenta con otro modelo ni crea una conversación nueva. Actualiza el catálogo y elige explícitamente la configuración antes de continuar. Los nombres de modelos mostrados por otros asistentes o servicios no sustituyen el catálogo de la cuenta conectada.
+
 Al cambiar de modelo, el selector usa el esfuerzo predeterminado que ese modelo anuncia. También puedes elegir un esfuerzo explícito. **Heredar configuración del runtime** conserva la configuración de Codex, incluido el esfuerzo de una conversación reanudada; no promete un esfuerzo concreto. Para controlar ese coste, guarda un esfuerzo explícito y da a cada tarea un contexto pequeño y específico. La cuota no es una estimación monetaria.
 
 | Permisos | Alcance de Codex |

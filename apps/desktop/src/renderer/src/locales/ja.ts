@@ -81,6 +81,8 @@ export const ja: Messages = {
   "org.codex.inheritEffort": "ランタイムの設定を継承",
   "org.codex.title": "Codex ランタイム",
   "org.codex.connected": "カタログ接続済み。モデルへのアクセスは実行時に確認します",
+  "org.codex.cliSkipped": "動作しない Codex のインストールをスキップしました。カタログとタスクは上記の CLI を使用します。",
+  "org.codex.chooseAvailable": "利用可能なモデルと推論レベルを選択してください。会話と下書きは保持されます。",
   "org.codex.unavailable": "利用不可",
   "org.codex.accountUnknown": "アカウント不明",
   "org.codex.quotaUnknown": "使用枠は不明です。Codex から報告されていません。",

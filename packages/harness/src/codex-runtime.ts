@@ -1,6 +1,6 @@
 import { createInterface } from 'node:readline';
 import type { CodexRuntimeSnapshot, ModelSpec } from '@alchemist-coder/core';
-import { binaryPath } from './detect.ts';
+import { resolveCodexCli } from './codex-cli.ts';
 import { killTree, spawn, type SpawnFn } from './process.ts';
 
 type ObjectValue = Record<string, unknown>;
@@ -19,8 +19,12 @@ const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFi
 /** No auth writes, thread reads, inference, reset credits, or experimental methods. */
 export async function readCodexRuntime(options: { bin?: string; env?: Record<string, string>; spawn?: SpawnFn; timeoutMs?: number; signal?: AbortSignal } = {}): Promise<CodexRuntimeSnapshot> {
   const snapshot: CodexRuntimeSnapshot = { connected: false, error: null, models: [], account: null, accountError: null, limits: null, limitsError: null, checkedAt: Date.now() };
-  const bin = options.bin ?? binaryPath(process.env.CODEX_PATH || 'codex');
-  if (!bin) return { ...snapshot, error: 'Codex CLI is unavailable. Install it to read its model catalog.' };
+  const resolved = options.bin ? undefined : await resolveCodexCli({ env: options.env, signal: options.signal });
+  const bin = options.bin ?? resolved?.path;
+  snapshot.cliPath = bin ?? null;
+  snapshot.cliVersion = resolved?.version ?? null;
+  snapshot.skippedCliPaths = resolved?.skippedPaths ?? [];
+  if (!bin) return { ...snapshot, error: resolved?.error ?? 'Codex CLI is unavailable. Install it to read its model catalog.' };
   let child: ReturnType<SpawnFn> | undefined;
   let lines: ReturnType<typeof createInterface> | undefined;
   let nextId = 0;
@@ -122,6 +126,14 @@ export async function readCodexRuntime(options: { bin?: string; env?: Record<str
   return snapshot;
 }
 
+
+/** A stale profile may be shown, but must not reach inference under a different model or effort. */
+export function requireCodexSelection(runtime: CodexRuntimeSnapshot, model: string, effort?: string): void {
+  if (!runtime.connected) throw new Error('Codex model catalog is unavailable. Refresh the connection before continuing; your conversation is preserved.');
+  const offered = runtime.models.find((m) => m.id === model);
+  if (!offered) throw new Error(`${model} is unavailable in the current Codex catalog. Choose an available model to continue the same conversation; no replacement was selected.`);
+  if (effort && !offered.reasoningEfforts?.some((e) => e.id === effort)) throw new Error(`Codex does not offer reasoning effort ${effort} for ${model}. Choose an offered effort or inherit its default; nothing was sent.`);
+}
 
 /** ACP interprets CODEX_CONFIG; the native App Server needs equivalent provider overrides as TOML.
  * Only non-secret provider routing fields are accepted here. Unsupported fields fail closed.

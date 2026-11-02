@@ -1,6 +1,8 @@
 import type { HarnessAdapter } from '@alchemist-coder/core';
 import { acpHarness, type AcpLaunch } from './acp.ts';
-import { binaryPath, detectBinary } from './detect.ts';
+import { detectBinary } from './detect.ts';
+import { resolveCodexCli } from './codex-cli.ts';
+import { readCodexRuntime, requireCodexSelection } from './codex-runtime.ts';
 import type { SpawnFn } from './process.ts';
 
 // Pinned so an adapter update can't change behaviour under the user; bump deliberately.
@@ -55,7 +57,7 @@ export function claudeAgent(options: AgentOptions = {}): HarnessAdapter {
 }
 
 /** Use the user's installed Codex when available: its account and model catalog match that binary. */
-export function codexAgent(options: AgentOptions & { detectBinary?: typeof detectBinary } = {}): HarnessAdapter {
+export function codexAgent(options: AgentOptions & { detectBinary?: typeof detectBinary; resolveCli?: typeof resolveCodexCli; readRuntime?: typeof readCodexRuntime } = {}): HarnessAdapter {
   const detect = options.detectBinary ?? detectBinary;
   const adapter = viaNpx(CODEX_ACP, [], detect);
   return acpHarness(
@@ -63,13 +65,17 @@ export function codexAgent(options: AgentOptions & { detectBinary?: typeof detec
       id: 'codex',
       label: 'Codex',
       strictConfig: true,
-      async resolve() {
+      async resolve(providerEnv) {
+        const codex = await (options.resolveCli ?? resolveCodexCli)({ env: providerEnv });
+        if (!codex.path) throw new Error(codex.error!);
         const launch = await adapter();
-        if (!launch || process.env.CODEX_PATH) return launch;
-        const codex = await detect('codex');
-        // Without an installed CLI the adapter's bundled Codex remains the fallback.
-        const path = codex.installed ? binaryPath(codex.path ?? 'codex') : null;
-        return path ? { ...launch, env: { CODEX_PATH: path } } : launch;
+        return launch ? { ...launch, env: { CODEX_PATH: codex.path } } : null;
+      },
+      async validateConfig(choice, launch, env, signal) {
+        // Local/custom providers own their catalogs; don't validate them against OpenAI's list.
+        if (choice.providerId !== 'openai') return;
+        const runtime = await (options.readRuntime ?? readCodexRuntime)({ bin: launch.env!.CODEX_PATH!, env, signal });
+        requireCodexSelection(runtime, choice.model, choice.effort);
       },
       modes: {
         // read-only asks before every edit and command; agent edits the workspace on its own.

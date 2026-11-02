@@ -76,7 +76,7 @@ describe('harness adapters', () => {
   it('resumes the codex thread for follow-up turns', async () => {
     const calls: Array<{ args: string[]; env: Record<string, string> }> = [];
     const lines = ['{"type":"thread.started","thread_id":"t-9"}', '{"type":"item.completed","item":{"type":"agent_message","text":"Hi"}}', '{"type":"turn.completed"}'];
-    const run = codexHarness({ spawn: fakeSpawn(lines, calls, []) }).run({ cwd: '/tmp', prompt: 'hello', provider, model: 'gpt-oss:20b', effort: 'high', permissionMode: 'default' });
+    const run = codexHarness({ resolveCli: async () => ({ path: '/synthetic/codex', version: '1', skippedPaths: [], error: null }), spawn: fakeSpawn(lines, calls, []) }).run({ cwd: '/tmp', prompt: 'hello', provider, model: 'gpt-oss:20b', effort: 'high', permissionMode: 'default' });
     await collect(run);
     expect(calls[0]!.args.slice(0, 2)).toEqual(['exec', '--json']);
     expect(calls[0]!.args).toEqual(expect.arrayContaining(['-c', 'model_provider="ollama"', '-m', 'gpt-oss:20b', 'hello']));
