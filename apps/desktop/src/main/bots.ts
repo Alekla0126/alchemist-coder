@@ -46,57 +46,60 @@ interface ToolDef {
 const TOOLS: Record<string, ToolDef> = {
   list_bot_configs: {
     name: 'list_bot_configs',
-    description: 'The saved bot configurations you can create bots from: name, role, agent and model, and whether they may create bots themselves.',
+    description: 'Saved bot configurations: name, role, agent, model, and whether they may create bots.',
     inputSchema: { type: 'object', properties: {} },
   },
   create_bot: {
     name: 'create_bot',
-    description:
-      'Create a bot that starts working on `task` right away, in the same project folder. Use `config` (a configuration name from list_bot_configs), or define it directly: `role` and `model` are optional. Returns its id; then call wait_for_bot to get its answer.',
+    description: 'Create a bot that starts on `task` now, in the project folder: from `config` (list_bot_configs) or defined with `role` (and `model`). Returns its id for wait_for_bot.',
     inputSchema: {
       type: 'object',
       properties: {
-        name: { type: 'string', description: 'A short name, e.g. "Tester".' },
-        task: { type: 'string', description: 'What it should do, with everything it needs to know.' },
-        config: { type: 'string', description: 'A saved configuration to use (name or id).' },
-        role: { type: 'string', description: 'Its role and standing instructions, when not using a configuration.' },
-        about: { type: 'string', description: "When not using a configuration: what it does in one short sentence, for the user's office card, in the language the user writes in (at most 160 characters)." },
-        model: { type: 'string', description: 'A model id of your own provider, when not using a configuration.' },
-        can_create_bots: { type: 'boolean', description: 'Let it create bots itself (only if you may, and within the depth limit).' },
-        own_worktree: { type: 'boolean', description: 'Give it its own copy of the project (a git worktree) so it cannot clash with other bots. Then use bot_changes and apply_bot_work.' },
+        name: { type: 'string', description: 'Short name, e.g. "Tester".' },
+        task: { type: 'string', description: 'What to do, with all it needs to know.' },
+        config: { type: 'string', description: 'Saved configuration (name or id).' },
+        role: { type: 'string', description: 'Role and standing instructions, without config.' },
+        about: { type: 'string', description: "Without config: what it does in one sentence for the user's office card, in the user's language (≤160 chars)." },
+        model: { type: 'string', description: "A model id of your own provider, without config." },
+        can_create_bots: { type: 'boolean', description: 'It may create bots too (only if you may, within the depth limit).' },
+        own_worktree: { type: 'boolean', description: 'Its own git worktree, so it cannot clash with others; then bot_changes and apply_bot_work.' },
       },
       required: ['name', 'task'],
     },
   },
   message_bot: {
     name: 'message_bot',
-    description: 'Send a follow-up message to one of your bots (it answers after its current turn). Then call wait_for_bot.',
+    description: 'Send one of your bots a follow-up (it answers after its current turn); then wait_for_bot.',
     inputSchema: { type: 'object', properties: { bot_id: { type: 'string' }, text: { type: 'string' } }, required: ['bot_id', 'text'] },
   },
   wait_for_bot: {
     name: 'wait_for_bot',
-    description: 'Wait until one of your bots finishes its current turn and return its answer. If it is still working when the time is up, it says so: call it again.',
+    description: `Wait for one of your bots to finish its turn and return its answer (the first ${WAIT_REPLY_CHARS} chars; bot_reply has the rest). If time runs out first, call it again.`,
     inputSchema: { type: 'object', properties: { bot_id: { type: 'string' }, timeout_seconds: { type: 'number', description: 'Default 120, at most 600.' } }, required: ['bot_id'] },
+  },
+  bot_reply: {
+    name: 'bot_reply',
+    description: "One of your bots' latest answer in full, when wait_for_bot cut it.",
+    inputSchema: { type: 'object', properties: { bot_id: { type: 'string' } }, required: ['bot_id'] },
   },
   list_bots: {
     name: 'list_bots',
-    description: "The team's bots: id, name, who created it, status and the start of its latest answer.",
+    description: "The team's bots: id, name, creator, status and the start of the latest answer.",
     inputSchema: { type: 'object', properties: {} },
   },
   bot_changes: {
     name: 'bot_changes',
-    description: 'What one of your bots with its own copy (own_worktree) changed there: files with lines added and removed.',
+    description: 'Files one of your own_worktree bots changed in its copy, with lines added and removed.',
     inputSchema: { type: 'object', properties: { bot_id: { type: 'string' } }, required: ['bot_id'] },
   },
   apply_bot_work: {
     name: 'apply_bot_work',
-    description: "Bring the changes one of your bots made in its own copy into the project folder (as uncommitted edits). Fails without touching anything if they clash with the folder's current state.",
+    description: "Bring a bot's changes from its own copy into the project folder as uncommitted edits. Fails without touching anything if they clash with the folder.",
     inputSchema: { type: 'object', properties: { bot_id: { type: 'string' } }, required: ['bot_id'] },
   },
   propose_plan: {
     name: 'propose_plan',
-    description:
-      "Only when the team reviews plans first: send the user your plan (the bots you'll create and their tasks) and then call wait_for_plan. You can't create bots until the user approves it.",
+    description: "Only when the team reviews plans first: send the user the bots you'll create and their tasks, then wait_for_plan. No bots until the user approves.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -108,38 +111,37 @@ const TOOLS: Record<string, ToolDef> = {
             properties: {
               name: { type: 'string' },
               task: { type: 'string' },
-              config: { type: 'string', description: 'A saved configuration name, if you will use one.' },
+              config: { type: 'string', description: 'Saved configuration name, if any.' },
               role: { type: 'string' },
               own_worktree: { type: 'boolean' },
             },
             required: ['name', 'task'],
           },
         },
-        estimate_usd: { type: 'number', description: 'Your rough guess of what the whole team will cost, if you can tell.' },
+        estimate_usd: { type: 'number', description: 'Rough cost of the whole team, if you can tell.' },
       },
       required: ['summary', 'bots'],
     },
   },
   wait_for_plan: {
     name: 'wait_for_plan',
-    description: 'Wait for the user to approve (maybe with edits) or reject your plan. If they are still deciding when the time is up, it says so: call it again.',
+    description: 'Wait for the user to approve (maybe edited) or reject your plan. If time runs out first, call it again.',
     inputSchema: { type: 'object', properties: { timeout_seconds: { type: 'number', description: 'Default 120, at most 600.' } } },
   },
   finish_team: {
     name: 'finish_team',
     description:
-      "Coordinator only: tell the user the goal is done. `summary`: what was done and by whom, what is left in bots' own copies, and anything still open. If something went wrong along the way, save what you learned with record_lesson first. If you need the user's input instead, ask in your reply and don't call this.",
+      "Tell the user the goal is done. `summary`: what was done and by whom, what is left in bots' own copies, what is still open. If something went wrong, record_lesson first. If you need the user's input, ask in your reply instead.",
     inputSchema: { type: 'object', properties: { summary: { type: 'string' } }, required: ['summary'] },
   },
   stop_bot: {
     name: 'stop_bot',
-    description: 'Stop one of your bots (and the bots it created).',
+    description: 'Stop one of your bots and the bots it created.',
     inputSchema: { type: 'object', properties: { bot_id: { type: 'string' } }, required: ['bot_id'] },
   },
   record_lesson: {
     name: 'record_lesson',
-    description:
-      "Save what the organization learned from a mistake, so every one of its agents does better next time: one short, general rule (what to do or avoid, and when), not the story of what happened. The user sees it and can remove it; the same lesson isn't saved twice.",
+    description: "Save what the organization learned from a mistake, for all its agents: one short general rule (what to do or avoid, and when), not the story. The user sees it and can remove it.",
     inputSchema: {
       type: 'object',
       properties: { lesson: { type: 'string', description: 'E.g. "Build Android apps with ./gradlew assembleDebug: flutter build hangs on this Mac."' } },
@@ -147,6 +149,9 @@ const TOOLS: Record<string, ToolDef> = {
     },
   },
 };
+
+/** The tools only the coordinator gets: the plan and the end of the assignment. */
+const COORDINATOR_TOOLS = new Set(['propose_plan', 'wait_for_plan', 'finish_team']);
 
 /** What the coordinator is told about your answer to its plan. */
 function planAnswer(plan: TeamPlan, byAutopilot = false): string {
@@ -156,6 +161,14 @@ function planAnswer(plan: TeamPlan, byAutopilot = false): string {
   const list = plan.bots.map((x, i) => `${i + 1}. ${x.name}${x.config ? ` (config ${x.config})` : ''}${x.ownWorktree ? ' [own_worktree]' : ''}: ${x.task}${x.role && !x.config ? `\n   role: ${x.role}` : ''}`).join('\n');
   const who = byAutopilot ? 'Autopilot approved the plan for the user, who is away' : `The user approved the plan${plan.feedback ? ` and adds: ${plan.feedback}` : ''}`;
   return `${who}. Create exactly these bots with create_bot (same names and tasks):\n${list}`;
+}
+
+/** What wait_for_bot returns of a bot's answer: the start, and how to get the rest. */
+function replyHead(bot: BotMember): string {
+  const text = bot.lastReply;
+  if (!text) return '(no answer)';
+  if (text.length <= WAIT_REPLY_CHARS) return text;
+  return `${text.slice(0, WAIT_REPLY_CHARS)}\n… (cut: ${text.length - WAIT_REPLY_CHARS} chars more; call bot_reply with bot_id "${bot.id}" for the whole answer)`;
 }
 
 /** A team's name from its goal: the first sentence or line, at most 60 characters. */
@@ -1324,9 +1337,10 @@ export class BotManager {
     }
   }
 
-  /** Every bot with the tools may use all of them; the checks happen per call. */
-  private toolsFor(_caller: Caller): ToolDef[] {
-    return Object.values(TOOLS);
+  /** The coordinator gets every tool; its bots, all but the plan and finish_team. The checks still happen per call. */
+  private toolsFor(caller: Caller): ToolDef[] {
+    const depth = this.teams.find((t) => t.id === caller.teamId)?.bots.find((b) => b.id === caller.botId)?.depth ?? 0;
+    return Object.values(TOOLS).filter((tool) => depth === 0 || !COORDINATOR_TOOLS.has(tool.name));
   }
 
   /** Runs one tool for `caller`. Bots only see and control the bots they created (the coordinator: all). */
@@ -1472,7 +1486,11 @@ export class BotManager {
         }
         if (target.status === 'working' || target.status === 'starting') return `${target.name} is still working. Call wait_for_bot again.`;
         if (target.status === 'waiting') return `${target.name} is waiting for the user to approve something in Alchemist Coder. Call wait_for_bot again later.`;
-        return `${target.name} (${target.status}):\n${target.lastReply || '(no answer)'}${target.error ? `\nIts turn failed: ${target.error}\nIf you find out why and it can happen again, save what to do differently with record_lesson.` : ''}`;
+        return `${target.name} (${target.status}):\n${replyHead(target)}${target.error ? `\nIts turn failed: ${target.error}\nIf you find out why and it can happen again, save what to do differently with record_lesson.` : ''}`;
+      }
+      case 'bot_reply': {
+        const target = mine(args.bot_id);
+        return `${target.name} (${target.status}):\n${target.lastReply || '(no answer)'}`;
       }
       case 'list_bots': {
         const visible = me.depth === 0 ? team.bots : team.bots.filter((b) => this.subtree(team, me.id).includes(b.id));
