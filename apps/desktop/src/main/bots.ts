@@ -217,12 +217,20 @@ export function lessonsBlock(lessons: OrgLesson[], more = 0): string {
 const plain = (text: string) => text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 
 /**
- * What makes a lesson about safety: stores and publishing, the owner's phrase and authorizations,
- * permissions, credentials, money, state/ and the store policies, confirmations, deploying and
- * deleting. Every agent is told those, whatever its task: a bot that misses one can publish, spend or
- * delete what it shouldn't. Matched on the lesson without accents.
+ * What makes a lesson about safety: stores and publishing, the owner's phrase, allowlists and
+ * authorizations, permissions and sudo, credentials (access or API tokens, not saving tokens),
+ * money, state/ and the store policies, confirmations, force, deploying and deleting (not drafts),
+ * promotion. Every agent is told those, whatever its task: a bot that misses one can publish, spend
+ * or delete what it shouldn't. Matched on the lesson in lowercase without accents ("dueño" is "dueno").
  */
-const SAFETY_LESSON = /tienda|store|publica|publish|push|frase|autoriza|permis|credencial|token|dinero|money|state\/|politicas|confirm|despleg|deploy|borra|delete/;
+const SAFETY_LESSON = new RegExp(
+  [
+    'tienda', '\\bstores?\\b(?!\\.)', 'publica', 'publish', 'push', 'frase', 'autoriza', 'permis', 'credencial',
+    '\\b(?:access|api) tokens?\\b', '\\btokens? de acceso\\b', 'dinero', 'money', 'state/', 'politicas', 'confirm',
+    'despleg', 'deploy', 'borra(?!dor)', 'delete', 'lista blanca', 'allowlist', 'whitelist', '\\bdueno', '\\bowner',
+    '\\bsudo\\b', '\\bforce', 'promoci',
+  ].join('|'),
+);
 
 /** A lesson every agent gets: you pinned it, or it's about safety. */
 export const alwaysTold = (l: OrgLesson) => l.pinned === true || SAFETY_LESSON.test(plain(l.text));

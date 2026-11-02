@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import type { OrgLesson } from '../src/shared/api';
-import { BotManager } from '../src/main/bots';
+import { alwaysTold, BotManager } from '../src/main/bots';
 import { writeBridge } from '../src/main/bots-bridge';
 
 // 30 lessons shaped like a real organization's (the same kinds of rules, no internal names).
@@ -72,5 +72,13 @@ describe('the lessons a bot is told, with an organization’s worth of them', ()
     expect(kept).toHaveLength(30);
     expect(kept.some((l) => l.id === REAL[29]!.id && l.pinned)).toBe(true);
     expect(kept.some((l) => l.id === REAL[28]!.id)).toBe(false);
+  });
+
+  it('tells apart lessons about safety from ones that only share a word with them', () => {
+    const is = (text: string) => alwaysTold({ id: 'x', text, by: '', from: '', at: 0 });
+    for (const text of ['Never run sudo in a bot.', 'Ask the owner before a force push.', 'Pasa la lista blanca de envíos.', 'Usa la allowlist.', 'Pregunta al dueño.', 'Guarda el API token en el llavero.', 'Rota los tokens de acceso.', 'Revisa la promoción.', 'Publish only from the App Store page.', 'Borra la rama vieja.'])
+      expect(is(text), text).toBe(true);
+    for (const text of ['Pon la guarda en store.messageBot.', 'Corta para ahorrar tokens.', 'Prueba el modo borrador.', 'Lee el archivo restored.json.'])
+      expect(is(text), text).toBe(false);
   });
 });
