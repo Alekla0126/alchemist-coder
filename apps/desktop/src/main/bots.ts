@@ -771,7 +771,7 @@ export class BotManager {
       kind: c.kind === 'coordinator' ? 'coordinator' : 'member',
       ...(c.executorId === 'local' || c.executorId === 'vps' ? { executorId: c.executorId } : {}),
       ...(typeof c.contextRole === 'string' && /^[a-z][a-z0-9-]{0,39}$/.test(c.contextRole) ? { contextRole: c.contextRole } : {}),
-      projects: Array.isArray(c.projects) ? c.projects.filter((p): p is string => typeof p === 'string' && isAbsolute(p)).slice(0, 50).map((p) => p.replace(/[\\/]+$/, '').slice(0, 1000)) : [],
+      projects: Array.isArray(c.projects) ? c.projects.filter((p): p is string => typeof p === 'string' && isAbsolute(p)).slice(0, 50).map((p) => p.slice(0, 1000)) : [],
       proposed: c.proposed === true,
       avatar: avatarOf(c.avatar),
     };

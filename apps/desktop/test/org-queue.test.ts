@@ -1,6 +1,6 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync, symlinkSync, cpSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join, resolve, parse } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
 import { OrgQueue, type OrgJobPayload } from '../src/main/org-queue';
 import { roleContext } from '../src/main/org-context';
@@ -139,4 +139,7 @@ it('a queued follow-up resolves its conversation checkpoint at execution time af
 });
 it('a follow-up without any conversation checkpoint cannot silently become a new conversation',async()=>{
  const f=botFixture();const t=f.bots.startTeam({goal:'Fixture',cwd:f.root,configId:f.ceo.id,durable:{maxParallel:1,maxAttempts:2,resumePreauthorized:true}});f.bots.message(t.id,'b1','Follow-up');const q=(f.bots as unknown as {queue:OrgQueue}).queue;q.complete(q.snapshot().jobs[0]!.id);f.bots.stopAll();const r=f.make();await r.start();expect(f.calls).toHaveLength(1);expect(r.queueSnapshot().jobs.at(-1)?.state).toBe('failed');r.stopAll();
+});
+it('preserves a native project root instead of turning a Windows drive root into a relative path',()=>{
+ const f=botFixture(),root=parse(f.root).root;const scoped=f.bots.saveConfig({...f.member,projects:[root]});expect(scoped.projects).toEqual([root]);f.bots.stopAll();
 });
