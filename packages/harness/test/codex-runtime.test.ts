@@ -24,9 +24,15 @@ it('resolves the installed executable before npx can shadow it with the bundled 
 it('passes the installed Codex as an absolute CODEX_PATH to the adapter', async () => {
   const path = join(dir, 'installed-codex');
   let seen: NodeJS.ProcessEnv | undefined;
+  let closed: Promise<void> | undefined;
   const harness = codexAgent({
     detectBinary: async (bin) => ({ installed: true, version: '1', path: bin === 'codex' ? path : 'npx' }),
-    spawn: (_cmd, _args, options) => { seen = options.env; return spawn(process.execPath, [fake], options); },
+    spawn: (_cmd, _args, options) => {
+      seen = options.env;
+      const child = spawn(process.execPath, [fake], options);
+      closed = new Promise((resolve) => child.once('close', () => resolve()));
+      return child;
+    },
   });
   vi.stubEnv('CODEX_PATH', '');
   const run = harness.run({ cwd: dir, model: 'default', prompt: 'hello', permissionMode: 'plan', provider: { id: 'openai', label: 'ChatGPT', edition: 'pro', harnesses: ['codex'], capabilities: { toolSearch: false, webFetch: false, webSearch: false, subagents: false }, models: async () => [], env: async () => ({}) } });
@@ -36,5 +42,5 @@ it('passes the installed Codex as an absolute CODEX_PATH to the adapter', async 
       const off = run.onEvent((e) => { if (e.type === 'started' || e.type === 'error') { clearTimeout(timer); off(); resolve(); } });
     });
     expect(seen?.CODEX_PATH).toBe(path);
-  } finally { run.stop(); vi.unstubAllEnvs(); }
+  } finally { run.stop(); await closed; vi.unstubAllEnvs(); }
 });
