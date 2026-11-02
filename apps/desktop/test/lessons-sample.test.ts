@@ -62,7 +62,15 @@ describe('the lessons a bot is told, with an organization’s worth of them', ()
     expect(coordinator).toContain('org_lessons');
     const all = await bots.callTool(me, 'org_lessons', {});
     for (const l of REAL) expect(all).toContain(l.text);
-    expect(all.length).toBeLessThanOrEqual(12_002);
+    // Whole lessons only, within its own 14,000 characters (30 lessons of 400 at most always fit).
+    expect(all.length).toBeLessThanOrEqual(14_000);
+    expect(all).not.toContain('…');
+    expect(all).not.toContain('more lessons');
+    const longest = REAL.map((l, i) => ({ ...l, id: `long${i}`, text: `${String(i).padStart(2, '0')} ${'x'.repeat(396)}` }));
+    const { bots: full, me: fullMe } = await promptOf(...ROLES.tester, longest);
+    const most = await full.callTool(fullMe, 'org_lessons', {});
+    expect(most.length).toBeLessThanOrEqual(14_000);
+    for (const l of longest) expect(most).toContain(l.text);
   });
 
   it('keeps a pinned lesson when a new one would push the oldest out', async () => {

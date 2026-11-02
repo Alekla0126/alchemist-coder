@@ -21,6 +21,8 @@ const AUTOPILOT_NUDGES = 2;
 const REPLY_CHARS = 12_000;
 /** wait_for_bot returns this much of an answer; bot_reply, all of it (up to REPLY_CHARS). */
 const WAIT_REPLY_CHARS = 4_000;
+/** org_lessons returns whole lessons up to this much. */
+const ORG_LESSONS_CHARS = 14_000;
 /** How much of each agent's role the coordinator's list of agents shows. */
 const ROSTER_ROLE_CHARS = 200;
 /** How much of what was said an activity line keeps. */
@@ -1571,8 +1573,14 @@ export class BotManager {
         return `${target.name} (${target.status}):\n${target.lastReply || '(no answer)'}`;
       }
       case 'org_lessons': {
-        const all = lessonsBlock(this.org.lessons);
-        return all ? clip(all, REPLY_CHARS) : 'The organization has no lessons yet.';
+        if (!this.org.lessons.length) return 'The organization has no lessons yet.';
+        // Whole lessons, newest first, as many as fit.
+        const fit: OrgLesson[] = [];
+        for (const l of this.org.lessons) {
+          if (lessonsBlock([...fit, l], this.org.lessons.length - fit.length - 1).length > ORG_LESSONS_CHARS) break;
+          fit.push(l);
+        }
+        return lessonsBlock(fit, this.org.lessons.length - fit.length).replace(/: call org_lessons\)$/, ' did not fit)');
       }
       case 'list_bots': {
         const visible = me.depth === 0 ? team.bots : team.bots.filter((b) => this.subtree(team, me.id).includes(b.id));
