@@ -25,6 +25,7 @@ export interface AcpLaunch {
   command: string;
   args: string[];
   version: string | null;
+  env?: Record<string, string>;
 }
 
 /** Candidate session modes (first available wins) and config values for one permission mode. */
@@ -171,7 +172,7 @@ class AcpRun extends RunBase {
     if (!launch) throw new Error(`${this.spec.label} is not installed.`);
     const providerEnv = await o.provider.env(o.model, this.spec.id);
     if (this.stopped) return;
-    const env = { ...(process.env as Record<string, string>), ...this.spec.env, ...providerEnv };
+    const env = { ...(process.env as Record<string, string>), ...launch.env, ...this.spec.env, ...providerEnv };
     const args = [...launch.args, ...(this.spec.args?.({ model: o.model, permissionMode: o.permissionMode ?? 'acceptEdits' }) ?? [])];
     // Own process group, so stopping also ends what npx and the adapter spawned.
     const child = this.spawnFn(launch.command, args, { cwd: o.cwd, env, stdio: ['pipe', 'pipe', 'pipe'], detached: process.platform !== 'win32' });

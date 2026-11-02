@@ -1,7 +1,7 @@
 import { keys } from '../keys';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { SessionSummary, SlashCommand } from '@alchemist-coder/core';
-import type { AttachmentInput, MenuItem, PermissionMode } from '@shared/api';
+import type { AgentChoice, AttachmentInput, MenuItem, PermissionMode } from '@shared/api';
 import type { PromptImage } from '@alchemist-coder/core';
 import { Icon, type IconName } from './Icon';
 import { LiveRun } from './LiveRun';
@@ -10,6 +10,8 @@ import { Suggest, type SuggestItem } from './Suggest';
 import { useContextFill } from './ContextMeter';
 import { fileSize, matchModel } from '../format';
 import { drafts, queues } from '../composer-state';
+import { codexChoice, handoffPrompt } from '../conversation-handoff';
+import { continueWithCodex } from '../actions/session';
 import { sourceOf } from '../sources';
 import { useStore, useT } from '../store';
 import { confirmAction, openMenu, toast } from '../ui';
@@ -81,6 +83,7 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
   const info = useStore((s) => s.info);
   const loadCatalog = useStore((s) => s.loadCatalog);
   const project = useStore((s) => s.projects.find((p) => p.id === projectId));
+  const handoff = useStore((s) => !session && s.conversationHandoff?.projectId === projectId ? s.conversationHandoff : null);
   const target = session ? `s:${session.id}` : `p:${projectId}`;
   const run = useStore((s) => (s.runByTarget[target] ? s.runs[s.runByTarget[target]!] : undefined));
   const startRun = useStore((s) => s.startRun);
@@ -210,23 +213,29 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
   }, [loadCatalog]);
   useEffect(() => localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)), [prefs]);
 
-  // A conversation can only be continued by the CLI that created it.
-  const harnessId = session ? session.source : (prefs.harnessId ?? catalog?.harnesses.find((h) => h.installed)?.id ?? 'claude-code');
+  // Native continuation stays with its CLI; a handoff starts a new chat with copied context.
+  const harnessId = session ? session.source : (handoff?.agent.harnessId ?? prefs.harnessId ?? catalog?.harnesses.find((h) => h.installed)?.id ?? 'claude-code');
   const harness = catalog?.harnesses.find((h) => h.id === harnessId);
   // Only providers that can drive the chosen agent (e.g. Gemini models need Gemini CLI).
   const providers = useMemo(() => (catalog?.providers ?? []).filter((p) => p.harnesses.includes(harnessId)), [catalog, harnessId]);
   // A conversation keeps its own model: the one picked for it here, else the one it last used.
   const [sessionPicks, setSessionPicks] = useState(loadSessionPicks);
   const pick = session ? sessionPicks[session.id] : undefined;
-  const wantProvider = pick?.providerId ?? prefs.providerId;
+  const wantProvider = pick?.providerId ?? handoff?.agent.providerId ?? prefs.providerId;
   const provider = providers.find((p) => p.id === wantProvider && p.available) ?? providers.find((p) => p.available) ?? providers[0];
   const model =
     provider?.models.find((m) => m.id === pick?.model)?.id ??
     (session && provider ? matchModel(provider.models, session.models.at(-1)) : undefined) ??
+    provider?.models.find((m) => m.id === handoff?.agent.model)?.id ??
     provider?.models.find((m) => m.id === prefs.model)?.id ??
     provider?.models[0]?.id ??
     '';
+  const chooseNewAgent = (agent: AgentChoice) => {
+    setPrefs({ ...prefs, ...agent });
+    if (handoff) useStore.setState({ conversationHandoff: { ...handoff, agent } });
+  };
   const choose = (providerId: string, modelId: string) => {
+    if (handoff) return chooseNewAgent({ harnessId, providerId, model: modelId });
     if (!session) return setPrefs({ ...prefs, providerId, model: modelId });
     const next = { ...sessionPicks, [session.id]: { providerId, model: modelId } };
     setSessionPicks(next);
@@ -285,7 +294,7 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
     try {
       const sent = queued ? [] : images;
       const sentFiles = queued ? [] : outgoing();
-      if (run && canContinue) await sendToRun(run.runId, text, sent, sentFiles);
+      if (run && canContinue && !handoff) await sendToRun(run.runId, text, sent, sentFiles);
       else {
         if (!ready || !provider || !project) return;
         await startRun(target, {
@@ -293,13 +302,17 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
           harnessId,
           providerId: provider.id,
           model,
-          prompt: text,
-          resumeSessionId: session?.id ?? run?.sessionId ?? undefined,
+          prompt: handoff ? handoffPrompt(handoff, text) : text,
+          resumeSessionId: handoff ? undefined : session?.id ?? run?.sessionId ?? undefined,
           permissionMode,
           effort: effortStart,
           images: sent,
           files: sentFiles,
         });
+      }
+      if (handoff && useStore.getState().conversationHandoff === handoff) {
+        setPrefs({ ...prefs, ...handoff.agent });
+        useStore.setState({ conversationHandoff: null });
       }
       setPrompt('');
       if (sent.length) setImages([]);
@@ -349,7 +362,11 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
     const id = await openMenu(items);
     if (id === 'redetect') void loadCatalog();
     if (id === 'settings') useStore.setState({ settingsOpen: true, settingsSection: 'agents' });
-    else if (id?.startsWith('h:')) setPrefs({ ...prefs, harnessId: id.slice(2) });
+    else if (id?.startsWith('h:')) {
+      const h = id.slice(2);
+      const p = catalog?.providers.find((p) => p.available && p.harnesses.includes(h));
+      if (p?.models[0]) chooseNewAgent({ harnessId: h, providerId: p.id, model: p.models[0].id });
+    }
   };
 
   /** New conversation: one menu for both, agent CLI › (provider ›) model. */
@@ -379,7 +396,7 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
     const h = harnesses[Number(hi)];
     const p = h ? (catalog?.providers ?? []).filter((x) => x.harnesses.includes(h.id))[Number(pi)] : undefined;
     const m = p?.models[Number(mi)];
-    if (kind === 'hm' && h && p && m) setPrefs({ ...prefs, harnessId: h.id, providerId: p.id, model: m.id });
+    if (kind === 'hm' && h && p && m) chooseNewAgent({ harnessId: h.id, providerId: p.id, model: m.id });
   };
 
   const pickModel = async () => {
@@ -635,6 +652,12 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
           addFiles(dropped);
         }}
       >
+        {handoff && (
+          <div className="fork-note" role="status">
+            <span>{t('run.handoffNote', { title: handoff.title.slice(0, 80) })}{handoff.truncated ? ` ${t('run.handoffShortened')}` : ''}</span>
+            <button className="link small" onClick={() => useStore.setState({ conversationHandoff: null })}>{t('dialog.cancel')}</button>
+          </div>
+        )}
         {forkNext && (
           <div className="fork-note">
             ⑂ {t('run.forkNote')}
@@ -753,6 +776,9 @@ export function Composer({ projectId, session }: { projectId: number; session?: 
               onClick={() => void pickModel()}
               className="model-chip"
             />
+          )}
+          {session?.source === 'claude-code' && codexChoice(catalog) && (
+            <Chip icon="goto" label={t('run.continueCodex')} title={t('run.handoffHint')} action onClick={() => void continueWithCodex(session).catch((e) => setError(e instanceof Error ? e.message : String(e)))} />
           )}
           {!!effortChoices?.length && (
             <Chip icon="gauge" label={effortValue ? effortLabel(t, effortValue, effortChoices.find((c) => c.value === effortValue)?.label) : t('effort.default')} title={t('chip.effort')} onClick={() => void pickEffort()} />

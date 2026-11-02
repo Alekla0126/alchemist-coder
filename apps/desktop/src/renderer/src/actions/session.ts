@@ -4,6 +4,7 @@ import { translate, type MessageKey } from '../i18n';
 import { useStore } from '../store';
 import { confirmAction, openMenu, promptText, toast } from '../ui';
 import { arrangePinned, nudge } from '../reorder';
+import { codexChoice, loadHandoff } from '../conversation-handoff';
 
 /** A project's pinned conversations, in the order you arranged them (ids). */
 function pinnedOrder(projectId: number): string[] {
@@ -29,6 +30,7 @@ function items(s: SessionSummary): MenuItem[] {
   const resume = resumeCommand(s);
   return [
     { id: 'open', label: t('menu.open') },
+    ...(s.source === 'claude-code' ? [{ id: 'continue-codex', label: t('run.continueCodex'), enabled: !!codexChoice(useStore.getState().catalog) }] : []),
     { id: 'rename', label: t('menu.rename') },
     { id: 'pin', label: s.favorite ? t('menu.unpin') : t('menu.pin') },
     // Pinned ones keep the order you give them: one step at a time here, or by dragging.
@@ -74,6 +76,8 @@ export async function runSessionAction(s: SessionSummary, id: string): Promise<v
         await store.select(s.id, 'main');
         if (store.settings.mode === 'history' || store.settings.mode === 'code' || store.settings.mode === 'terminal') store.setMode('agents');
         return;
+      case 'continue-codex':
+        return continueWithCodex(s);
       case 'rename': {
         const title = await promptText({ title: t('menu.renameTitle'), value: s.title, placeholder: t('menu.renameHint'), confirmLabel: t('menu.renameOk'), cancelLabel: t('dialog.cancel') });
         if (title === null) return;
@@ -134,4 +138,22 @@ export async function runSessionAction(s: SessionSummary, id: string): Promise<v
 export async function showSessionMenu(s: SessionSummary): Promise<void> {
   const id = await openMenu(items(s));
   if (id) await runSessionAction(s, id);
+}
+
+/** Prepares a new chat with a copy of the text; the original chat and its live agent stay untouched. */
+export async function continueWithCodex(session: SessionSummary): Promise<void> {
+  const state = useStore.getState();
+  const agent = codexChoice(state.catalog);
+  if (!agent) throw new Error(t('run.codexUnavailable'));
+  const handoff = await loadHandoff(window.alchemist, session, agent);
+  // Loading can take a moment: use the latest store after it finishes.
+  const current = useStore.getState();
+  const heldId = current.runByTarget[`p:${session.projectId}`];
+  const held = heldId ? current.runs[heldId] : null;
+  if (held && !held.sessionId && ['starting', 'running', 'waiting'].includes(held.status)) throw new Error(t('run.handoffBusy'));
+  if (!current.settings.openProjectIds.includes(session.projectId)) await current.openProject(session.projectId);
+  current.newConversation(session.projectId);
+  useStore.setState({ conversationHandoff: handoff });
+  if (current.settings.activeProjectId !== session.projectId) await current.setActiveProject(session.projectId);
+  current.setMode('agents');
 }

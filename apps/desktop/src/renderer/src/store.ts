@@ -7,6 +7,7 @@ import type { AgentNode, AgentOption, FileDiff, PromptImage, SlashCommand, Index
 import type { AgentReview, AppInfo, ArenaTask, AttachmentInput, AutomationState, BotConfig, BotTeam, Locale, Mode, OrgSettings, PlanUsage, RunnerCatalog, RunnerEventMessage, Settings, StartRunRequest } from '@shared/api';
 import { resolveLocale, translate, type MessageKey } from './i18n';
 import { moveComposerState } from './composer-state';
+import type { ConversationHandoff } from './conversation-handoff';
 import { applyToTurns, markQuestion, startTurn, type LiveQuestion, type LiveTurn } from './live-turns';
 import { applyWorkbench, loadTheme, type VsTheme } from './theme';
 import { toggleSidebar, toggleSplitSide } from './layout';
@@ -199,6 +200,8 @@ interface State {
   runByTarget: Record<string, string>;
   /** Project in which the user is composing a brand-new conversation. */
   composeProjectId: number | null;
+  /** A Claude conversation prepared for continuing with Codex; nothing is sent until Send. */
+  conversationHandoff: ConversationHandoff | null;
   sidebarTab: 'agents' | 'files' | 'git' | 'extensions';
   theme: VsTheme | null;
   openFiles: Record<number, string[]>;
@@ -362,6 +365,7 @@ export const useStore = create<State>((set, get) => ({
   tasks: {},
   activeTaskId: null,
   composeProjectId: null,
+  conversationHandoff: null,
   sidebarTab: 'agents',
   theme: null,
   openFiles: {},
@@ -1061,6 +1065,7 @@ export const useStore = create<State>((set, get) => ({
   },
 
   newConversation(projectId) {
+    set({ conversationHandoff: null });
     const held = heldConversation(get(), projectId);
     if (held) set((s) => ({ runByTarget: Object.fromEntries(Object.entries(s.runByTarget).filter(([target]) => target !== held)) }));
     get().setCompose(projectId);
