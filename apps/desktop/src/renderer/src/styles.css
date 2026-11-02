@@ -2840,3 +2840,6 @@ body { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; 
 .ofc-chip-project { flex: none; color: var(--fg-2); }
 .ofc-chip-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ofc-chip-n { flex: none; font-variant-numeric: tabular-nums; color: var(--fg-2); }
+/* A lesson's pin: faint until pinned. */
+.org-lesson-pin { opacity: 0.45; filter: grayscale(1); }
+.org-lesson-pin.on, .org-lesson-pin:hover, .org-lesson-pin:focus-visible { opacity: 1; filter: none; }

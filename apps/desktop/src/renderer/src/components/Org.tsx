@@ -750,8 +750,18 @@ function CoordinatorAutopilot() {
               <li key={l.id}>
                 <span className="org-lesson-text">
                   {l.text}
-                  <small>{[l.by, l.from, l.at ? relativeTime(l.at, locale) : ''].filter(Boolean).join(' · ')}</small>
+                  <small>{[l.pinned ? `📌 ${t('org.pinned')}` : '', l.by, l.from, l.at ? relativeTime(l.at, locale) : ''].filter(Boolean).join(' · ')}</small>
                 </span>
+                {/* Pinned: every agent is told it, whatever its task (the ones about safety always are). */}
+                <button
+                  className={`icon-btn ic-btn org-lesson-pin ${l.pinned ? 'on' : ''}`}
+                  aria-pressed={l.pinned === true}
+                  title={l.pinned ? t('org.unpin') : t('org.pin')}
+                  aria-label={l.pinned ? t('org.unpin') : t('org.pin')}
+                  onClick={() => void save({ lessons: lessons.map((x) => (x.id === l.id ? { ...x, pinned: !l.pinned } : x)) })}
+                >
+                  📌
+                </button>
                 <button className="icon-btn ic-btn" title={t('org.forget')} aria-label={t('org.forget')} onClick={() => void save({ lessons: lessons.filter((x) => x.id !== l.id) })}>
                   <Icon name="close" size={12} />
                 </button>
