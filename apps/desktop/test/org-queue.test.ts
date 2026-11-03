@@ -125,7 +125,7 @@ it('an unreadable queue remains unknown and cannot silently reset or execute job
  const file=join(temp(),'q');writeFileSync(file,'invalid json');const calls:string[]=[];const q=new OrgQueue(file,j=>calls.push(j.id));q.start();expect(q.snapshot().error).toBe('queue_unreadable');expect(()=>q.enqueue(input('no'))).toThrow(/queue is unavailable/);expect(calls).toHaveLength(0);q.close();expect(readFileSync(file,'utf8')).toBe('invalid json');
 });
 it('a queue persistence failure cannot start work later through its timer',()=>{
- const root=temp(),file=join(root,'q'),calls:string[]=[];const q=new OrgQueue(file,j=>calls.push(j.id));q.start();mkdirSync(`${file}.tmp`);expect(()=>q.enqueue(input('no'))).toThrow(/could not be saved/);q.pump();q.ensureStarted();expect(calls).toHaveLength(0);expect(q.snapshot().error).toBe('queue_persistence_failed');q.close();
+ const root=temp(),file=join(root,'q'),calls:string[]=[];const q=new OrgQueue(file,j=>calls.push(j.id));q.start();rmSync(file);mkdirSync(file);expect(()=>q.enqueue(input('no'))).toThrow(/could not be saved/);q.pump();q.ensureStarted();expect(calls).toHaveLength(0);expect(q.snapshot().error).toBe('queue_persistence_failed');q.close();
 });
 it('deduplicates a repeated coordinator request before it can launch another organization run',()=>{
  const f=botFixture(),request={requestId:'request-fixture',goal:'Fixture',cwd:f.root,configId:f.ceo.id,durable:{maxParallel:2,maxAttempts:2,resumePreauthorized:true}};const a=f.bots.startTeam(request);expect(f.bots.startTeam({...request}).id).toBe(a.id);expect(f.calls).toHaveLength(1);expect(()=>f.bots.startTeam({...request,goal:'Changed intent'})).toThrow(/idempotency/);f.bots.stopAll();

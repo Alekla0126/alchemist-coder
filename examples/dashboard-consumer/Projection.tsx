@@ -1,13 +1,7 @@
 import { useEffect, useState } from 'react';
-import { DASHBOARD_PROTOCOL, dashboardRef, validDashboardBatch } from '../../apps/desktop/src/shared/dashboard-protocol';
-import type { DashboardProjection } from '../../apps/desktop/src/shared/dashboard-protocol';
-
-export interface ProjectProjection { version: 'ac.dashboard.v1'; orgRef: string; projectRef: string; streams: { streamId: string; sequence: number; data: DashboardProjection }[] }
-function valid(value: unknown): value is ProjectProjection {
-  if (!value || typeof value !== 'object') return false;
-  const v=value as ProjectProjection;
-  return Object.keys(v).length===4 && ['version','orgRef','projectRef','streams'].every(k=>Object.hasOwn(v,k)) && v.version===DASHBOARD_PROTOCOL && dashboardRef(v.orgRef) && dashboardRef(v.projectRef) && Array.isArray(v.streams) && v.streams.length<=4 && v.streams.every(s=>s && Object.keys(s).length===3 && ['streamId','sequence','data'].every(k=>Object.hasOwn(s,k)) && validDashboardBatch({message:{version:DASHBOARD_PROTOCOL,orgRef:v.orgRef,projectRef:v.projectRef,streamId:s.streamId,sequence:s.sequence,messageId:'read-validation',createdAt:0,kind:'snapshot',data:s.data},digest:'0'.repeat(64)}));
-}
+import { validProjectProjection as valid } from '../../apps/desktop/src/shared/dashboard-protocol';
+import type { ProjectProjection } from '../../apps/desktop/src/shared/dashboard-protocol';
+export type { ProjectProjection } from '../../apps/desktop/src/shared/dashboard-protocol';
 /** Reusable read-only consumer. load belongs to the Dashboard BFF; no token goes to the browser. */
 export function Projection({load,expectedScope,interval=5000,labels={}}:{load:()=>Promise<unknown>;expectedScope:{orgRef:string;projectRef:string};interval?:number;labels?:Record<string,string>}) {
   const scopeKey=expectedScope.orgRef+':'+expectedScope.projectRef;

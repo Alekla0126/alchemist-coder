@@ -1,0 +1,7 @@
+{
+  "version": "ac.mcp.v1",
+  "scopes": ["health:read", "organizations:read", "jobs:read", "results:read"],
+  "projects": [
+    {"orgRef": "example-org", "projectRef": "example-project", "connection": null}
+  ]
+}

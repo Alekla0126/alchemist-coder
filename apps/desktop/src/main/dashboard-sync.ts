@@ -17,7 +17,7 @@ interface Saved {
 }
 export const dashboardDigest = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export const dashboardGrantKey = (origin: string, binding: DashboardSyncBinding) => 'dashboard.events-write.' + dashboardDigest([origin,binding.orgRef,binding.projectRef,binding.projectCwd]);
-const reasonCodes = new Set(['executor_unavailable','capacity_exhausted','resume_confirmation_required','result_reconciliation_required','predecessor_unresolved','queue_persistence_failed','executor_start_failed','execution_failed','connection_failed','rate_limited','model_unavailable','permission_required','cancelled']);
+const reasonCodes = new Set(['executor_unavailable','capacity_exhausted','resume_confirmation_required','result_reconciliation_required','predecessor_unresolved','queue_persistence_failed','executor_start_failed','execution_failed','connection_failed','rate_limited','model_unavailable','permission_required','cancelled','lease_expired','execution_timeout','result_verification_failed','fixture_effect_conflict','workflow_not_allowed']);
 const initial = (): Saved => ({ version: 1, streamId: randomUUID(), nextSequence: 1, sourceHash: '', sourceSequence: 0, eventSequence: 0, pending: [], acknowledged: null, lastSyncAt: null, attempts: 0, retryAt: 0, failure: null });
 
 /** Egress-only, explicit project opt-in. Queue/agents remain owned by BotManager. */
