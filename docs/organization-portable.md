@@ -2,6 +2,8 @@
 
 El coordinador sigue siendo el del IDE. El chat de Organización, `create_bot`, los líderes y los agentes ejecutan con `BotManager → RunnerManager → packages/harness`. La cola añade persistencia y recursos alrededor de ese mismo flujo; no crea una compañía alternativa en el chat.
 
+La [Dirección de Rentabilidad y Crecimiento](profitability-growth.md) es un mandato transversal del mismo coordinador. La plantilla conserva sus 17 roles y sus configuraciones; añade briefs mínimos, registro sintético de iniciativas y aprendizaje revisado. El [índice canónico](ecosystem/README.md) enlaza IDE, Dashboard, MCP y backend sin duplicar sus fuentes de verdad.
+
 ```text
 Encargo + proyecto + motor/permisos guardados + presupuesto
     → coordinador existente y chat de Organización

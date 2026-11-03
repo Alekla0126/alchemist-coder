@@ -19,7 +19,8 @@
     "build:dashboard-receiver": "node scripts/build-dashboard-receiver.mjs",
     "check:org-execution": "pnpm build:dashboard-receiver && node out/dashboard-receiver/examples/org-execution/check.js",
     "build:org-mcp": "node scripts/build-org-mcp.mjs",
-    "check:org-mcp": "pnpm build:org-mcp && node out/org-mcp/packages/org-mcp/test/check.js"
+    "check:org-mcp": "pnpm build:org-mcp && node out/org-mcp/packages/org-mcp/test/check.js",
+    "check:tac-organization": "vitest run packages/org-mcp/test/tac-operating-template.test.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

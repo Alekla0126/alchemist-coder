@@ -128,6 +128,8 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md). Contributions require signing the [CLA]
 
 ## Portable TAC organization (draft increment)
 
+Start with the [canonical ecosystem index](docs/ecosystem/README.md). The [profitability operating guide](docs/profitability-growth.md) adds a transversal mandate to the existing coordinator, using Finance, Product/Monetization, Marketing/Sales and Analytics. It includes small agent briefs, a synthetic initiative registry and reviewed learning records; it does not activate agents, change saved profiles or publish private financial data.
+
 The IDE's existing coordinator, department leads and subagents can use the [portable TAC template](templates/tac/.alchemist/organization/manifest.json), one short context file per role, and an opt-in durable queue. Queue recovery, retries, cancellation and executor availability keep independent tasks moving while uncertain outcomes stay blocked for review. Codex remains a selectable runtime alongside other engines; sandbox, approval and license rules still apply.
 
 Linking a template reuses existing profile IDs within the selected project; it never creates duplicate staff or changes models and permissions. Ambiguous or missing identities require an explicit `configId` in the local manifest. Context links are stored per project, can be rolled back, and are applied only after a fresh preview while the project is idle. Global profiles keep their behavior in other projects.

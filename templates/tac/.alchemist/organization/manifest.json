@@ -149,5 +149,26 @@
       "canSpawn": false,
       "executorId": "local"
     }
+  ],
+  "operatingMandates": [
+    {
+      "id": "profitability-growth",
+      "name": "Dirección de Rentabilidad y Crecimiento",
+      "coordinatorRole": "coordinator",
+      "participatingRoles": [
+        "finance",
+        "planner",
+        "coder",
+        "strategy",
+        "sales",
+        "analyst"
+      ],
+      "context": "mandates/profitability-growth.md",
+      "agentContract": "agent-contract.md",
+      "briefTemplate": "portfolio/initiative.md",
+      "registryExample": "portfolio/backlog.example.json",
+      "activation": "proposal_only_no_profile_or_permission_changes",
+      "registrySchema": "portfolio/backlog.schema.json"
+    }
   ]
 }
