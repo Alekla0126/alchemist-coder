@@ -37,7 +37,11 @@ export interface AcpModeRule {
 export interface AcpAgentSpec {
   id: string;
   label: string;
-  resolve(): Promise<AcpLaunch | null>;
+  /** Explicit Codex choices must be applied exactly before any inference. */
+  strictConfig?: boolean;
+  resolve(providerEnv?: Record<string, string>): Promise<AcpLaunch | null>;
+  /** Native model/list, including on resume: an ACP adapter may append an unavailable saved model. */
+  validateConfig?(choice: { model: string; effort?: string; providerId: string }, launch: AcpLaunch, env: Record<string, string>, signal: AbortSignal): Promise<void>;
   modes: Record<PermissionMode, AcpModeRule>;
   /**
    * Auth method to use, decided from the provider's env only (never the ambient shell, so a stray
@@ -148,6 +152,14 @@ class AcpRun extends RunBase {
   private readonly pending = new Map<string, { choices: Set<string>; resolve: (choiceId: string | null) => void }>();
   private readonly forms = new Map<string, { keys: Set<string>; resolve: (answer: QuestionAnswer | null) => void }>();
   private formCounter = 0;
+  private failed = false;
+  private launch: AcpLaunch | null = null;
+  private launchEnv: Record<string, string> = {};
+  private turnGeneration = 0;
+  private configRevision = 0;
+  private configuring: Promise<void> = Promise.resolve();
+  private configError: Error | null = null;
+  private validationAbort: AbortController | null = null;
 
   constructor(
     private readonly options_: RunOptions,
@@ -160,6 +172,7 @@ class AcpRun extends RunBase {
 
   private fail(error: unknown) {
     if (this.stopped) return;
+    this.failed = true;
     const message = error instanceof Error ? error.message : typeof error === 'object' ? JSON.stringify(error) : String(error);
     this.emit({ type: 'error', message });
     this.emit({ type: 'status', status: 'error' });
@@ -168,11 +181,15 @@ class AcpRun extends RunBase {
 
   private async start() {
     const o = this.options_;
-    const launch = await this.spec.resolve();
-    if (!launch) throw new Error(`${this.spec.label} is not installed.`);
     const providerEnv = await o.provider.env(o.model, this.spec.id);
     if (this.stopped) return;
-    const env = { ...(process.env as Record<string, string>), ...launch.env, ...this.spec.env, ...providerEnv };
+    const launch = await this.spec.resolve(providerEnv);
+    if (!launch) throw new Error(`${this.spec.label} is not installed.`);
+    if (this.stopped) return;
+    // Resolved launch values (notably CODEX_PATH) are canonical, even when a provider supplied a relative path.
+    const env = { ...(process.env as Record<string, string>), ...this.spec.env, ...providerEnv, ...launch.env };
+    this.launch = launch;
+    this.launchEnv = env;
     const args = [...launch.args, ...(this.spec.args?.({ model: o.model, permissionMode: o.permissionMode ?? 'acceptEdits' }) ?? [])];
     // Own process group, so stopping also ends what npx and the adapter spawned.
     const child = this.spawnFn(launch.command, args, { cwd: o.cwd, env, stdio: ['pipe', 'pipe', 'pipe'], detached: process.platform !== 'win32' });
@@ -211,10 +228,11 @@ class AcpRun extends RunBase {
     await this.applyModel(o.model);
     // After the model: the effort levels on offer depend on it.
     await this.applyEffort(o.effort);
-    this.ready = true;
+    this.queue.unshift({ text: o.prompt, images: o.images ?? [], files: o.files ?? [] });
     this.emit({ type: 'started', sessionId: session.id, model: this.modelValue() });
+    this.ready = true;
     this.emitConfig();
-    this.send(o.prompt, o.images, o.files);
+    void this.pump();
   }
 
   /** The session's extra MCP servers, in ACP's shape. */
@@ -252,6 +270,7 @@ class AcpRun extends RunBase {
           this.replaying = false;
         }
       }
+      throw new Error(`${this.spec.label} cannot resume this conversation here. Its saved session was preserved; no new conversation was created.`);
     }
     const r = await conn.newSession({ cwd: o.cwd, mcpServers: this.sessionMcp() });
     return { id: r.sessionId, modes: r.modes, configOptions: r.configOptions };
@@ -269,7 +288,7 @@ class AcpRun extends RunBase {
     child.on('exit', (code) => {
       if (this.child === child) this.child = null;
       this.closePermissions();
-      this.emit({ type: 'status', status: this.stopped ? 'interrupted' : code === 0 || code === null ? 'done' : 'error' });
+      this.emit({ type: 'status', status: this.stopped ? 'interrupted' : this.failed ? 'error' : code === 0 || code === null ? 'done' : 'error' });
     });
   }
 
@@ -489,10 +508,15 @@ class AcpRun extends RunBase {
   private async setOption(id: string, value: string) {
     if (!this.conn || !this.sessionId) return;
     const option = this.options.find((c) => c.id === id);
-    if (!option || option.type !== 'select' || option.currentValue === value) return;
+    if (!option || option.type !== 'select') {
+      if (this.spec.strictConfig) throw new Error(`Runtime setting ${id} is unavailable.`);
+      return;
+    }
+    if (option.currentValue === value) return;
     if (!flatChoices(option).some((c) => c.value === value)) throw new Error(`${option.name}: unknown value ${value}`);
     const r = await this.conn.setSessionConfigOption({ sessionId: this.sessionId, configId: id, value });
     this.options = r.configOptions ?? this.options;
+    if (this.spec.strictConfig && (this.options.find((c) => c.id === id) as { currentValue?: string } | undefined)?.currentValue !== value) throw new Error(`The runtime did not apply ${id}=${value}; stopped before sending the task.`);
   }
 
   private async setMode(modeId: string) {
@@ -522,10 +546,11 @@ class AcpRun extends RunBase {
       }
     } catch (error) {
       const why = error instanceof Error ? error.message : String(error);
-      if (mode === 'plan' || mode === 'default') throw new Error(`Could not switch ${label} to ${mode} mode (${why}); stopped so it can't change files without asking.`);
+      if (this.spec.strictConfig || mode === 'plan' || mode === 'default') throw new Error(`Could not switch ${label} to ${mode} mode (${why}); stopped so it can't change files without asking.`);
       this.emit({ type: 'notice', level: 'warning', text: `Could not switch ${label} to ${mode}: ${why}` });
     }
     if (!applied && rule.modes?.length) {
+      if (this.spec.strictConfig) throw new Error(`${label} cannot apply the requested ${mode} permissions; stopped before sending the task.`);
       if (mode === 'plan') throw new Error(`${label} has no plan mode here; stopped so it can't change files while planning.`);
       const permissive = [...(this.spec.modes.bypassPermissions.modes ?? []), ...(this.spec.modes.acceptEdits.modes ?? [])].filter((id) => !rule.modes!.includes(id));
       const current = this.modes?.currentModeId;
@@ -535,6 +560,18 @@ class AcpRun extends RunBase {
   }
 
   private async applyModel(model: string) {
+    if (this.spec.strictConfig) {
+      const option = this.modelOption();
+      if (model === 'default') {
+        const current = this.modelValue();
+        if (!option || !current || !flatChoices(option).some((c) => c.value === current)) throw new Error(`The saved model is unavailable in ${this.spec.label}; choose a model from its current catalog to continue the same conversation. Nothing was sent.`);
+        return;
+      }
+      if (!option || !flatChoices(option).some((c) => c.value === model)) throw new Error(`${model} is unavailable in ${this.spec.label}; choose a model from its current catalog to continue the same conversation. Nothing was sent.`);
+      await this.setOption(option.id, model);
+      if (this.modelValue() !== model) throw new Error(`${this.spec.label} did not apply model ${model}; stopped before sending the task.`);
+      return;
+    }
     const option = this.modelOption();
     if (!option) return;
     const value = pickChoice(flatChoices(option), model);
@@ -553,15 +590,21 @@ class AcpRun extends RunBase {
 
   /** A level this model doesn't offer is skipped (and said): the agent keeps its own default. */
   private async applyEffort(effort: string | undefined) {
-    if (!effort) return;
     const option = this.effortOption();
+    if (!effort) {
+      if (this.spec.strictConfig && option?.type === 'select' && !flatChoices(option).some((c) => c.value === option.currentValue)) throw new Error(`${this.spec.label}'s saved reasoning effort is unavailable for this model. Choose an offered effort before continuing; nothing was sent.`);
+      return;
+    }
     if (!option || !flatChoices(option).some((c) => c.value === effort)) {
+      if (this.spec.strictConfig) throw new Error(`${this.spec.label} does not offer reasoning effort ${effort} for this model; stopped before sending the task.`);
       this.emit({ type: 'notice', level: 'info', text: `This model doesn't offer the "${effort}" reasoning effort; it uses its default.` });
       return;
     }
     try {
       await this.setOption(option.id, effort);
+      if (this.spec.strictConfig && (this.effortOption() as { currentValue?: string } | undefined)?.currentValue !== effort) throw new Error(`The runtime did not apply reasoning effort ${effort}.`);
     } catch (error) {
+      if (this.spec.strictConfig) throw error;
       this.emit({ type: 'notice', level: 'warning', text: `Could not set the effort to ${effort}: ${error instanceof Error ? error.message : String(error)}` });
     }
   }
@@ -580,13 +623,21 @@ class AcpRun extends RunBase {
   }
 
   async configure(change: { mode?: string; option?: { id: string; value: string } }): Promise<void> {
-    if (change.mode) await this.setMode(change.mode);
-    if (change.option) await this.setOption(change.option.id, change.option.value);
-    this.releasePlanGuard();
-    this.emitConfig();
+    if (!this.ready || this.stopped || this.failed) throw new Error('This agent is not ready to change settings.');
+    this.configRevision++;
+    const update = this.configuring.then(async () => {
+      if (change.mode) await this.setMode(change.mode);
+      if (change.option) await this.setOption(change.option.id, change.option.value);
+      this.configError = null;
+      this.releasePlanGuard();
+      this.emitConfig();
+    });
+    this.configuring = update.catch((error: unknown) => { this.configError = error instanceof Error ? error : new Error(String(error)); });
+    await update;
   }
 
   override send(textIn: string, images: PromptImage[] = [], files: PromptFile[] = []): void {
+    if (this.failed) throw new Error(`${this.spec.label} stopped after an error. Refresh its models and continue the saved conversation; this message was not sent.`);
     this.queue.push({ text: textIn, images, files });
     void this.pump();
   }
@@ -613,30 +664,75 @@ class AcpRun extends RunBase {
   }
 
   private async pump() {
-    if (this.busy || this.stopped || !this.conn || !this.sessionId) return;
+    if (this.busy || this.stopped || this.failed || !this.ready || !this.conn || !this.sessionId) return;
     const next = this.queue.shift();
     if (next === undefined) return;
     this.busy = true;
+    const generation = ++this.turnGeneration;
+    const validation = new AbortController();
+    this.validationAbort = validation;
     this.textInTurn = false;
     this.paragraphBreak = false;
     this.emit({ type: 'status', status: 'running' });
+    let prompting = false;
     try {
+      let stable = false;
+      for (let checks = 0; checks < 6 && !stable; checks++) {
+        await this.configuring;
+        if (this.stopped || generation !== this.turnGeneration) break;
+        if (this.configError) throw this.configError;
+        const revision = this.configRevision;
+        if (this.spec.strictConfig) {
+          await this.applyModel('default');
+          await this.applyEffort(undefined);
+        }
+        if (this.spec.validateConfig && this.launch) {
+          const effort = this.effortOption();
+          try {
+            await this.spec.validateConfig({ model: this.modelValue() ?? this.options_.model, effort: effort?.type === 'select' ? effort.currentValue : undefined, providerId: this.options_.provider.id }, this.launch, this.launchEnv, validation.signal);
+          } catch (error) {
+            // A changed selection must be checked on its own; an obsolete check cannot approve or reject it.
+            if (revision !== this.configRevision && generation === this.turnGeneration && !this.stopped) continue;
+            throw error;
+          }
+        }
+        stable = revision === this.configRevision;
+      }
+      if (this.stopped || this.failed) return;
+      if (generation !== this.turnGeneration) {
+        this.emit({ type: 'result', ok: false, sessionId: this.sessionId, costUsd: this.costUsd });
+        this.emit({ type: 'status', status: 'interrupted' });
+        return;
+      }
+      if (!stable) throw new Error('Model configuration kept changing during validation. Review its final selection and continue the saved conversation; nothing was sent.');
+      prompting = true;
       const r = await this.conn.prompt({ sessionId: this.sessionId, prompt: this.promptBlocks(next) });
       if (this.stopped) return;
       if (r.stopReason === 'refusal') this.emit({ type: 'notice', level: 'warning', text: `${this.spec.label} declined this request.` });
-      this.emit({ type: 'result', ok: r.stopReason !== 'refusal', sessionId: this.sessionId, costUsd: this.costUsd });
+      this.emit({ type: 'result', ok: r.stopReason !== 'refusal' && r.stopReason !== 'cancelled', sessionId: this.sessionId, costUsd: this.costUsd });
     } catch (error) {
       if (!this.stopped) {
-        this.emit({ type: 'error', message: error instanceof Error ? error.message : JSON.stringify(error) });
+        if (generation !== this.turnGeneration) {
+          this.emit({ type: 'result', ok: false, sessionId: this.sessionId, costUsd: this.costUsd });
+          this.emit({ type: 'status', status: 'interrupted' });
+          return;
+        }
+        const message = error instanceof Error ? error.message : JSON.stringify(error);
+        if (this.spec.strictConfig && (!prompting || /model_not_found|model[^\n]+not supported[^\n]+(?:ChatGPT|account)|saved (?:model|reasoning effort) is unavailable/i.test(message))) {
+          this.fail(new Error(`${message}\nCodex did not accept this model configuration. Refresh the catalog and explicitly choose an available model/effort for this same conversation. No provider was changed and queued messages were not retried.`));
+        } else this.emit({ type: 'error', message });
         this.emit({ type: 'result', ok: false, sessionId: this.sessionId, costUsd: this.costUsd });
       }
     } finally {
+      if (this.validationAbort === validation) this.validationAbort = null;
       this.busy = false;
-      if (this.queue.length) void this.pump();
+      if (this.queue.length && !this.failed && generation === this.turnGeneration) void this.pump();
     }
   }
 
   interrupt(): void {
+    this.turnGeneration++;
+    this.validationAbort?.abort();
     this.closePermissions();
     if (this.conn && this.sessionId && this.busy) void this.conn.cancel({ sessionId: this.sessionId }).catch(() => {});
   }
@@ -647,6 +743,8 @@ class AcpRun extends RunBase {
 
   override stop(): void {
     this.stopped = true;
+    this.turnGeneration++;
+    this.validationAbort?.abort();
     this.closePermissions();
     if (this.conn && this.sessionId && this.busy) void this.conn.cancel({ sessionId: this.sessionId }).catch(() => {});
     this.kill();
@@ -668,7 +766,7 @@ export function acpHarness(spec: AcpAgentSpec, options: { spawn?: SpawnFn } = {}
     id: spec.id,
     label: spec.label,
     async detect() {
-      const launch = await spec.resolve();
+      const launch = await spec.resolve().catch(() => null);
       return { installed: !!launch, version: launch?.version ?? null, path: launch ? launch.command : null };
     },
     run: (runOptions) => new AcpRun(runOptions, spec, spawnFn),

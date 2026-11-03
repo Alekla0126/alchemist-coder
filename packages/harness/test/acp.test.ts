@@ -315,3 +315,82 @@ describe('agent questions (ACP forms)', () => {
     expect(formFields(null)).toEqual([]);
   });
 });
+
+
+it('strict Codex selection applies model, effort and permissions before inference and supports a model change', async () => {
+  const run = acpHarness(spec({ strictConfig: true })).run({ cwd, prompt: 'hi', provider: provider(), model: 'sonnet', effort: 'high', permissionMode: 'plan' });
+  try {
+    const first = await collect(run, null, (e) => e.type === 'result');
+    expect(first.find((e) => e.type === 'config')).toMatchObject({ mode: 'plan', options: expect.arrayContaining([{ id: 'effort', label: 'Effort', category: 'thought_level', value: 'high', choices: expect.any(Array) }]) });
+    expect(first.find((e) => e.type === 'started')).toMatchObject({ model: 'sonnet' });
+    await run.configure!({ option: { id: 'model', value: 'opus[1m]' } });
+    const next = collect(run, null, (e) => e.type === 'result');
+    run.send('second');
+    expect((await next).filter((e) => e.type === 'text').map((e) => e.text).join('')).toContain('model=opus[1m]');
+  } finally { run.stop(); }
+});
+
+it('strict Codex selection fails before any prompt on unavailable model/effort, ignored configuration or missing permissions', async () => {
+  const cases: Array<{ model: string; effort?: string; env?: Record<string, string> }> = [
+    { model: 'unavailable' }, { model: 'sonnet', effort: 'ultra' },
+    { model: 'sonnet', env: { FAKE_IGNORE_CONFIG: '1' } },
+    { model: 'sonnet', env: { FAKE_MODES: 'yolo' } },
+  ];
+  for (const options of cases) {
+    const run = acpHarness(spec({ strictConfig: true })).run({ cwd, prompt: 'MUST_NOT_RUN', provider: provider(options.env), model: options.model, effort: options.effort, permissionMode: 'acceptEdits' });
+    try {
+      const events = await collect(run, null, (e) => e.type === 'status' && e.status === 'error');
+      expect(events.some((e) => e.type === 'error')).toBe(true);
+      expect(events.some((e) => ['text', 'tool', 'started', 'result'].includes(e.type))).toBe(false);
+    } finally { run.stop(); }
+  }
+});
+
+it('cancelling a Codex turn is never reported as a successful result', async () => {
+  const run = acpHarness(spec({ strictConfig: true })).run({ cwd, prompt: 'cancel', provider: provider(), model: 'sonnet', permissionMode: 'acceptEdits' });
+  const off = run.onEvent((e) => { if (e.type === 'permission') run.interrupt!(); });
+  try {
+    const events = await collect(run, null, (e) => e.type === 'result');
+    expect(events.find((e) => e.type === 'result')).toMatchObject({ ok: false });
+  } finally { off(); run.stop(); }
+});
+
+it('resumes a legacy conversation only after an explicit supported model selection, keeping its id', async () => {
+  for (const model of ['old-model', 'default', 'sonnet']) {
+    const run = acpHarness(spec({ strictConfig: true })).run({ cwd, prompt: 'continue', provider: provider({ FAKE_START_MODEL: 'old-model' }), model, permissionMode: 'plan', resumeSessionId: 'old-session-42' });
+    try {
+      const events = await collect(run, null, (e) => model === 'sonnet' ? e.type === 'result' : e.type === 'status' && e.status === 'error');
+      if (model === 'sonnet') {
+        expect(events.find((e) => e.type === 'started')).toMatchObject({ sessionId: 'old-session-42', model: 'sonnet' });
+        expect(events.find((e) => e.type === 'result')).toMatchObject({ ok: true, sessionId: 'old-session-42' });
+      } else {
+        expect(events.some((e) => e.type === 'text' || e.type === 'started')).toBe(false);
+        expect(events.find((e) => e.type === 'error')).toMatchObject({ message: expect.stringContaining('same conversation') });
+      }
+    } finally { run.stop(); }
+  }
+});
+
+it('does not create a replacement conversation when resume or the model catalog is unavailable', async () => {
+  for (const env of [{ FAKE_NO_CATALOG: '1' }, { FAKE_NO_RESUME: '1' }, { FAKE_START_EFFORT: 'ultra' }] as Array<Record<string, string>>) {
+    const run = acpHarness(spec({ strictConfig: true })).run({ cwd, prompt: 'MUST_NOT_SEND', provider: provider(env), model: 'sonnet', permissionMode: 'plan', resumeSessionId: 'old-session-42' });
+    try {
+      const events = await collect(run, null, (e) => e.type === 'status' && e.status === 'error');
+      expect(events.some((e) => ['text', 'tool', 'started', 'result'].includes(e.type))).toBe(false);
+      expect(events.find((e) => e.type === 'error')).toBeDefined();
+    } finally { run.stop(); }
+  }
+});
+
+it('a model_not_found 400 preserves the session and never pumps the next queued message', async () => {
+  const run = acpHarness(spec({ strictConfig: true })).run({ cwd, prompt: 'one', provider: provider({ FAKE_MODEL_400: '1' }), model: 'sonnet', permissionMode: 'plan', resumeSessionId: 'old-session-42' });
+  const off = run.onEvent((e) => { if (e.type === 'started') run.send('queued follow-up'); });
+  try {
+    const events = await collect(run, null, (e) => e.type === 'result');
+    expect(events.find((e) => e.type === 'started')).toMatchObject({ sessionId: 'old-session-42' });
+    expect(events.find((e) => e.type === 'error')).toMatchObject({ message: expect.stringContaining('queued messages were not retried') });
+    expect(events.find((e) => e.type === 'result')).toMatchObject({ ok: false, sessionId: 'old-session-42' });
+    expect(events.filter((e) => e.type === 'result')).toHaveLength(1);
+    expect(() => run.send('retry')).toThrow(/this message was not sent/);
+  } finally { off(); run.stop(); }
+});

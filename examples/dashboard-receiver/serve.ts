@@ -1,0 +1,20 @@
+import { readFileSync, statSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { DashboardReceiver, dashboardReceiverServer } from '../../apps/desktop/src/main/dashboard-receiver.ts';
+import type { DashboardReceiverGrant } from '../../apps/desktop/src/main/dashboard-receiver.ts';
+
+const stateArg = process.argv[2], grantFile = process.env.AC_DASHBOARD_GRANTS_FILE;
+if (!stateArg) throw new Error('Usage: node --experimental-strip-types examples/dashboard-receiver/serve.ts /private/state/inbox.json');
+const development = process.env.AC_DASHBOARD_LOCAL_DEVELOPMENT === '1';
+if (!grantFile && !development) throw new Error('Provide a private AC_DASHBOARD_GRANTS_FILE, or explicitly select loopback development mode');
+if (grantFile && statSync(grantFile).size > 65_536) throw new Error('Grant file too large');
+if (grantFile && process.platform !== 'win32' && (statSync(grantFile).mode & 0o077)) throw new Error('Grant file must be private (0600)');
+const grants = grantFile ? JSON.parse(readFileSync(grantFile,'utf8')) as DashboardReceiverGrant[] : [];
+const receiver = new DashboardReceiver(resolve(stateArg),grants,development,1);
+const server = dashboardReceiverServer(receiver,65_536);
+const port = Number(process.env.AC_DASHBOARD_PORT ?? '5182');
+if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('Invalid local port');
+server.requestTimeout = 15_000; server.headersTimeout = 10_000;
+server.listen(port,'127.0.0.1',() => process.stdout.write('Dashboard inbox listening on loopback port '+port+'\n'));
+const close = () => server.close(() => { receiver.close(); process.exit(0); });
+process.once('SIGINT',close); process.once('SIGTERM',close);

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { BotConfig } from '@shared/api';
+import type { AgentChoice, BotConfig } from '@shared/api';
 import { defaultTemplate, HOUSE_TEMPLATE, loadTemplates, saveTemplates, setDefaultTemplate, starterTemplates, type Template } from '../org-templates';
 import { baseName } from '../paths';
 import { useOpenProjects, useStore, useT } from '../store';
@@ -8,7 +8,10 @@ import { isDemo, projectOf } from '../org-office';
 import { openMenu, promptText, toast } from '../ui';
 import { errorText } from './Bots';
 import { Chip } from './ComposerChips';
-import { defaultChoice } from './AgentPicker';
+import { AgentPicker, defaultChoice, isRunnable } from './AgentPicker';
+import { CodexStatus } from './CodexStatus';
+import { OrgExecution } from './OrgExecution';
+import { organizationAssignment } from '../org-assignment';
 import { Icon } from './Icon';
 import { VoiceButton } from './VoiceButton';
 import { appendSpoken } from '../voice';
@@ -20,12 +23,12 @@ let shotSent = false;
  * One box to give the organization work: you write what you need once and the coordinator hands it
  * out. The project, a template, a spending cap and the plan review are chips, already set to sensible values.
  */
-export function OrgComposer({ coordinator, recipient, examples: showExamples }: { coordinator: BotConfig | undefined; recipient?: BotConfig; examples: boolean }) {
+export function OrgComposer({ coordinator, recipient, examples: showExamples, showRuntime = true }: { coordinator: BotConfig | undefined; recipient?: BotConfig; examples: boolean; showRuntime?: boolean }) {
   const t = useT();
   const orgProject = useStore((s) => s.orgProject);
   const activeProject = useStore((s) => s.projects.find((p) => p.id === s.settings.activeProjectId));
   const goal = useStore((s) => s.orgGoal);
-  const setGoal = (orgGoal: string) => useStore.setState({ orgGoal });
+  const setGoal = (orgGoal: string) => useStore.setState({ orgGoal, ...(orgGoal !== useStore.getState().orgGoal ? { orgRequestId: null } : {}) });
   const open = useOpenProjects();
   // The project you picked on the chip; until then (or once it's closed) the one you're in, so switching projects in the rail takes the box with you.
   const [picked, setPicked] = useState<string | null>(null);
@@ -46,6 +49,10 @@ export function OrgComposer({ coordinator, recipient, examples: showExamples }: 
   const [budget, setBudget] = useState(first?.budget ?? '');
   const [reviewPlan, setReviewPlan] = useState(first?.reviewPlan ?? true);
   const [busy, setBusy] = useState(false);
+  const durable = useStore(s => s.orgExecutionDraft);
+  const draftEngine = useStore((s) => s.orgAssignmentAgent);
+  const agentOverride = draftEngine?.agent ?? null;
+  const setAgentOverride = (agent: AgentChoice | null) => useStore.setState({ orgRequestId: null, orgAssignmentAgent: agent && coordinator ? { coordinatorId: coordinator.id, agent } : null });
   const [tplId, setTplId] = useState<string | null>(first?.id ?? null);
   const box = useRef<HTMLTextAreaElement>(null);
   // Filtering the organization to a project is picking it.
@@ -134,21 +141,37 @@ export function OrgComposer({ coordinator, recipient, examples: showExamples }: 
   };
 
   const target = recipient ?? coordinator;
-  const ready = !!goal.trim() && !!cwd && !!target;
+  const currentTarget = useRef(target);
+  currentTarget.current = target;
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
   const catalog = useStore((s) => s.catalog);
-  const why = !target ? (catalog && !defaultChoice(catalog) ? t('org.office.noAgent') : t('org.setup')) : !cwd ? t('org.pickProject') : '';
+  const engine = !recipient && agentOverride ? agentOverride : target?.agent;
+  const changedCoordinator = !recipient && !!draftEngine && draftEngine.coordinatorId !== target?.id;
+  const unavailable = changedCoordinator || (engine?.harnessId === 'codex' && engine.providerId === 'openai' && (!catalog?.providers.find((p) => p.id === 'openai')?.codexRuntime?.connected || !isRunnable(catalog, engine)));
+  const ready = !!goal.trim() && !!cwd && !!target && !unavailable;
+  const why = !target ? (catalog && !defaultChoice(catalog) ? t('org.office.noAgent') : t('org.setup')) : !cwd ? t('org.pickProject') : changedCoordinator ? t('org.assignment.changedCoordinator') : unavailable ? t('org.codex.unavailable') : '';
   const start = async () => {
     if (!ready || !target || busy) return;
     if (isDemo(target.id)) return void toast(t('org.office.demoNoSend'), undefined, 3000);
     setBusy(true);
+    const requestId = useStore.getState().orgRequestId ?? crypto.randomUUID();
+    if (!recipient) useStore.setState({ orgRequestId: requestId });
     try {
       const team = recipient
         ? await window.alchemist.startAgentTask({ task: goal, cwd, configId: recipient.id })
-        : await window.alchemist.startTeam({ goal, cwd, configId: target.id, budgetUsd: Number(budget) || null, approvePlan: reviewPlan, guidance });
+        : await window.alchemist.startTeam(organizationAssignment({ coordinator: target, requestId, goal, cwd, agentOverride, durable, budgetUsd: Number(budget) || null, approvePlan: reviewPlan, guidance }));
       useStore.getState().upsertTeam(team);
       // You stay on the chart: it shows who gets what as the coordinator hands the work out.
       useStore.setState({ orgFocusTeamId: team.id, ...(onOffice ? { officeTeamId: team.id } : {}) });
-      setGoal('');
+      // A newer draft may have been written while this request was in flight.
+      if (mounted.current && currentTarget.current === target && useStore.getState().orgGoal === goal && useStore.getState().orgAssignmentAgent === draftEngine && useStore.getState().orgExecutionDraft === durable && (recipient || useStore.getState().orgRequestId === requestId)) {
+        setGoal('');
+        if (!recipient) useStore.setState({ orgAssignmentAgent: null, orgExecutionDraft: null, orgRequestId: null });
+      }
     } catch (e) {
       toast(errorText(e), undefined, 10_000);
     } finally {
@@ -186,13 +209,29 @@ export function OrgComposer({ coordinator, recipient, examples: showExamples }: 
   const projectName = open.find((p) => p.cwd === cwd)?.name ?? (cwd ? baseName(cwd) : t('org.pickProject'));
   return (
     <section className="org-composer" aria-label={t('bots.newTeam')}>
+      {!recipient && target && engine && <div className="org-assignment-engine">
+        <div className="org-assignment-engine-head">
+          <b>{t('org.assignment.engine')}</b>
+          <span>{catalog?.harnesses.find((h) => h.id === engine.harnessId)?.label ?? engine.harnessId} · {engine.model} · {engine.effort ?? t('org.codex.inheritEffort')} · {t(`perm.${target.permissionMode}`)}</span>
+        </div>
+        <label className="bot-check">
+          <input type="checkbox" checked={!!agentOverride} onChange={(e) => setAgentOverride(e.target.checked ? { ...target.agent } : null)} />
+          <span>{t('org.assignment.override')}</span>
+        </label>
+        {agentOverride && <AgentPicker value={agentOverride} onChange={setAgentOverride} showEffort />}
+        {engine.harnessId === 'codex' && <details className="org-assignment-runtime"><summary>{t('org.codex.title')}</summary><CodexStatus agent={engine} /></details>}
+        {agentOverride && <p className="composer-note">{t('org.assignment.hint')}</p>}
+      </div>}
+      {!recipient && target && engine && <OrgExecution cwd={cwd} agent={engine} />}
+      {recipient && showRuntime && engine?.harnessId === 'codex' && <details className="org-assignment-runtime"><summary>{t('org.codex.title')}</summary><CodexStatus agent={engine} /></details>}
+      {recipient?.agent.harnessId === 'codex' && <p className="composer-note">{recipient.name} · {recipient.agent.model} · {recipient.agent.effort ?? t('org.codex.inheritEffort')} · {t(`perm.${recipient.permissionMode}`)}</p>}
       <div className="composer-box">
         <textarea
           ref={box}
           rows={2}
           value={goal}
           autoFocus
-          placeholder={t('org.composePlaceholder')}
+          placeholder={recipient ? t('org.giveTask', { name: recipient.name }) : t('org.composePlaceholder')}
           aria-label={t('bots.goal')}
           onChange={(e) => setGoal(e.target.value)}
           onKeyDown={(e) => {

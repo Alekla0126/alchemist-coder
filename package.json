@@ -13,9 +13,14 @@
     "dev": "pnpm --filter @alchemist-coder/desktop dev",
     "build": "pnpm --filter @alchemist-coder/desktop build",
     "test": "vitest run",
-    "typecheck": "pnpm -r --parallel typecheck",
+    "typecheck": "pnpm -r --parallel typecheck && tsc -p examples/dashboard-consumer/tsconfig.json",
     "index:smoke": "node --experimental-strip-types packages/indexer/scripts/smoke.ts",
-    "package:mac": "pnpm --filter @alchemist-coder/desktop package:mac"
+    "package:mac": "pnpm --filter @alchemist-coder/desktop package:mac",
+    "build:dashboard-receiver": "node scripts/build-dashboard-receiver.mjs",
+    "check:org-execution": "pnpm build:dashboard-receiver && node out/dashboard-receiver/examples/org-execution/check.js",
+    "build:org-mcp": "node scripts/build-org-mcp.mjs",
+    "check:org-mcp": "pnpm build:org-mcp && node out/org-mcp/packages/org-mcp/test/check.js",
+    "check:tac-organization": "vitest run packages/org-mcp/test/tac-operating-template.test.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

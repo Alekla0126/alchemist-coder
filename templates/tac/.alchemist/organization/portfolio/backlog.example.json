@@ -1,0 +1,168 @@
+{
+  "version": "tac.profitability.v1",
+  "synthetic": true,
+  "scope": {
+    "orgRef": "example-org",
+    "brandRef": "example-brand"
+  },
+  "coordination": {
+    "role": "coordinator",
+    "finance": "finance",
+    "productMonetization": "planner",
+    "marketing": "strategy",
+    "sales": "sales",
+    "analytics": "analyst"
+  },
+  "policy": {
+    "primaryOutcome": "comparable_net_contribution",
+    "computePriority": "majority_existing_verified_business",
+    "newWork": "defer_unless_documented_deadline_or_revenue_blocker",
+    "firstExperimentLimit": 1,
+    "dispatch": "existing_org_queue_only",
+    "executable": false
+  },
+  "apps": [
+    {
+      "appRef": "example-existing-a",
+      "stage": "existing",
+      "demandStatus": "unknown",
+      "demandSourceRefs": [],
+      "economics": {
+        "status": "unknown",
+        "currency": null,
+        "periodStart": null,
+        "periodEnd": null,
+        "basisRef": null,
+        "netRevenueMinor": null,
+        "attributableCostMinor": null,
+        "sourceRefs": []
+      }
+    },
+    {
+      "appRef": "example-existing-b",
+      "stage": "existing",
+      "demandStatus": "unknown",
+      "demandSourceRefs": [],
+      "economics": {
+        "status": "unknown",
+        "currency": null,
+        "periodStart": null,
+        "periodEnd": null,
+        "basisRef": null,
+        "netRevenueMinor": null,
+        "attributableCostMinor": null,
+        "sourceRefs": []
+      }
+    }
+  ],
+  "initiatives": [
+    {
+      "id": "example-reconcile-sources",
+      "appRef": "example-existing-a",
+      "ownerRole": "finance",
+      "kind": "source_reconciliation",
+      "status": "proposed",
+      "hypothesis": "Conciliar ingresos y facturas permite identificar una oportunidad comercial comprobable, sin suponer que todos los productos son rentables.",
+      "approvedCost": {
+        "approvalRef": null,
+        "cashCeilingMinor": null,
+        "currency": null,
+        "computeMinutes": null
+      },
+      "metric": {
+        "name": "net_contribution",
+        "sourceRef": null,
+        "windowStart": null,
+        "windowEnd": null,
+        "targetDeltaMinor": null
+      },
+      "stopRule": "Parar y pedir datos si falta procedencia, cobertura, coste aprobado o una base comparable; no convertir ausencias en cero.",
+      "result": {
+        "state": "not_run",
+        "sourceRefs": [],
+        "deltaMinor": null,
+        "decision": "pending",
+        "costMinor": null,
+        "costSourceRef": null,
+        "reviewReceiptRef": null
+      },
+      "links": {
+        "boardCardRef": null,
+        "queueJobRef": null,
+        "checkpointRef": null,
+        "parentResultRef": null
+      },
+      "exception": {
+        "kind": "none",
+        "sourceRefs": []
+      }
+    },
+    {
+      "id": "example-one-commercial-experiment",
+      "appRef": "example-existing-a",
+      "ownerRole": "strategy",
+      "kind": "offer",
+      "status": "blocked",
+      "hypothesis": "Una oferta clara a una audiencia autorizada puede mejorar la contribución neta; todavía no hay baseline para fijar meta ni elegir esta app.",
+      "approvedCost": {
+        "approvalRef": null,
+        "cashCeilingMinor": null,
+        "currency": null,
+        "computeMinutes": null
+      },
+      "metric": {
+        "name": "net_contribution",
+        "sourceRef": null,
+        "windowStart": null,
+        "windowEnd": null,
+        "targetDeltaMinor": null
+      },
+      "stopRule": "No iniciar antes de priorizar una app con evidencia, aprobar costes y definir ventana/guardrails; parar al agotar el límite o faltar autorización.",
+      "result": {
+        "state": "not_run",
+        "sourceRefs": [],
+        "deltaMinor": null,
+        "decision": "pending",
+        "costMinor": null,
+        "costSourceRef": null,
+        "reviewReceiptRef": null
+      },
+      "links": {
+        "boardCardRef": null,
+        "queueJobRef": null,
+        "checkpointRef": null,
+        "parentResultRef": null
+      },
+      "exception": {
+        "kind": "none",
+        "sourceRefs": []
+      }
+    }
+  ],
+  "learning": {
+    "version": "tac.learning.v1",
+    "retentionPolicyRef": null,
+    "records": [
+      {
+        "id": "example-lesson-proposal",
+        "revision": 1,
+        "initiativeRef": "example-one-commercial-experiment",
+        "state": "proposed",
+        "sourceRefs": [],
+        "observedAt": null,
+        "reviewerRole": "reviewer",
+        "reviewReceiptRef": null,
+        "reviewedAt": null,
+        "expiresAt": null,
+        "supersedes": null,
+        "summary": "Solo un resultado medido y revisado puede justificar repetir o ampliar un experimento."
+      }
+    ]
+  },
+  "readiness": {
+    "phase": "reconcile_private_sources",
+    "selectedAppRef": null,
+    "commercialExecutionAuthorized": false,
+    "knownComputeShare": null
+  }
+}

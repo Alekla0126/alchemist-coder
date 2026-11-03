@@ -805,6 +805,10 @@ button.chip.edition { cursor: pointer; }
 .set-row p { margin: 3px 0 0; font-size: 11.5px; color: var(--fg-3); max-width: 460px; }
 .set-row select { background: var(--bg-input); color: var(--fg); border: 1px solid var(--line-2); border-radius: 7px; padding: 5px 8px; font-size: 12.5px; max-width: 300px; }
 .set-row a { color: var(--accent); }
+.runtime-connections > .bot-field { margin: 12px 0; }
+.runtime-sync-scope { min-width: 0; display: grid; gap: 12px; border: 1px solid var(--line-2); border-radius: 10px; padding: 14px; margin: 16px 0; }
+.runtime-sync-scope legend { padding: 0 6px; color: var(--fg-2); font-size: 13px; }
+.runtime-connections > div[style] { margin-top: 12px; }
 .set-dot.ok { color: var(--green); font-size: 12px; }
 .set-dot.off { color: var(--fg-3); }
 .set-pro { font-size: 10px; padding: 1px 6px; border-radius: 999px; background: var(--bg-sel); color: var(--accent); margin-left: 4px; }
@@ -2925,3 +2929,24 @@ body { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; 
 .office-session-composer { flex: none; border-top: 1px solid var(--line); padding: 10px 18px 14px; background: var(--bg); }
 .office-session-composer > div { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
 .office-session-composer .of-write { margin: 0; }
+
+.org-codex-status { border: 1px solid var(--line); border-radius: 10px; padding: 12px; font-size: 12px; overflow-wrap: anywhere; }
+.org-codex-status header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.org-codex-status p, .org-codex-status ul { margin-top: 8px; }
+.org-codex-status ul { padding-left: 18px; }
+.org-codex-effort { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; grid-column: 1 / -1; }
+
+.org-codex-status .composer-note, .org-codex-permissions { color: var(--fg-2); }
+
+.org-assignment-engine { padding: 10px 12px; border: 1px solid var(--line-2); border-radius: 9px; display: flex; flex-direction: column; gap: 8px; }
+.org-assignment-engine-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; font-size: 12px; }
+.org-assignment-engine-head > span { color: var(--fg-2); overflow-wrap: anywhere; }
+.org-assignment-runtime > summary { cursor: pointer; font-size: 12px; color: var(--fg-2); }
+
+.org-execution { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font-size: 12px; }
+.org-execution > summary { cursor: pointer; }
+.org-execution-options { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 8px; }
+.org-execution-options input[type=number] { width: 52px; }
+.org-execution ul { list-style: none; padding: 0; display: grid; gap: 6px; }
+.org-execution li { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 10px; }
+.org-execution li small { color: var(--fg-2); }

@@ -20,11 +20,14 @@ export function binaryPath(bin: string, searchPath = process.env.PATH ?? ''): st
 }
 
 /** Finds a CLI on PATH and reads its version (without a shell, except for Windows .cmd shims). */
-export function detectBinary(bin: string): Promise<{ installed: boolean; version: string | null; path: string | null }> {
+export function detectBinary(bin: string, env: NodeJS.ProcessEnv = process.env, signal?: AbortSignal): Promise<{ installed: boolean; version: string | null; path: string | null }> {
   return new Promise((resolve) => {
-    if (!/^[\w@.:/\\ -]+$/.test(bin)) return resolve({ installed: false, version: null, path: null });
-    const shell = isBatchShim(bin) && !bin.includes(' ');
-    execFile(bin, ['--version'], { timeout: 8000, env: process.env, shell }, (error, stdout) => {
+    if (!/^[\w@.:/\\ ~-]+$/.test(bin)) return resolve({ installed: false, version: null, path: null });
+    // Only a validated, quoted path and the fixed version flag enter cmd.exe.
+    const batch = isBatchShim(bin, env);
+    const command = batch ? 'cmd.exe' : bin;
+    const args = batch ? ['/d', '/s', '/c', `""${bin}" --version"`] : ['--version'];
+    execFile(command, args, { timeout: 8000, env, windowsVerbatimArguments: batch, signal }, (error, stdout) => {
       if (error) return resolve({ installed: false, version: null, path: null });
       const version = /\d+\.\d+\.\d+[\w.-]*/.exec(stdout)?.[0] ?? stdout.trim().slice(0, 40);
       resolve({ installed: true, version, path: bin });

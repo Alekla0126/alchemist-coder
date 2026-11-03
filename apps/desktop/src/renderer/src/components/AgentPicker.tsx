@@ -28,12 +28,14 @@ export function defaultChoice(catalog: RunnerCatalog | null, skip: AgentChoice[]
 }
 
 /** Agent CLI → provider → model, filtered to combinations that can actually run. */
-export function AgentPicker({ value, onChange, onRemove }: { value: AgentChoice; onChange: (c: AgentChoice) => void; onRemove?: () => void }) {
+export function AgentPicker({ value, onChange, onRemove, showEffort = false }: { value: AgentChoice; onChange: (c: AgentChoice) => void; onRemove?: () => void; showEffort?: boolean }) {
   const t = useT();
   const catalog = useStore((s) => s.catalog);
   const harnesses = catalog?.harnesses ?? [];
   const providers = (catalog?.providers ?? []).filter((p) => p.harnesses.includes(value.harnessId));
   const provider = providers.find((p) => p.id === value.providerId);
+  const model = provider?.models.find((m) => m.id === value.model);
+  const efforts = model?.reasoningEfforts;
   const needsKey = !!provider?.credential && !provider.credential.isSet && !provider.credential.optional;
   const setHarness = (harnessId: string) => {
     const p = (catalog?.providers ?? []).find((x) => x.available && x.harnesses.includes(harnessId));
@@ -41,18 +43,18 @@ export function AgentPicker({ value, onChange, onRemove }: { value: AgentChoice;
   };
   const setProvider = (providerId: string) => {
     const p = providers.find((x) => x.id === providerId);
-    onChange({ ...value, providerId, model: p?.models[0]?.id ?? '' });
+    onChange({ harnessId: value.harnessId, providerId, model: p?.models[0]?.id ?? '' });
   };
   return (
     <div className="agent-picker">
-      <select value={value.harnessId} onChange={(e) => setHarness(e.target.value)} title={t('run.agent')}>
+      <select aria-label={t('run.agent')} value={value.harnessId} onChange={(e) => setHarness(e.target.value)} title={t('run.agent')}>
         {harnesses.map((h) => (
           <option key={h.id} value={h.id} disabled={!h.installed}>
             {h.label}
           </option>
         ))}
       </select>
-      <select value={value.providerId} onChange={(e) => setProvider(e.target.value)} title={t('run.provider')}>
+      <select aria-label={t('run.provider')} value={value.providerId} onChange={(e) => setProvider(e.target.value)} title={t('run.provider')}>
         {providers.map((p) => (
           <option key={p.id} value={p.id} disabled={!p.available}>
             {p.id === 'claude-login' ? t('provider.claudeLogin') : p.label}
@@ -61,7 +63,8 @@ export function AgentPicker({ value, onChange, onRemove }: { value: AgentChoice;
         ))}
         {!providers.length && <option value="">{t('run.noModels')}</option>}
       </select>
-      <select value={value.model} onChange={(e) => onChange({ ...value, model: e.target.value })} title={t('run.model')}>
+      <select aria-label={t('run.model')} value={value.model} onChange={(e) => onChange({ harnessId: value.harnessId, providerId: value.providerId, model: e.target.value, ...(showEffort && value.harnessId === 'codex' ? { effort: provider?.models.find((m) => m.id === e.target.value)?.defaultReasoningEffort } : {}) })} title={t('run.model')}>
+        {!model && value.model && <option value={value.model} disabled>{value.model} · {t('org.codex.unavailable')}</option>}
         {(provider?.models ?? []).map((m) => (
           <option key={m.id} value={m.id}>
             {m.id === 'default' ? t('run.defaultModel') : m.label}
@@ -69,6 +72,14 @@ export function AgentPicker({ value, onChange, onRemove }: { value: AgentChoice;
         ))}
         {!provider?.models.length && <option value="">{t('run.noModels')}</option>}
       </select>
+      {showEffort && value.harnessId === 'codex' && <label className="org-codex-effort">
+        <span>{t('chip.effort')}</span>
+        <select aria-label={t('chip.effort')} value={value.effort ?? ''} disabled={!efforts?.length} onChange={(e) => onChange({ ...value, effort: e.target.value || undefined })}>
+          <option value="">{t('org.codex.inheritEffort')}</option>
+          {value.effort && !efforts?.some((e) => e.id === value.effort) && <option value={value.effort} disabled>{value.effort} · {t('org.codex.unavailable')}</option>}
+          {efforts?.map((e) => <option key={e.id} value={e.id}>{e.id}</option>)}
+        </select>
+      </label>}
       {needsKey && <span className="picker-warn">🔒 {t('arena.needsKey')}</span>}
       {onRemove && (
         <button className="icon-btn" onClick={onRemove} title={t('arena.removeAgent')}>
@@ -82,5 +93,5 @@ export function AgentPicker({ value, onChange, onRemove }: { value: AgentChoice;
 export function isRunnable(catalog: RunnerCatalog | null, c: AgentChoice): boolean {
   const h = catalog?.harnesses.find((x) => x.id === c.harnessId);
   const p = catalog?.providers.find((x) => x.id === c.providerId);
-  return !!h?.installed && !!p?.available && p.harnesses.includes(c.harnessId) && !!c.model && (!p.credential || p.credential.isSet || p.credential.optional);
+  return !!h?.installed && !!p?.available && p.harnesses.includes(c.harnessId) && !!c.model && (c.harnessId !== 'codex' || c.providerId !== 'openai' || p.models.some((m) => m.id === c.model && (!c.effort || m.reasoningEfforts?.some((e) => e.id === c.effort)))) && (!p.credential || p.credential.isSet || p.credential.optional);
 }

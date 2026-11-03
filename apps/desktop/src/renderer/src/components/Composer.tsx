@@ -12,7 +12,7 @@ import { MissingAgent } from './MissingAgent';
 import { Suggest, type SuggestItem } from './Suggest';
 import { useContextFill } from './ContextMeter';
 import { fileSize, matchModel } from '../format';
-import { drafts, queues } from '../composer-state';
+import { codexComposerSelection, drafts, queues, sendQueuedMessage } from '../composer-state';
 import { codexChoice, handoffPrompt } from '../conversation-handoff';
 import { continueWithCodex } from '../actions/session';
 import { sourceOf } from '../sources';
@@ -243,8 +243,11 @@ function ConversationComposer({ projectId, session }: { projectId: number; sessi
   const [sessionPicks, setSessionPicks] = useState(loadSessionPicks);
   const pick = session ? sessionPicks[session.id] : undefined;
   const wantProvider = pick?.providerId ?? handoff?.agent.providerId ?? prefs.providerId;
-  const provider = providers.find((p) => p.id === wantProvider && p.available) ?? providers.find((p) => p.available) ?? providers[0];
-  const model =
+  const codexSelection = harnessId === 'codex' ? codexComposerSelection(providers,
+    pick?.providerId ?? handoff?.agent.providerId ?? (session ? undefined : prefs.providerId),
+    pick?.model ?? handoff?.agent.model ?? (session ? session.models.at(-1) : prefs.model)) : null;
+  const provider = codexSelection ? codexSelection.provider : providers.find((p) => p.id === wantProvider && p.available) ?? providers.find((p) => p.available) ?? providers[0];
+  const model = codexSelection ? codexSelection.model :
     provider?.models.find((m) => m.id === pick?.model)?.id ??
     (session && provider ? matchModel(provider.models, session.models.at(-1)) : undefined) ??
     provider?.models.find((m) => m.id === handoff?.agent.model)?.id ??
@@ -252,12 +255,14 @@ function ConversationComposer({ projectId, session }: { projectId: number; sessi
     provider?.models[0]?.id ??
     '';
   const chooseNewAgent = (agent: AgentChoice) => {
-    setPrefs({ ...prefs, ...agent });
+    setPrefs({ ...prefs, harnessId: agent.harnessId, providerId: agent.providerId, model: agent.model });
     if (handoff) useStore.setState({ conversationHandoff: { ...handoff, agent } });
   };
   const choose = (providerId: string, modelId: string) => {
     if (handoff) return chooseNewAgent({ harnessId, providerId, model: modelId });
-    if (!session) return setPrefs({ ...prefs, providerId, model: modelId });
+    const effort = harnessId === 'codex' ? { ...prefs.effort, codex: providers.find((p) => p.id === providerId)?.models.find((m) => m.id === modelId)?.defaultReasoningEffort ?? 'default' } : prefs.effort;
+    if (!session) return setPrefs({ ...prefs, providerId, model: modelId, effort });
+    if (harnessId === 'codex') setPrefs({ ...prefs, effort });
     const next = { ...sessionPicks, [session.id]: { providerId, model: modelId } };
     setSessionPicks(next);
     saveSessionPicks(next);
@@ -268,7 +273,9 @@ function ConversationComposer({ projectId, session }: { projectId: number; sessi
   const busy = run?.status === 'running' || run?.status === 'starting' || run?.status === 'waiting';
   const canContinue = run?.status === 'idle';
   const needsKey = !!provider?.credential && !provider.credential.isSet && !provider.credential.optional;
-  const ready = !!harness?.installed && !!provider?.available && !needsKey && !!model && !!project;
+  const codexEffort = prefs.effort?.codex;
+  const codexEffortValid = !codexEffort || codexEffort === 'default' || !!provider?.models.find((m) => m.id === model)?.reasoningEfforts?.some((e) => e.id === codexEffort);
+  const ready = !!harness?.installed && !!provider?.available && !needsKey && !!model && !!project && (!codexSelection || (detected && codexSelection.valid && codexEffortValid));
   const saveSecret = async () => {
     if (!provider || !secret.trim()) return;
     try {
@@ -302,13 +309,13 @@ function ConversationComposer({ projectId, session }: { projectId: number; sessi
 
   const submit = async (queued?: string) => {
     const text = (queued ?? prompt).trim();
-    if (!text) return;
+    if (!text) return false;
     if (busy && !queued) {
-      if (images.length || files.length) return toast(t('run.imagesWait'));
+      if (images.length || files.length) { toast(t('run.imagesWait')); return false; }
       // The agent is working: this goes out as soon as it finishes the current turn.
       setQueue([...queue, text]);
       setPrompt('');
-      return;
+      return true;
     }
     setError(null);
     lastPrompt = text;
@@ -317,7 +324,7 @@ function ConversationComposer({ projectId, session }: { projectId: number; sessi
       const sentFiles = queued ? [] : outgoing();
       if (run && canContinue && !handoff) await sendToRun(run.runId, text, sent, sentFiles);
       else {
-        if (!ready || !provider || !project) return;
+        if (!ready || !provider || !project) return false;
         await startRun(target, {
           cwd: project.cwd,
           harnessId,
@@ -332,23 +339,31 @@ function ConversationComposer({ projectId, session }: { projectId: number; sessi
         });
       }
       if (handoff && useStore.getState().conversationHandoff === handoff) {
-        setPrefs({ ...prefs, ...handoff.agent });
+        setPrefs({ ...prefs, harnessId: handoff.agent.harnessId, providerId: handoff.agent.providerId, model: handoff.agent.model });
         useStore.setState({ conversationHandoff: null });
       }
-      setPrompt('');
+      if (!queued && drafts.get(target) === prompt) {
+        drafts.set(target, '');
+        if (targetRef.current === target) setPromptState('');
+      }
       if (sent.length) setImages([]);
       if (sentFiles.length) setFiles([]);
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(e));
+      return false;
     }
+  };
+
+  const sendQueued = async () => {
+    const remaining = await sendQueuedMessage(target, submit);
+    if (remaining && targetRef.current === target) setQueueState(remaining);
   };
 
   // Send the next queued message when the agent is free again.
   useEffect(() => {
     if (!canContinue || !queue.length) return;
-    const [next, ...rest] = queue;
-    setQueue(rest);
-    void submit(next);
+    void sendQueued();
   }, [canContinue]);
 
   // While the agent's process is alive, its model and mode are changed on it directly.
@@ -475,9 +490,11 @@ function ConversationComposer({ projectId, session }: { projectId: number; sessi
   useEffect(() => {
     if (liveEffort && effortModel) rememberEffort(harnessId, effortModel, liveEffort.choices);
   }, [liveEffort?.choices.map((c) => c.value).join(), harnessId, effortModel]);
-  const effortChoices = liveEffort?.choices ?? (model ? (cachedEffort(harnessId, model) ?? effortTable(harnessId, model)) : null);
+  const effortChoices = liveEffort?.choices ?? (harnessId === 'codex'
+    ? [{ value: 'default', label: t('org.codex.inheritEffort') }, ...(found?.reasoningEfforts ?? []).map((e) => ({ value: e.id, label: e.label }))]
+    : model ? (cachedEffort(harnessId, model) ?? effortTable(harnessId, model)) : null);
   const effortPref = prefs.effort?.[harnessId];
-  const effortValue = liveEffort ? liveEffort.value : effortPref && effortChoices?.some((c) => c.value === effortPref) ? effortPref : (effortChoices?.find((c) => c.value === 'default')?.value ?? null);
+  const effortValue = liveEffort ? liveEffort.value : harnessId === 'codex' && effortPref ? effortPref : effortPref && effortChoices?.some((c) => c.value === effortPref) ? effortPref : (effortChoices?.find((c) => c.value === 'default')?.value ?? null);
   const effortStart = effortPref && effortPref !== 'default' ? effortPref : undefined;
   const pickEffort = async () => {
     if (!effortChoices?.length) return;
@@ -606,12 +623,13 @@ function ConversationComposer({ projectId, session }: { projectId: number; sessi
     if (id === 'send') void submit();
     if (id === 'fork') void fork();
   };
-  const noLocalModel = detected && catalog && !providers.some((p) => p.available && p.models.length > 0);
+  const noLocalModel = harnessId !== 'codex' && detected && catalog && !providers.some((p) => p.available && p.models.length > 0);
   return (
     <div className="composer">
       {run && (busy || run.errors.length > 0 || run.notices.length > 0 || run.config || run.usage) && <LiveRun run={run} compact />}
       {detected && catalog && !harness?.installed && <MissingAgent harnessId={harnessId} catalog={catalog} onSwitch={session ? undefined : (id) => setPrefs({ ...prefs, harnessId: id })} />}
       {session && !run && (session.runningAgents > 0 || session.status === 'running') && <p className="composer-hint">{t('run.liveElsewhere')}</p>}
+      {detected && codexSelection && (!codexSelection.valid || !codexEffortValid) && <p className="picker-warn">{t('org.codex.chooseAvailable')} {model && <code>{model}</code>} <button className="btn-ghost small" onClick={() => void loadCatalog()}>{t('run.refresh')}</button></p>}
       {noLocalModel && (
         <p className="composer-hint">
           {t('run.noModel')} <code>ollama pull qwen2.5-coder:7b</code>
@@ -652,11 +670,7 @@ function ConversationComposer({ projectId, session }: { projectId: number; sessi
           {!busy && (
             <button
               className="btn-ghost small"
-              onClick={() => {
-                const [next, ...rest] = queue;
-                setQueue(rest);
-                if (next) void submit(next);
-              }}
+              onClick={() => void sendQueued()}
             >
               {t('run.sendNow')}
             </button>

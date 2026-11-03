@@ -1,0 +1,43 @@
+{
+  "version": "ac.mcp.v1",
+  "status": "development_local_only",
+  "transport": "stdio",
+  "publicMcpEndpoint": null,
+  "projectionProtocol": "ac.dashboard.v1",
+  "executionProtocol": "ac.execution.v1",
+  "sameOrganizationQueue": true,
+  "tools": [
+    {"name":"tac_health","scope":"health:read","enabled":true},
+    {"name":"tac_organizations","scope":"organizations:read","enabled":true},
+    {"name":"tac_jobs","scope":"jobs:read","enabled":true,"page":{"defaultLimit":20,"maximumLimit":50,"offset":true}},
+    {"name":"tac_job","scope":"jobs:read","enabled":true},
+    {"name":"tac_result","scope":"results:read","enabled":true,"resultDetails":"verification_only_until_export_authorized"},
+    {"name":"tac_command","scope":"operation_specific","enabled":false,"denial":"backend_not_authorized"}
+  ],
+  "endpoints": [
+    {"method":"POST","path":"/api/coder-sync/v1/batches","scope":"events:write","implemented":true,"purpose":"IDE outbox to durable inbox; exact ack"},
+    {"method":"GET","path":"/api/coder-sync/v1/projects/{orgRef}/{projectRef}","scope":"projection:read","implemented":true,"purpose":"Dashboard BFF and MCP read identical persisted projection"}
+  ],
+  "command": {
+    "version":"ac.command.v1",
+    "implementedForProduction":false,
+    "httpEndpoint":null,
+    "operations":[
+      {"action":"propose","scope":"proposals:write","requires":["intentRef"]},
+      {"action":"approve","scope":"approvals:write","requires":["proposalRef"]},
+      {"action":"dispatch","scope":"jobs:execute","requires":["proposalRef","approvalRef"]},
+      {"action":"cancel","scope":"jobs:cancel","requires":["taskRef"]},
+      {"action":"continue","scope":"jobs:execute","requires":["proposalRef","approvalRef","parentResultRef"]}
+    ],
+    "requiredFields":["version","orgRef","projectRef","action","idempotencyKey"],
+    "operationReferences":["intentRef","proposalRef","approvalRef","parentResultRef","taskRef"],
+    "intentRef":"An immutable server-held workflow intent with approved input/secret references, never an arbitrary shell command or credentials in the MCP request.",
+    "idempotency":"Bind orgRef + projectRef + principal + idempotencyKey to canonical intent digest; same intent returns same receipt, conflicting intent is rejected.",
+    "lifecycle":["proposal","server_verified_approval","same_queue_job","fenced_result_receipt","reviewed_continuation"],
+    "approval":"Server-held approval binds principal, exact intent, limits, expiry and scopes. Client flags, a model response and Autopilot are not an approval.",
+    "continuation":"A new idempotent command references a committed parent result; uncertain external effects require reconciliation, never blind retry.",
+    "uiRequirement":"Hide or disable execution when capabilities report writesEnabled=false. Show prepared/blocked, never success from a local proposal alone."
+  },
+  "production":{"connected":false,"writesEnabled":false,"backend":"Firebase/GCP pending authorized resources and transactional adapter","webHosting":"Existing Namecheap Dashboard unchanged"},
+  "secrets":"Operator secret references only; no browser bearer tokens, prompts, file paths, lease tokens or credentials in public projection, MCP results or this manifest."
+}

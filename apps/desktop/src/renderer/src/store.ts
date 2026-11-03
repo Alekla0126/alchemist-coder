@@ -4,7 +4,7 @@ import { rosterOf } from './org-roster';
 import { openFolderAsProject, openNewProject } from './components/NewProject';
 import { create } from 'zustand';
 import type { AgentNode, AgentOption, FileDiff, PromptImage, SlashCommand, IndexProgress, PermissionChoice, PlanEntry, ProjectSummary, QuestionAnswer, SearchHit, SessionSummary, ToolState } from '@alchemist-coder/core';
-import type { AgentReview, AppInfo, ArenaTask, AttachmentInput, AutomationState, BotConfig, BotTeam, Locale, Mode, OrgSettings, PlanUsage, RunnerCatalog, RunnerEventMessage, Settings, StartRunRequest } from '@shared/api';
+import type { OrgExecutionPolicy, AgentChoice, AgentReview, AppInfo, ArenaTask, AttachmentInput, AutomationState, BotConfig, BotTeam, Locale, Mode, OrgSettings, PlanUsage, RunnerCatalog, RunnerEventMessage, Settings, StartRunRequest } from '@shared/api';
 import { resolveLocale, translate, type MessageKey } from './i18n';
 import { moveComposerState } from './composer-state';
 import type { ConversationHandoff } from './conversation-handoff';
@@ -159,6 +159,10 @@ interface State {
   orgSettings: OrgSettings | null;
   /** Organization configuration is a separate destination from its working views. */
   orgPage: 'work' | 'settings';
+  /** The engine belongs to the unsent organization draft, across view/recipient changes. */
+  orgAssignmentAgent: { coordinatorId: string; agent: AgentChoice } | null;
+  orgExecutionDraft: OrgExecutionPolicy | null;
+  orgRequestId: string | null;
   orgSettingsMemberId: string | null;
   officeTalkOpen: boolean;
   /** The project the organization view is filtered to ('' = all). */
@@ -220,7 +224,7 @@ interface State {
   /** The Settings screen is showing. */
   settingsOpen: boolean;
   /** Which Settings section opens next. */
-  settingsSection: 'general' | 'agents' | 'voice' | 'automations' | 'usage' | 'backup' | 'shortcuts' | 'about' | null;
+  settingsSection: 'general' | 'connections' | 'agents' | 'voice' | 'automations' | 'usage' | 'backup' | 'shortcuts' | 'about' | null;
   /** The ⌘K command palette is showing. */
   paletteOpen: boolean;
   /** ⌘W in Code/Split: the editor closes its active tab (asking about unsaved edits). */
@@ -349,6 +353,9 @@ export const useStore = create<State>((set, get) => ({
   activeMemberId: null,
   orgSettings: null,
   orgPage: 'work',
+  orgAssignmentAgent: null,
+  orgExecutionDraft: null,
+  orgRequestId: null,
   orgSettingsMemberId: null,
   officeTalkOpen: false,
   orgProject: '',

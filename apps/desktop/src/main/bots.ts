@@ -1,11 +1,14 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { commitAll, createWorktree, git, headCommit, listChanges, repoRoot } from '@alchemist-coder/arena';
 import type { Autopilot, SessionMcpServer } from '@alchemist-coder/core';
 import { ABOUT_MAX, type AgentChoice, type BotConfig, type RosterChange, type StarterAgent, type BotMember, type BotStatus, type BotTeam, type OrgGroup, type OrgLesson, type OrgSettings, type PermissionMode, type PlannedBot, type RunnerEventMessage, type StartTeamRequest, type TeamEventKind, type TeamOrigin, type TeamPlan } from '../shared/api';
 import type { RunnerManager } from './runner';
+import { OrgQueue, type OrgJobPayload } from './org-queue';
+import { portableTemplate, roleContext } from './org-context';
+import { bindingApplies, bindingDigest, canonicalProject, OrgBindings, previewBindings } from './org-bindings';
 
 /** Coordinator (0), the bots it creates (1), and theirs (2). */
 export const MAX_DEPTH = 2;
@@ -293,6 +296,7 @@ function coordinatorPrompt(goal: string, role: string, cwd: string, approvePlan 
       : null,
     '',
     `You can create other bots with the tools of the "${SERVER_NAME}" MCP server: list_bot_configs, create_bot, message_bot, wait_for_bot, bot_reply, list_bots, bot_changes, apply_bot_work, stop_bot, finish_team, record_lesson and org_lessons.`,
+    'Keep the context small and task-specific. Before finishing, run the relevant checks, inspect their results, fix failures, and report verification evidence and any remaining blockers. Never claim completion based only on a successful model reply.',
     'Split the work into clear tasks, give each bot everything it needs in its task, wait for their answers, check them, and ask for fixes when needed.',
     `Bots work in the project folder (${cwd}) unless you give them their own copy with own_worktree: then check their result with bot_changes and bring it in with apply_bot_work. Give bots in the shared folder separate files or steps so they don't overwrite each other.`,
     `At most ${MAX_BOTS} bots per team. When the goal is done, call finish_team with a short summary of what was done and by whom (and anything left open), then end your turn.${org?.alone ? '' : " If you need the user's input instead, ask in your reply and don't call finish_team."}`,
@@ -332,6 +336,7 @@ function workerPrompt(bot: BotMember, parentName: string, orgInstructions = '', 
         : '',
     bot.worktree ? `You work in your own copy of the project (${bot.worktree.path}). Your changes reach the main folder only when "${parentName}" applies them, so finish them completely there.` : '',
     brief?.alone ? ALONE_AGENT : '',
+    'Keep the context small and task-specific. Before finishing, run the relevant checks, inspect their results, fix failures, and report verification evidence and any remaining blockers. Never claim completion based only on a successful model reply.',
     'When you finish, reply with what you did and anything the coordinator needs to know (files changed, open problems, and what went wrong and why, so the organization can learn from it).',
   ]
     .filter(Boolean)
@@ -373,6 +378,7 @@ function soloPrompt(config: BotConfig, task: string, orgName: string, orgInstruc
     readOnly ? "Don't change any file: read, think and answer." : '',
     worktree ? `You work in your own copy of the project (${worktree}); the user decides whether your changes reach the main folder, so finish them completely there.` : '',
     brief?.alone ? ALONE_AGENT : '',
+    'Keep the context small and task-specific. Before finishing, run the relevant checks, inspect their results, fix failures, and report verification evidence and any remaining blockers. Never claim completion based only on a successful model reply.',
     'End your turn with a short summary of what you did and anything left open, in the language of the task.',
   ]
     .filter(Boolean)
@@ -433,7 +439,7 @@ const sameLesson = (a: string, b: string) => {
 };
 
 /** The agent with a template's model (already one of its provider's); none keeps the agent's own. */
-const withModel = (agent: AgentChoice, model: string | undefined): AgentChoice => ({ ...agent, ...(model ? { model } : {}) });
+const withModel = (agent: AgentChoice, model: string | undefined): AgentChoice => ({ ...agent, ...(model && model !== agent.model ? { model, effort: undefined } : {}) });
 
 /** A template's agents with every lead before its team, so the team knows its lead's id. */
 function leadsFirst(entries: Array<[string, StarterAgent]>): Array<[string, StarterAgent]> {
@@ -443,7 +449,7 @@ function leadsFirst(entries: Array<[string, StarterAgent]>): Array<[string, Star
 
 /** Two configurations the same in what a staff template sets (no lead and a null one are the same). */
 const sameStaffing = (a: BotConfig, b: BotConfig) =>
-  a.agent.model === b.agent.model && a.permissionMode === b.permissionMode && a.canSpawn === b.canSpawn && !!a.ownWorktree === !!b.ownWorktree && (a.about ?? '') === (b.about ?? '') && a.role === b.role && !!a.proposed === !!b.proposed && (a.leadId ?? null) === (b.leadId ?? null);
+  a.agent.model === b.agent.model && a.agent.effort === b.agent.effort && a.permissionMode === b.permissionMode && a.canSpawn === b.canSpawn && !!a.ownWorktree === !!b.ownWorktree && (a.about ?? '') === (b.about ?? '') && a.role === b.role && !!a.proposed === !!b.proposed && (a.leadId ?? null) === (b.leadId ?? null);
 
 /** A new configuration from a template's agent. The ones that only read ask before acting. */
 function starterConfig(key: string, s: StarterAgent, agent: AgentChoice): Partial<BotConfig> {
@@ -460,6 +466,7 @@ function starterConfig(key: string, s: StarterAgent, agent: AgentChoice): Partia
 }
 
 export class BotManager {
+  private readonly bindings: OrgBindings;
   private configs: BotConfig[] = [];
   private teams: BotTeam[] = [];
   private org: OrgSettings = { name: 'My organization', instructions: '', autopilot: false, lessons: [] };
@@ -479,6 +486,9 @@ export class BotManager {
   private readonly waiters = new Map<string, Array<() => void>>();
   /** Others in the app that follow assignments (the automations). */
   private readonly watchers = new Set<(team: BotTeam) => void>();
+  private readonly queue: OrgQueue;
+  private acceptingWork = true;
+  private readonly generations = new Map<string, number>();
   private server: Server | null = null;
   private port = 0;
   /**
@@ -496,7 +506,7 @@ export class BotManager {
   private saveTimer: NodeJS.Timeout | null = null;
 
   constructor(
-    private readonly files: { configs: string; teams: string; org?: string },
+    private readonly files: { configs: string; teams: string; org?: string; queue?: string; bindings?: string },
     private readonly runner: RunnerManager,
     private readonly bridge: { command: string; script: string },
     private readonly resolveProject: (cwd: unknown) => string,
@@ -508,6 +518,7 @@ export class BotManager {
   ) {
     this.pilot = pilotFor?.(() => this.decidesAlone());
     this.configs = this.read<BotConfig[]>(files.configs) ?? [];
+    this.bindings = new OrgBindings(files.bindings ?? join(dirname(files.configs), 'org-bindings.json'));
     try {
       const o = JSON.parse(readFileSync(this.orgFile, 'utf8')) as Partial<OrgSettings>;
       this.org = { name: str(o.name, 80) || this.org.name, instructions: str(o.instructions), autopilot: o.autopilot === true, lessons: lessonsOf(o.lessons), ...(o.groups === undefined ? {} : { groups: groupsOf(o.groups) }) };
@@ -523,6 +534,34 @@ export class BotManager {
         stoppedReason: t.stoppedReason ?? (cut ? 'appClosed' : null),
         bots: t.bots.map((b) => (ENDED.includes(b.status) || b.status === 'idle' ? { ...b, runId: null } : { ...b, status: 'stopped' as const, runId: null, doing: null })),
       };
+    });
+    this.queue = new OrgQueue(files.queue ?? `${files.teams}.queue.json`, (job, payload) => {
+      const { team, bot } = this.member(payload.teamId, payload.botId);
+      if (!this.acceptingWork || team.stoppedReason === 'userStopped') throw new Error('Assignment was stopped');
+      if (team.stoppedReason?.startsWith('budget:')) throw new Error('Team budget exhausted');
+      bot.queueJobId = job.id;
+      if (team.stoppedReason === 'appClosed') team.stoppedReason = null;
+      try {
+        if (payload.kind === 'send') {
+          const sessionId = bot.sessionId ?? this.queue.conversationCheckpoint(team.id, bot.id) ?? payload.resumeSessionId;
+          if (!sessionId) throw new Error('Conversation checkpoint is unavailable; review before a new assignment');
+          if (bot.runId && this.runs.has(bot.runId) && !ENDED.includes(bot.status)) this.sendNow(team, bot, payload.prompt);
+          else this.launchNow(team, bot, payload.prompt, payload.cwd, sessionId);
+        } else this.launchNow(team, bot, payload.prompt, payload.cwd, payload.resumeSessionId);
+      } catch { bot.status = 'error'; bot.error = 'Conversation checkpoint, role context or executor is unavailable'; }
+      this.changed(team);
+      if (bot.status === 'error') throw new Error('Organization executor failed to start');
+    });
+    this.queue.watch(snapshot => {
+      if (!this.acceptingWork) return;
+      for (const job of snapshot.jobs) {
+        if (!['blocked','interrupted','failed'].includes(job.state)) continue;
+        const team = this.teams.find(t => t.id === job.teamId), bot = team?.bots.find(b => b.id === job.botId);
+        if (!team || !bot || bot.queueJobId !== job.id) continue;
+        bot.status = job.state === 'failed' ? 'error' : 'waiting';
+        bot.error ??= job.blockedReason;
+        this.changed(team);
+      }
     });
     runner.observe((m) => this.onRunEvent(m));
   }
@@ -552,32 +591,88 @@ export class BotManager {
     this.saveTimer = setTimeout(() => this.flush(), 400);
   }
 
-  flush() {
+  flush(pinTeamId?: string, strict = false) {
     if (this.saveTimer) clearTimeout(this.saveTimer);
     this.saveTimer = null;
     try {
-      this.write(this.files.teams, this.teams.slice(0, MAX_TEAMS));
-    } catch {
-      // kept in memory; saved next time
+      const pending = new Set(this.queue.snapshot().jobs.filter(j => !['completed','cancelled'].includes(j.state)).map(j => j.teamId));
+      if (pinTeamId) pending.add(pinTeamId);
+      this.write(this.files.teams, this.teams.filter((t, i) => i < MAX_TEAMS || pending.has(t.id)));
+    } catch (error) {
+      if (strict) throw new Error('The organization checkpoint could not be saved; no durable job was started', { cause: error });
+      // Ordinary UI saves may retry later; durable dispatch must fail closed above.
     }
   }
 
   /** The local endpoint the bridges call (random port, loopback only). */
   async start(): Promise<void> {
+    this.acceptingWork = true;
     if (this.server) return;
     this.server = createServer((req, res) => void this.onRequest(req, res));
     this.server.requestTimeout = 0;
     await new Promise<void>((resolve) => this.server!.listen(0, '127.0.0.1', resolve));
     const addr = this.server.address();
     this.port = typeof addr === 'object' && addr ? addr.port : 0;
+    this.queue.start();
   }
 
   stopAll() {
-    for (const t of this.teams) for (const b of t.bots) if (b.runId) this.runner.stop(b.runId);
+    this.acceptingWork = false;
+    for (const t of this.teams) for (const b of t.bots) { const key = `${t.id}:${b.id}`; this.generations.set(key, (this.generations.get(key) ?? 0) + 1); }
+    this.queue.close();
+    for (const t of this.teams) for (const b of t.bots) this.releaseBotRun(t, b);
     this.server?.close();
   }
 
   // ---------- configurations ----------
+
+  portableOrgState(cwdInput: unknown) { return this.bindings.state(this.resolveProject(cwdInput)); }
+
+  private assertBindingsIdle(cwd: string) {
+    const queue = this.queue.snapshot();
+    if (queue.error) throw new Error('Organization queue state is unknown; review before linking contexts');
+    if (this.teams.some(t => canonicalProject(t.cwd) === cwd && (t.bots.some(b => ACTIVE_STATUSES.includes(b.status)) || (!t.finished && !t.stoppedReason && t.plan?.status === 'pending') || queue.jobs.some(j => j.teamId === t.id && !['completed', 'cancelled'].includes(j.state))))) throw new Error('Finish or cancel pending organization work in this project before linking or rolling back contexts');
+  }
+
+  portableOrg(cwdInput: unknown, _agent: AgentChoice, apply: boolean, expectedRevision?: string) {
+    const cwd = canonicalProject(this.resolveProject(cwdInput)), template = portableTemplate(cwd), state = this.bindings.state(cwd);
+    // Another open copy or exporter must not silently replace the profiles this window reviewed.
+    if (existsSync(this.files.configs) && bindingDigest(JSON.parse(readFileSync(this.files.configs, 'utf8'))) !== bindingDigest(this.configs)) throw new Error('Saved profiles changed outside this window; refresh the organization before linking contexts');
+    const entries = previewBindings(template, this.configs, cwd, state.roles);
+    const revision = bindingDigest({ template, context: template.roles.map(r => roleContext(cwd, r.id)), configs: this.configs, state: state.revision });
+    const preview = { names: entries.map(e => `${e.name} → ${e.configName ?? e.state}${e.configId ? ` (${e.configId})` : ''}`), entries, revision, state, applied: false };
+    if (!apply) return preview;
+    this.assertBindingsIdle(cwd);
+    if (!expectedRevision || expectedRevision !== revision) throw new Error('Profiles, template or contexts changed; preview again before applying');
+    if (entries.some(e => e.state !== 'ready')) throw new Error('Select an existing in-scope configId for every missing or ambiguous role; no profiles were created');
+    const next = this.bindings.apply(cwd, Object.fromEntries(entries.map(e => [e.roleId, e.configId!])), state.revision);
+    return { ...preview, state: next, applied: true };
+  }
+
+  rollbackPortableOrg(cwdInput: unknown, changeId: string, revision: string) {
+    const cwd = canonicalProject(this.resolveProject(cwdInput));
+    this.assertBindingsIdle(cwd);
+    return this.bindings.rollback(cwd, changeId, revision);
+  }
+
+  queueSnapshot() { return this.queue.snapshot(); }
+  /** Safe metadata source for the opt-in project relay; never prompts, replies, paths or sessions. */
+  dashboardSource(cwd: string) {
+    const project = canonicalProject(this.resolveProject(cwd));
+    const teams = this.teams.filter(t => canonicalProject(t.cwd) === project);
+    const ids = new Set(teams.map(t => t.id));
+    const queue = this.queue.snapshot();
+    const agents = teams.flatMap(t => t.bots.map(b => ({ teamId: t.id, botId: b.id, state: b.status, hasReply: !!b.lastReply })));
+    return { queue: { ...queue, jobs: queue.jobs.filter(j => ids.has(j.teamId)), events: queue.events.filter(e => ids.has(e.teamId)) }, firstRetainedSequence: queue.events[0]?.sequence ?? queue.sequence+1, agents };
+  }
+  /** Metadata may explain why VPS work waits; it can never enable an unimplemented executor. */
+  blockVps(reason: 'executor_unavailable' | 'capacity_exhausted') { this.queue.setExecutorAvailable('vps', false, reason); }
+  resumeQueueJob(id: string) { this.queue.resume(id); }
+  cancelQueueJob(id: string) {
+    const job = this.queue.snapshot().jobs.find(j => j.id === id);
+    if (!job) throw new Error('Unknown organization job');
+    this.stop(job.teamId, job.botId);
+  }
 
   listConfigs(): BotConfig[] {
     return structuredClone(this.configs);
@@ -676,8 +771,8 @@ export class BotManager {
 
   /** Whether an agent works in the project at `cwd` (no projects = all of them). */
   private inProject(c: BotConfig, cwd: string) {
-    const here = cwd.replace(/\/+$/, '');
-    return !c.projects?.length || c.projects.some((p) => here === p || here.startsWith(`${p}/`) || p.startsWith(`${here}/`));
+    const contains = (root: string, path: string) => { const rel = relative(canonicalProject(root), canonicalProject(path)); return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel)); };
+    return !c.projects?.length || c.projects.some(p => contains(p, cwd) || contains(cwd, p));
   }
 
   saveConfig(input: unknown): BotConfig {
@@ -686,6 +781,9 @@ export class BotManager {
     if (!name) throw new Error('Give the bot a name');
     const agent = c.agent as AgentChoice | undefined;
     if (!agent?.harnessId || !agent.providerId || !agent.model) throw new Error('Choose an agent and a model');
+    if (c.contextRole !== undefined && (typeof c.contextRole !== 'string' || !/^[a-z][a-z0-9-]{0,39}$/.test(c.contextRole))) throw new Error('Invalid portable context role');
+    if (c.executorId !== undefined && c.executorId !== 'local' && c.executorId !== 'vps') throw new Error('Invalid organization executor');
+    if (agent.effort !== undefined && (typeof agent.effort !== 'string' || !/^[\w-]{1,24}$/.test(agent.effort))) throw new Error('Choose a valid reasoning effort');
     // Written by you or by the coordinator; none shows the opening of its role.
     const about = str(c.about, ABOUT_MAX).replace(/\s+/g, ' ');
     const config: BotConfig = {
@@ -693,12 +791,14 @@ export class BotManager {
       name,
       role: str(c.role, 8000),
       ...(about ? { about } : {}),
-      agent: { harnessId: String(agent.harnessId), providerId: String(agent.providerId), model: String(agent.model) },
+      agent: { harnessId: String(agent.harnessId), providerId: String(agent.providerId), model: String(agent.model), ...(agent.effort ? { effort: agent.effort } : {}) },
       permissionMode: PERMISSION_MODES.includes(c.permissionMode as PermissionMode) ? (c.permissionMode as PermissionMode) : 'acceptEdits',
       canSpawn: c.canSpawn === true,
       ownWorktree: c.ownWorktree === true,
       kind: c.kind === 'coordinator' ? 'coordinator' : 'member',
-      projects: Array.isArray(c.projects) ? c.projects.filter((p): p is string => typeof p === 'string' && p.startsWith('/')).slice(0, 50).map((p) => p.replace(/\/+$/, '').slice(0, 1000)) : [],
+      ...(c.executorId === 'local' || c.executorId === 'vps' ? { executorId: c.executorId } : {}),
+      ...(typeof c.contextRole === 'string' && /^[a-z][a-z0-9-]{0,39}$/.test(c.contextRole) ? { contextRole: c.contextRole } : {}),
+      projects: Array.isArray(c.projects) ? c.projects.filter((p): p is string => typeof p === 'string' && isAbsolute(p)).slice(0, 50).map((p) => p.slice(0, 1000)) : [],
       proposed: c.proposed === true,
       avatar: avatarOf(c.avatar),
     };
@@ -808,7 +908,7 @@ export class BotManager {
       const next: BotConfig = {
         ...there,
         // The template's model is one of the coordinator's provider: an agent on another one keeps its own.
-        agent: s.model && there.agent.harnessId === agent.harnessId && there.agent.providerId === agent.providerId ? { ...there.agent, model: s.model } : there.agent,
+        agent: s.model && there.agent.harnessId === agent.harnessId && there.agent.providerId === agent.providerId ? withModel(there.agent, s.model) : there.agent,
         permissionMode: s.permissionMode ?? there.permissionMode,
         canSpawn: there.kind === 'coordinator' || (s.canSpawn ?? there.canSpawn),
         ownWorktree: s.ownWorktree ?? there.ownWorktree,
@@ -860,6 +960,7 @@ export class BotManager {
   }
 
   startTeam(input: unknown): BotTeam {
+    if (!this.acceptingWork) throw new Error('The organization executor is closed');
     const r = (input ?? {}) as Partial<StartTeamRequest>;
     const goal = str(r.goal);
     if (!goal) throw new Error('Write the goal first');
@@ -867,8 +968,22 @@ export class BotManager {
     const base = typeof r.configId === 'string' ? this.configs.find((c) => c.id === r.configId) : undefined;
     const inline = r.coordinator;
     if (!base && !inline) throw new Error('Choose or define the coordinator');
-    const agent = base?.agent ?? inline!.agent;
+    const agent = r.agentOverride ?? base?.agent ?? inline!.agent;
     if (!agent?.harnessId || !agent.providerId || !agent.model) throw new Error('Choose an agent and a model for the coordinator');
+    if (r.agentOverride && (
+      typeof agent.harnessId !== 'string' || agent.harnessId.length > 120 ||
+      typeof agent.providerId !== 'string' || agent.providerId.length > 120 ||
+      typeof agent.model !== 'string' || !/^[\w.:/@-]{1,120}$/.test(agent.model) ||
+      (agent.effort !== undefined && (typeof agent.effort !== 'string' || !/^[\w-]{1,24}$/.test(agent.effort)))
+    )) throw new Error('Choose a valid model and reasoning effort for this assignment');
+    if (r.requestId !== undefined && (typeof r.requestId !== 'string' || !/^[\w-]{1,120}$/.test(r.requestId))) throw new Error('Invalid organization request id');
+    const requestFingerprint = createHash('sha256').update(JSON.stringify({ goal, cwd, configId: r.configId, agent, durable: r.durable, budgetUsd: r.budgetUsd, approvePlan: r.approvePlan, guidance: r.guidance })).digest('hex');
+    const previous = r.requestId ? this.teams.find(t => t.requestId === r.requestId) : undefined;
+    if (previous) {
+      if (previous.requestFingerprint !== requestFingerprint) throw new Error('Organization request idempotency conflict');
+      if (previous.durable && !this.queue.snapshot().jobs.some(j => j.teamId === previous.id)) throw new Error('A previous checkpoint needs review before this request can continue');
+      return structuredClone(previous);
+    }
     const now = Date.now();
     const budget = Number(r.budgetUsd);
     const team: BotTeam = { id: `team-${randomBytes(4).toString('hex')}`, title: teamTitle(goal), goal, cwd, createdAt: now, updatedAt: now, bots: [], budgetUsd: Number.isFinite(budget) && budget > 0 ? Math.min(budget, 10_000) : null };
@@ -877,7 +992,7 @@ export class BotManager {
       name: base?.name ?? (str(inline?.name, 60) || 'Coordinator'),
       configId: base?.id ?? null,
       role: base?.role ?? str(inline?.role, 8000),
-      agent: { harnessId: agent.harnessId, providerId: agent.providerId, model: agent.model },
+      agent: { harnessId: agent.harnessId, providerId: agent.providerId, model: agent.model, ...(agent.effort ? { effort: agent.effort } : {}) },
       permissionMode: base?.permissionMode ?? (PERMISSION_MODES.includes(inline?.permissionMode as PermissionMode) ? (inline!.permissionMode as PermissionMode) : 'acceptEdits'),
       canSpawn: true,
       parentId: null,
@@ -889,6 +1004,14 @@ export class BotManager {
       costUsd: null,
       createdAt: now,
     };
+    if (base?.contextRole) coordinator.contextRole = base.contextRole;
+    if (base?.executorId) coordinator.executorId = base.executorId;
+    if (r.durable) {
+      const d = r.durable;
+      if (!Number.isInteger(d.maxParallel) || d.maxParallel < 1 || d.maxParallel > 8 || !Number.isInteger(d.maxAttempts) || d.maxAttempts < 1 || d.maxAttempts > 5 || typeof d.resumePreauthorized !== 'boolean' || (d.executorId !== undefined && !['local','vps'].includes(d.executorId))) throw new Error('Invalid organization execution limits');
+      team.durable = { ...d };
+    }
+    if (r.requestId) { team.requestId = r.requestId; team.requestFingerprint = requestFingerprint; }
     team.bots.push(coordinator);
     this.teams.unshift(team);
     team.approvePlan = r.approvePlan === true;
@@ -905,6 +1028,7 @@ export class BotManager {
                 // Only what sets it apart: a model other than the coordinator's, permissions other than the usual.
                 const notes = [
                   c.agent.model !== agent.model ? c.agent.model : '',
+                  c.agent.effort ? `reasoning effort ${c.agent.effort}` : '',
                   c.permissionMode !== 'acceptEdits' ? `permissions ${c.permissionMode}` : '',
                   c.ownWorktree ? 'own copy' : '',
                   members.length ? `leads a team: ${members.join(', ')}` : '',
@@ -1006,7 +1130,7 @@ export class BotManager {
     this.log(team, 'you', 'message', `${bot.id}|${t}`);
     // Talking to the coordinator again reopens a finished team; continuing picks up after a restart.
     if (bot.depth === 0) team.finished = null;
-    if (team.stoppedReason === 'appClosed') team.stoppedReason = null;
+    if (team.stoppedReason === 'appClosed' || team.stoppedReason === 'userStopped') team.stoppedReason = null;
     this.sendTo(team, bot, t);
   }
 
@@ -1014,18 +1138,22 @@ export class BotManager {
   stop(teamId: string, botId?: string) {
     const team = this.teams.find((t) => t.id === teamId);
     if (!team) return;
+    if (!botId) team.stoppedReason ??= 'userStopped';
     const ids = botId ? this.subtree(team, botId) : team.bots.map((b) => b.id);
+    for (const id of ids) { const key = `${teamId}:${id}`; this.generations.set(key, (this.generations.get(key) ?? 0) + 1); }
     // A coordinator waiting for your plan answer stops waiting too.
     if (!botId || botId === team.bots[0]?.id) this.wake(`plan:${team.id}`);
+    for (const job of this.queue.snapshot().jobs) if (job.teamId === teamId && ids.includes(job.botId)) this.queue.cancel(job.id);
     for (const b of team.bots) {
       if (!ids.includes(b.id) || ENDED.includes(b.status)) continue;
-      if (b.runId) this.runner.stop(b.runId);
+      this.releaseBotRun(team, b);
       b.status = 'stopped';
       b.doing = null;
       this.log(team, b.id, 'stopped');
       this.wake(b.runId);
     }
     this.changed(team);
+    this.queue.pump();
   }
 
   private member(teamId: string, botId: string) {
@@ -1095,6 +1223,8 @@ export class BotManager {
       configId: config.id,
       role: config.role,
       agent: { ...config.agent },
+      ...(config.contextRole ? { contextRole: config.contextRole } : {}),
+      ...(config.executorId ? { executorId: config.executorId } : {}),
       permissionMode: input.permissionMode ?? config.permissionMode,
       canSpawn: false,
       parentId: null,
@@ -1185,8 +1315,53 @@ export class BotManager {
     return join(wt.path, relative(root, team.cwd));
   }
 
-  /** Starts a bot's run, with the bot tools when it may create bots. */
+  /** Durable jobs retain the existing coordinator/worker executor and authorization checks. */
+  private enqueue(team: BotTeam, bot: BotMember, payload: Omit<OrgJobPayload, 'teamId' | 'botId'>) {
+    if (!this.acceptingWork || team.stoppedReason === 'userStopped') throw new Error('Assignment was stopped');
+    const policy = team.durable!;
+    const persistedTurns = this.queue.snapshot().jobs.filter(j => j.teamId === team.id && j.botId === bot.id).map(j => Number(j.id.split(':').at(-1)) || 0);
+    bot.queueTurn = Math.max(bot.queueTurn ?? 0, ...persistedTurns) + 1;
+    const id = `${team.id}:${bot.id}:${bot.queueTurn}`;
+    const previousJob = this.queue.snapshot().jobs.find(j => j.id === bot.queueJobId);
+    if (!bot.queueJobId || (previousJob && ['completed','cancelled'].includes(previousJob.state))) { bot.queueJobId = id; bot.status = 'starting'; }
+    this.flush(team.id, true);
+    this.queue.enqueue({ id, payload: { ...payload, teamId: team.id, botId: bot.id }, ...policy, executorId: bot.executorId ?? policy.executorId });
+    this.queue.ensureStarted();
+  }
   private launch(team: BotTeam, bot: BotMember, prompt: string, cwd = team.cwd, resumeSessionId?: string) {
+    if (team.durable) return this.enqueue(team, bot, { prompt, cwd, resumeSessionId, kind: 'start' });
+    if (bot.executorId === 'vps') { bot.status = 'error'; bot.error = bot.lastReply = 'executor_unavailable: no VPS executor is connected'; return; }
+    this.launchNow(team, bot, prompt, cwd, resumeSessionId);
+  }
+
+  private releaseBotRun(team: BotTeam, bot: BotMember) {
+    const runId = bot.runId;
+    bot.runId = null;
+    if (runId) {
+      this.runs.delete(runId); this.wake(runId); this.forgetTools(runId);
+      this.turnText.delete(runId); this.turnMark.delete(runId);
+      const web = this.webRuns.get(runId);
+      if (web) { this.browser?.release(web); this.webRuns.delete(runId); }
+      this.runner.stop(runId);
+    }
+    for (const [token, caller] of this.tokens) if (caller.teamId === team.id && caller.botId === bot.id) this.tokens.delete(token);
+  }
+
+  /** Starts a bot's run, with the bot tools when it may create bots. */
+  private launchNow(team: BotTeam, bot: BotMember, prompt: string, cwd = team.cwd, resumeSessionId?: string) {
+    this.releaseBotRun(team, bot);
+    if (bot.executorId === 'vps') { bot.status = 'error'; bot.error = bot.lastReply = 'executor_unavailable: no VPS executor is connected'; return; }
+    if (!resumeSessionId) {
+      const links = this.bindings.state(team.cwd).roles;
+      const linked = Object.entries(links).find(([, id]) => id === bot.configId)?.[0];
+      if (linked) {
+        const config = this.configs.find(c => c.id === bot.configId);
+        if (!config || !bindingApplies(config, team.cwd) || (linked === 'coordinator') !== (config.kind === 'coordinator')) throw new Error('The linked organization profile is missing or outside this project');
+      }
+      const context = linked ?? bot.contextRole ?? (bot.depth === 0 && bot.canSpawn && existsSync(join(team.cwd, '.alchemist', 'organization', 'manifest.json')) ? 'coordinator' : undefined);
+      if (context && Object.hasOwn(links, context) && links[context] !== bot.configId) throw new Error('Portable role is linked to a different profile in this project; review the context link');
+      prompt += roleContext(linked ? team.cwd : cwd, context);
+    }
     const mcpServers: SessionMcpServer[] = [];
     if (bot.canSpawn && bot.depth < MAX_DEPTH && this.port) {
       const token = randomBytes(24).toString('hex');
@@ -1207,7 +1382,7 @@ export class BotManager {
       if (!resumeSessionId) prompt = `${prompt}\n${BROWSER_LINE}`;
     }
     try {
-      const { runId } = this.runner.start({ cwd, harnessId: bot.agent.harnessId, providerId: bot.agent.providerId, model: bot.agent.model, prompt, permissionMode: bot.permissionMode, resumeSessionId }, { mcpServers, autopilot: this.pilot });
+      const { runId } = this.runner.start({ cwd, harnessId: bot.agent.harnessId, providerId: bot.agent.providerId, model: bot.agent.model, effort: bot.agent.effort, prompt, permissionMode: bot.permissionMode, resumeSessionId }, { mcpServers, autopilot: this.pilot });
       if (web) {
         this.browser!.bind(web, runId);
         this.webRuns.set(runId, web);
@@ -1227,13 +1402,17 @@ export class BotManager {
   }
 
   private sendTo(team: BotTeam, bot: BotMember, text: string) {
+    if (team.durable) return this.enqueue(team, bot, { prompt: text, cwd: bot.worktree ? join(bot.worktree.path, relative(bot.worktree.root, team.cwd)) : team.cwd, resumeSessionId: bot.sessionId ?? undefined, kind: 'send' });
+    this.sendNow(team, bot, text);
+  }
+  private sendNow(team: BotTeam, bot: BotMember, text: string) {
     const live = !!bot.runId && !ENDED.includes(bot.status) && this.runs.has(bot.runId);
     if (!live) {
       // Finished (or from before a restart): the same conversation picks up where it left off.
       if (!bot.sessionId) throw new Error(`${bot.name} has ended and can't be continued; create a new bot instead.`);
       const cwd = bot.worktree && existsSync(bot.worktree.path) ? join(bot.worktree.path, relative(bot.worktree.root, team.cwd)) : team.cwd;
       bot.status = 'starting';
-      this.launch(team, bot, text, cwd, bot.sessionId);
+      this.launchNow(team, bot, text, cwd, bot.sessionId);
       this.changed(team);
       if ((bot.status as BotStatus) === 'error') throw new Error(`${bot.name} couldn't continue: ${bot.lastReply}`);
       return;
@@ -1267,12 +1446,13 @@ export class BotManager {
     if (!who) return;
     const team = this.teams.find((t) => t.id === who.teamId);
     const bot = team?.bots.find((b) => b.id === who.botId);
-    if (!team || !bot) return;
+    if (!team || !bot || bot.runId !== runId) return;
     const before = bot.status;
     switch (event.type) {
       case 'started':
         if (event.sessionId && bot.sessionId !== event.sessionId) {
           bot.sessionId = event.sessionId;
+          if (bot.queueJobId) this.queue.checkpoint(bot.queueJobId, event.sessionId);
           this.changed(team);
         }
         break;
@@ -1280,15 +1460,18 @@ export class BotManager {
         this.turnText.set(runId, (this.turnText.get(runId) ?? '') + event.text);
         break;
       case 'permission':
+        if (bot.queueJobId) this.queue.waiting(bot.queueJobId, true);
         bot.status = 'waiting';
         this.log(team, bot.id, 'waiting', event.title);
         break;
       case 'question':
+        if (bot.queueJobId) this.queue.waiting(bot.queueJobId, true);
         bot.status = 'waiting';
         this.log(team, bot.id, 'waiting', event.fields[0]?.title || event.message);
         break;
       case 'permissionClosed':
       case 'questionClosed':
+        if (bot.queueJobId) this.queue.waiting(bot.queueJobId, false);
         if (bot.status === 'waiting') bot.status = 'working';
         break;
       case 'usage':
@@ -1333,6 +1516,7 @@ export class BotManager {
         bot.lastReply = clip(reply, REPLY_CHARS) || bot.lastReply;
         if (event.costUsd != null) bot.costUsd = event.costUsd;
         if (!ENDED.includes(bot.status)) bot.status = event.ok ? 'idle' : 'error';
+        if (bot.queueJobId) { if (event.ok) this.queue.complete(bot.queueJobId); else this.queue.fail(bot.queueJobId, 'execution_failed'); }
         this.wake(runId);
         break;
       }
@@ -1349,6 +1533,7 @@ export class BotManager {
             this.browser?.release(web);
             this.webRuns.delete(runId);
           }
+          if (bot.queueJobId) { if (event.status === 'error') this.queue.fail(bot.queueJobId, 'execution_failed'); else this.queue.interrupt(bot.queueJobId); }
           if (event.status === 'error' && bot.status !== 'error') this.log(team, bot.id, 'failed');
           const text = this.finalText(runId);
           if (text) bot.lastReply = clip(text, REPLY_CHARS);
@@ -1365,6 +1550,7 @@ export class BotManager {
         this.stop(team.id);
       }
     }
+    this.queue.pump();
     if (event.type === 'result' && event.ok) this.keepGoing(team, bot);
   }
 
@@ -1445,7 +1631,7 @@ export class BotManager {
           .map((c) => {
             const team = this.teamOf(c.id).map((x) => x.name);
             const on = nameOf(c.leadId);
-            return `- ${c.name} (id ${c.id}): ${c.role.slice(0, 200) || 'no role set'} · ${c.agent.harnessId} / ${c.agent.model} · permissions ${c.permissionMode}${c.canSpawn || team.length ? ' · may create bots' : ''}${team.length ? ` · leads a team: ${team.join(', ')}` : ''}${on ? ` · on ${on}'s team` : ''}${c.proposed ? ' · proposed (not kept yet)' : ''}`;
+            return `- ${c.name} (id ${c.id}): ${c.role.slice(0, 200) || 'no role set'} · ${c.agent.harnessId} / ${c.agent.model}${c.agent.effort ? ` · reasoning effort ${c.agent.effort}` : ''} · permissions ${c.permissionMode}${c.canSpawn || team.length ? ' · may create bots' : ''}${team.length ? ` · leads a team: ${team.join(', ')}` : ''}${on ? ` · on ${on}'s team` : ''}${c.proposed ? ' · proposed (not kept yet)' : ''}`;
           })
           .join('\n');
       }
@@ -1488,10 +1674,13 @@ export class BotManager {
         return planAnswer(team.plan!, team.plan!.status === 'approved' && team.activity?.findLast((e) => e.kind === 'approved')?.botId === 'autopilot');
       }
       case 'create_bot': {
+        const generation = this.generations.get(`${team.id}:${me.id}`) ?? 0;
+        if (!this.acceptingWork || team.stoppedReason === 'userStopped') throw new Error('Assignment was stopped');
         if (team.stoppedReason) throw new Error('The team reached its spending cap and was stopped.');
         if (team.approvePlan && me.depth === 0 && team.plan?.status !== 'approved') {
           throw new Error(team.plan?.status === 'pending' ? 'The user has not approved the plan yet: call wait_for_plan.' : 'This team reviews plans first: call propose_plan, then wait_for_plan.');
         }
+        if (team.durable && team.approvePlan && me.depth === 0 && !team.plan?.bots.some(b => b.name === str(args.name, 60) && b.task === str(args.task) && b.config === str(args.config, 100))) throw new Error('This task is not in the approved plan');
         if (team.bots.length >= MAX_BOTS) throw new Error(`This team already has ${MAX_BOTS} bots, the most it can have. Reuse one with message_bot.`);
         const childName = str(args.name, 60);
         const task = str(args.task);
@@ -1510,9 +1699,11 @@ export class BotManager {
           name: childName,
           configId: config?.id ?? null,
           role: config?.role ?? str(args.role, 8000),
-          agent: config ? { ...config.agent } : { ...me.agent, model: model ?? me.agent.model },
+          agent: config ? { ...config.agent } : withModel(me.agent, model ?? undefined),
           // A bot defined on the spot gets its creator's permissions, never more.
           permissionMode: config?.permissionMode ?? me.permissionMode,
+          ...(config?.contextRole ? { contextRole: config.contextRole } : {}),
+          ...(config?.executorId ? { executorId: config.executorId } : {}),
           canSpawn: wantsSpawn && me.canSpawn && depth < MAX_DEPTH,
           parentId: me.id,
           depth,
@@ -1532,9 +1723,11 @@ export class BotManager {
             note = ` It works in the shared folder: ${error instanceof Error ? error.message : String(error)}`;
           }
         }
+        if (!this.acceptingWork || generation !== (this.generations.get(`${team.id}:${me.id}`) ?? 0)) throw new Error('Assignment was stopped while preparing the agent');
         // Defined on the spot: it joins the organization as a proposed agent you can keep or dismiss.
         if (!config && this.coordinator() && !this.configs.some((c) => c.name.toLowerCase() === childName.toLowerCase())) {
           const root = (await repoRoot(team.cwd).catch(() => null)) ?? team.cwd;
+          if (!this.acceptingWork || generation !== (this.generations.get(`${team.id}:${me.id}`) ?? 0)) throw new Error('Assignment was stopped while preparing the agent');
           const kept = this.saveConfig({ name: childName, role: child.role, about: str(args.about, ABOUT_MAX), agent: child.agent, permissionMode: child.permissionMode, canSpawn: child.canSpawn, ownWorktree: wantsCopy, kind: 'member', projects: [root], proposed: true });
           child.configId = kept.id;
         }
@@ -1544,7 +1737,7 @@ export class BotManager {
         this.changed(team);
         if (child.status === 'error') throw new Error(`${child.name} couldn't start: ${child.lastReply}`);
         const copy = child.worktree ? ' in its own copy of the project (use bot_changes and apply_bot_work when it is done)' : '';
-        return `Created ${child.name} (id ${child.id})${config ? ` from the configuration ${config.name}` : ''}${copy}. It is working on its task now; call wait_for_bot with bot_id "${child.id}" to get its answer.${note}`;
+        return `Created ${child.name} (id ${child.id})${config ? ` from the configuration ${config.name}` : ''}${copy}. Its execution state is ${this.queue.snapshot().jobs.find(j => j.id === child.queueJobId)?.state ?? child.status}; call wait_for_bot with bot_id "${child.id}" to get its answer.${note}`;
       }
       case 'message_bot': {
         const target = mine(args.bot_id);
@@ -1556,6 +1749,9 @@ export class BotManager {
       }
       case 'wait_for_bot': {
         const target = mine(args.bot_id);
+        const pending = this.queue.snapshot().jobs.filter(j => j.teamId === team.id && j.botId === target.id).at(-1);
+        if (pending && (['blocked','interrupted','failed'].includes(pending.state) || (pending.state === 'queued' && pending.id !== target.queueJobId))) return `${target.name}: ${pending.state} (${pending.blockedReason ?? 'waiting_for_capacity'}). The queued task has no new result yet; do not use an earlier reply as its result.`;
+        if (me.queueJobId) this.queue.waiting(me.queueJobId, true, true);
         const seconds = Math.min(600, Math.max(5, Number(args.timeout_seconds) || 120));
         if (target.status === 'working' || target.status === 'starting' || target.status === 'waiting') {
           await new Promise<void>((resolve) => {
@@ -1565,6 +1761,7 @@ export class BotManager {
             this.waiters.set(target.runId ?? '', list);
           });
         }
+        if (me.queueJobId) await this.queue.resumeCoordinator(me.queueJobId);
         if (target.status === 'working' || target.status === 'starting') return `${target.name} is still working. Call wait_for_bot again.`;
         if (target.status === 'waiting') return `${target.name} is waiting for the user to approve something in Alchemist Coder. Call wait_for_bot again later.`;
         return `${target.name} (${target.status}):\n${replyHead(target)}${target.error ? `\nIts turn failed: ${target.error}\nIf you find out why and it can happen again, save what to do differently with record_lesson.` : ''}`;

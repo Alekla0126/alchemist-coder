@@ -34,6 +34,27 @@ export interface ModelSpec {
   id: string;
   label: string;
   contextWindow?: number;
+  /** Reported by the runtime, never inferred from a model name. */
+  reasoningEfforts?: Array<{ id: string; label: string }>;
+  defaultReasoningEffort?: string;
+}
+
+/** A read-only snapshot from the installed Codex App Server. No tokens or session history. */
+export interface CodexRuntimeSnapshot {
+  connected: boolean;
+  /** The validated installed CLI used for this catalog and pinned for execution. */
+  cliPath?: string | null;
+  cliVersion?: string | null;
+  skippedCliPaths?: string[];
+  /** Explicit provider credential mode; account identity remains unknown unless reported. */
+  usesApiKey?: boolean;
+  error: string | null;
+  models: ModelSpec[];
+  account: { type: string; email: string | null; plan: string | null } | null;
+  accountError: string | null;
+  limits: Array<{ label: string; usedPercent: number; windowMinutes: number | null; resetsAt: number | null }> | null;
+  limitsError: string | null;
+  checkedAt: number;
 }
 
 /** A model provider: where requests go and which credentials/env they need. */

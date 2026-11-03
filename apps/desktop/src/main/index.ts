@@ -10,6 +10,8 @@ import type { IndexProgress } from '@alchemist-coder/core';
 import { Channels, isLocale, matchLocale, type AppInfo, type Locale, type Mode } from '../shared/api';
 import { registerIpc } from './ipc';
 import { SettingsStore } from './settings';
+import { RuntimeConnections, packagedBuildLabel } from './runtime-connections';
+import { DashboardSync } from './dashboard-sync';
 import { appAutopilot } from './autopilot';
 import { mainWords } from './locales';
 import { RunnerManager } from './runner';
@@ -71,6 +73,7 @@ function appInfo(): AppInfo {
   const [harnessId, providerId, model, permissionMode] = (arg('run') ?? '').split(',');
   return {
     version: app.getVersion(),
+    buildLabel: packagedBuildLabel(join(app.getAppPath(), 'package.json')),
     edition,
     personal: personalBuild,
     firstRun,
@@ -362,7 +365,7 @@ void app.whenReady().then(async () => {
   const tasks = new TaskManager(join(userData, 'tasks.json'), runner, (cwd) => workspace.resolveInside(cwd), (task) => send(Channels.taskChanged, task));
   // Bot teams: bots reach the app's tools through a small MCP bridge run by Electron itself (as Node).
   const bots = new BotManager(
-    { configs: join(userData, 'bot-configs.json'), teams: join(userData, 'bot-teams.json'), org: join(userData, 'org.json') },
+    { configs: join(userData, 'bot-configs.json'), teams: join(userData, 'bot-teams.json'), org: join(userData, 'org.json'), queue: join(userData, 'org-queue.json'), bindings: join(userData, 'org-bindings.json') },
     runner,
     { command: process.execPath, script: writeBridge(userData) },
     (cwd) => workspace.projectFolder(cwd),
@@ -371,7 +374,11 @@ void app.whenReady().then(async () => {
     // The organization's runs also follow the coordinator's own switch.
     pilotFor,
   );
+  const connections = new RuntimeConnections(join(userData, 'runtime-connections.json'), reason => bots.blockVps(reason), { status: () => dashboardSync.status(), refresh: () => dashboardSync.refresh() });
+  const dashboardSync = new DashboardSync(join(userData, 'dashboard-outbox'), { config: () => connections.configuration(), source: cwd => bots.dashboardSource(cwd), secrets });
+  connections.refreshGate();
   await bots.start();
+  dashboardSync.start();
   // The built-in browser: one page view over its pane, and tools any agent run can drive it with.
   const browser = new BrowserHost(() => window, { command: process.execPath, script: writeBrowserBridge(userData) }, (state) => send(Channels.browserChanged, state));
   await browser.start();
@@ -399,6 +406,7 @@ void app.whenReady().then(async () => {
   });
   const terminals = new TerminalManager((channel, payload) => send(channel === 'data' ? Channels.terminalData : Channels.terminalExit, payload));
   app.on('before-quit', () => {
+    dashboardSync.close();
     backup.stop();
     tasks.flush();
     bots.flush();
@@ -439,7 +447,7 @@ void app.whenReady().then(async () => {
     if ('autopilot' in patch) autopilotChanged();
     else if ('locale' in patch) buildMenu();
   };
-  registerIpc({ info: appInfo, bots, starterGroups, settings, onSettingsChanged, reader: () => reader, progress: () => progress, onRendered: () => void capture(), runner, tasks, preview, hub, backup, reviews, usage, exportSession: (id, format) => (reader ? exportSession(window, reader, id, format) : Promise.reject(new Error('The index is still loading'))), workspace, terminals, voice: new Voice(secrets, userData), dataDir: userData, board, automations, browser, proActivate: pro?.activate ? (code) => pro.activate!({ userData }, code) : undefined, proAccountStart: async () => {
+  registerIpc({ info: appInfo, bots, connections, dashboardSync, starterGroups, settings, onSettingsChanged, reader: () => reader, progress: () => progress, onRendered: () => void capture(), runner, tasks, preview, hub, backup, reviews, usage, exportSession: (id, format) => (reader ? exportSession(window, reader, id, format) : Promise.reject(new Error('The index is still loading'))), workspace, terminals, voice: new Voice(secrets, userData), dataDir: userData, board, automations, browser, proActivate: pro?.activate ? (code) => pro.activate!({ userData }, code) : undefined, proAccountStart: async () => {
     const url = proAccount?.start();
     if (!url) return false;
     await shell.openExternal(url);

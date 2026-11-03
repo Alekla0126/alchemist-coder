@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:thealchemist:coder:org-event:v1",
+  "title": "Alchemist Coder organization event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "eventId",
+    "sequence",
+    "type",
+    "occurredAt",
+    "taskId",
+    "teamId",
+    "botId",
+    "executorId",
+    "state",
+    "attempt",
+    "verification",
+    "reason"
+  ],
+  "properties": {
+    "version": {
+      "const": "ac.integration.v1"
+    },
+    "eventId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_:-]{1,160}$"
+    },
+    "taskId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_:-]{1,160}$"
+    },
+    "teamId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_:-]{1,160}$"
+    },
+    "botId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_:-]{1,160}$"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "occurredAt": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 5
+    },
+    "type": {
+      "enum": [
+        "org.job.queued",
+        "org.job.started",
+        "org.job.waiting",
+        "org.job.blocked",
+        "org.job.interrupted",
+        "org.job.checkpointed",
+        "org.job.completed",
+        "org.job.failed",
+        "org.job.retry_scheduled",
+        "org.job.cancelled"
+      ]
+    },
+    "executorId": {
+      "enum": [
+        "local",
+        "vps"
+      ]
+    },
+    "state": {
+      "enum": [
+        "queued",
+        "running",
+        "waiting",
+        "blocked",
+        "interrupted",
+        "completed",
+        "failed",
+        "cancelled"
+      ]
+    },
+    "verification": {
+      "enum": [
+        "not_run",
+        "reported",
+        "verified"
+      ]
+    },
+    "reason": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-z_]{1,80}$"
+    }
+  }
+}

@@ -20,6 +20,7 @@ const startedAt = Date.now() - 1000;
 
 afterAll(() => {
   rmSync(cwd, { recursive: true, force: true });
+  if (!enabled) return;
   // Only remove the Claude project folder this test created.
   const claudeDir = join(homedir(), '.claude', 'projects', encoded);
   if (encoded.includes('ac-e2e-') && existsSync(claudeDir)) rmSync(claudeDir, { recursive: true, force: true });

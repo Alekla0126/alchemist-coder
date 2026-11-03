@@ -142,7 +142,7 @@ export function effortTable(harnessId: string, model: string): EffortChoices | n
 export function effortLabel(t: T, value: string, fallback?: string) {
   const key = `effort.${value}`;
   const text = t(key as never);
-  return text === key ? (fallback ?? value) : text;
+  return !text || text === key ? (fallback ?? value) : text;
 }
 
 // ---------- action prompts ----------

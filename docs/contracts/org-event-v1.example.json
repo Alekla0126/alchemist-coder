@@ -1,0 +1,15 @@
+{
+  "version": "ac.integration.v1",
+  "eventId": "event-fixture-1",
+  "sequence": 1,
+  "type": "org.job.blocked",
+  "occurredAt": 0,
+  "taskId": "team-fixture:b2:1",
+  "teamId": "team-fixture",
+  "botId": "b2",
+  "executorId": "vps",
+  "state": "blocked",
+  "attempt": 0,
+  "verification": "not_run",
+  "reason": "capacity_exhausted"
+}

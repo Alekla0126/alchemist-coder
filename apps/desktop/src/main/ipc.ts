@@ -31,6 +31,8 @@ import type { AutomationHost } from './automation-host';
 import { listSubagents } from './subagents';
 import { gitAction, gitOverview } from './git-overview';
 import { showAttention } from './dock';
+import type { RuntimeConnections } from './runtime-connections';
+import type { DashboardSync } from './dashboard-sync';
 
 const text = (value: unknown, name: string, max = 512): string => {
   if (typeof value !== 'string' || value.length === 0 || value.length > max) throw new Error(`Invalid ${name}`);
@@ -56,6 +58,8 @@ export interface IpcDeps {
   info: () => AppInfo;
   settings: SettingsStore;
   bots: BotManager;
+  connections: RuntimeConnections;
+  dashboardSync?: DashboardSync;
   /** The owner's module's starting organizations for these folders (see PersonalModule.orgGroups). */
   starterGroups?: (folders: string[]) => unknown;
   /** After the renderer changed settings (e.g. the language, for the menu bar). */
@@ -377,6 +381,25 @@ export function registerIpc(deps: IpcDeps): void {
     deps.bots.renewStaff(agent, cleanStarters(starters), typeof instructions === 'string' ? instructions.slice(0, 8000) : '', apply === true),
   );
   ipcMain.handle(Channels.deleteBotConfig, (_e, id: unknown) => deps.bots.deleteConfig(text(id, 'config id', 60)));
+  ipcMain.handle(Channels.portableOrg, (_e, cwd: unknown, agent: unknown, apply: unknown, revision: unknown) => deps.bots.portableOrg(deps.workspace.projectFolder(cwd), agent as never, apply === true, typeof revision === 'string' ? revision : undefined));
+  ipcMain.handle(Channels.portableOrgState, (_e, cwd: unknown) => deps.bots.portableOrgState(deps.workspace.projectFolder(cwd)));
+  ipcMain.handle(Channels.rollbackPortableOrg, (_e, cwd: unknown, changeId: unknown, revision: unknown) => deps.bots.rollbackPortableOrg(deps.workspace.projectFolder(cwd), text(changeId, 'binding change id', 100), text(revision, 'binding revision', 100)));
+  ipcMain.handle(Channels.runtimeConnections, () => deps.connections.state(deps.bots.queueSnapshot()));
+  ipcMain.handle(Channels.saveRuntimeConnections, (_e, config: unknown, revision: unknown) => {
+    const c = config as Record<string, unknown> | null;
+    if (c && typeof c === 'object' && c.dashboardSync) deps.workspace.projectFolder((c.dashboardSync as Record<string, unknown>).projectCwd);
+    return deps.connections.save(config, text(revision, 'connection revision', 100), deps.bots.queueSnapshot());
+  });
+  ipcMain.handle(Channels.retryDashboardSync, async () => { if (!deps.dashboardSync) throw new Error('Dashboard relay unavailable'); await deps.dashboardSync.retry(); return deps.connections.state(deps.bots.queueSnapshot()); });
+  ipcMain.handle(Channels.storeDashboardGrant, async (_e, token: unknown, revision: unknown) => {
+    if (!deps.dashboardSync) throw new Error('Dashboard relay unavailable');
+    deps.connections.assertRevision(text(revision, 'connection revision', 100));
+    if (token !== null && typeof token !== 'string') throw new Error('Invalid writer credential');
+    await deps.dashboardSync.storeGrant(token);
+  });
+  ipcMain.handle(Channels.orgQueue, () => deps.bots.queueSnapshot());
+  ipcMain.handle(Channels.resumeOrgJob, (_e, id: unknown) => deps.bots.resumeQueueJob(text(id, 'job id', 160)));
+  ipcMain.handle(Channels.cancelOrgJob, (_e, id: unknown) => deps.bots.cancelQueueJob(text(id, 'job id', 160)));
   ipcMain.handle(Channels.botTeams, () => deps.bots.listTeams());
   ipcMain.handle(Channels.startTeam, (_e, request: unknown) => deps.bots.startTeam(request));
   ipcMain.handle(Channels.startAgentTask, (_e, request: unknown) => {

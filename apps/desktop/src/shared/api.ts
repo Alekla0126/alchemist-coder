@@ -1,4 +1,4 @@
-import type { AgentNode, IndexProgress, ModelSpec, PermissionMode, ProjectSummary, QuestionAnswer, RunnerEvent, SearchHit, SessionSummary, SlashCommand, PromptImage, TranscriptPage } from '@alchemist-coder/core';
+import type { AgentNode, CodexRuntimeSnapshot, IndexProgress, ModelSpec, PermissionMode, ProjectSummary, QuestionAnswer, RunnerEvent, SearchHit, SessionSummary, SlashCommand, PromptImage, TranscriptPage } from '@alchemist-coder/core';
 
 export type { PermissionMode };
 
@@ -172,6 +172,7 @@ export interface ProActivation {
 
 export interface AppInfo {
   version: string;
+  buildLabel?: string;
   edition: 'community' | 'pro';
   /** The owner's own build (never distributed): Claude sign-in and Claude's usage percentages. */
   personal: boolean;
@@ -311,6 +312,7 @@ export interface RunnerCatalog {
     available: boolean;
     detail: string | null;
     models: ModelSpec[];
+    codexRuntime?: CodexRuntimeSnapshot;
     credential: { label: string; placeholder: string | null; isSet: boolean; optional: boolean } | null;
   }>;
 }
@@ -431,6 +433,9 @@ export interface BotConfig {
   permissionMode: PermissionMode;
   /** It may create other bots (within the team's limits). */
   canSpawn: boolean;
+  /** Optional portable context: .alchemist/organization/roles/<id>.md in this project. */
+  contextRole?: string;
+  executorId?: 'local' | 'vps';
   /** It works in its own copy of the project (a git worktree); its creator applies the result. */
   ownWorktree?: boolean;
   /** The organization's coordinator (one), or one of its agents. */
@@ -443,6 +448,25 @@ export interface BotConfig {
   leadId?: string | null;
   /** Its picture: an image you chose (a small data URL) or one of the app's (`emoji:🧪`); none shows its initials. */
   avatar?: string | null;
+}
+
+export interface PortableOrgEntry { roleId: string; name: string; state: 'ready' | 'missing' | 'ambiguous' | 'out_of_scope'; configId?: string; configName?: string }
+export interface PortableOrgState { roles: Record<string, string>; revision: string; rollbackId?: string }
+export interface PortableOrgPreview { names: string[]; entries: PortableOrgEntry[]; applied: boolean; revision: string; state: PortableOrgState }
+
+export interface DashboardSyncBinding { enabled: boolean; orgRef: string; projectRef: string; projectCwd: string }
+export interface ConnectionConfig { dashboardUrl: string | null; vpsUrl: string | null; vpsCapacity: 'unknown' | 'exhausted'; dashboardSync?: DashboardSyncBinding }
+export interface DashboardSyncStatus {
+  enabled: boolean; connected: boolean;
+  reason: 'sync_disabled' | 'sync_pending' | 'synchronized' | 'sync_stale' | 'authorization_required' | 'outbox_unavailable' | 'outbox_full' | 'project_unavailable' | 'projection_invalid' | 'network_error' | 'server_error' | 'rate_limited' | 'protocol_error' | 'invalid_ack' | 'retry_exhausted' | 'config_unreadable' | 'endpoint_required';
+  pending: number | null; attempts: number; lastAcknowledgedSequence: number | null; lastSyncAt: number | null; grantPresent?: boolean;
+}
+export interface ConnectionState {
+  config: ConnectionConfig | null; revision: string | null; error: 'config_unreadable' | null;
+  dashboard: { connected: boolean; transportSupported: boolean; reason: DashboardSyncStatus['reason'] | 'transport_unavailable'; lastAcknowledgedSequence: number | null; lastSyncAt: number | null };
+  sync?: DashboardSyncStatus;
+  vps: { connected: false; executionSupported: false; reason: 'config_unreadable' | 'host_required' | 'capacity_exhausted' | 'adapter_unavailable'; checkedAt: null };
+  outbox: { contract: 'ac.integration.v1'; sequence: number | null; retainedEvents: number | null; error: string | null };
 }
 
 /**
@@ -538,6 +562,10 @@ export interface BotMember {
   error?: string | null;
   costUsd: number | null;
   createdAt: number;
+  queueJobId?: string;
+  queueTurn?: number;
+  contextRole?: string;
+  executorId?: 'local' | 'vps';
 }
 
 /** One bot the coordinator means to create, as the user sees (and may edit) it before approving. */
@@ -580,6 +608,9 @@ export interface BotTeam {
   title?: string;
   goal: string;
   cwd: string;
+  durable?: OrgExecutionPolicy;
+  requestId?: string;
+  requestFingerprint?: string;
   createdAt: number;
   updatedAt: number;
   /** The coordinator is bots[0]. */
@@ -722,11 +753,36 @@ export interface TeamOrigin {
   label: string;
 }
 
+export interface OrgExecutionPolicy {
+  maxParallel: number;
+  maxAttempts: number;
+  resumePreauthorized: boolean;
+  executorId?: 'local' | 'vps';
+}
+export interface OrgJob {
+  id: string; teamId: string; botId: string; executorId: 'local' | 'vps';
+  state: 'queued' | 'running' | 'waiting' | 'blocked' | 'interrupted' | 'completed' | 'failed' | 'cancelled';
+  attempt: number; maxAttempts: number; maxParallel: number;
+  verification: 'not_run' | 'reported' | 'verified'; blockedReason: string | null;
+  createdAt: number; updatedAt: number; canResume?: boolean;
+}
+export interface OrgJobEvent {
+  version: 'ac.integration.v1'; eventId: string; sequence: number;
+  type: `org.job.${string}`; occurredAt: number; taskId: string; teamId: string; botId: string;
+  executorId: 'local' | 'vps'; state: OrgJob['state']; attempt: number;
+  verification: OrgJob['verification']; reason: string | null;
+}
+export interface OrgQueueSnapshot { error?: 'queue_unreadable' | 'queue_persistence_failed'; version: 'ac.integration.v1'; sequence: number; jobs: OrgJob[]; events: OrgJobEvent[] }
+
 export interface StartTeamRequest {
+  requestId?: string;
   goal: string;
   cwd: string;
   /** A saved configuration for the coordinator, or one defined here. */
   configId?: string;
+  /** Explicit engine for this new assignment only; saved staff and permissions stay unchanged. */
+  agentOverride?: AgentChoice;
+  durable?: OrgExecutionPolicy;
   coordinator?: Omit<BotConfig, 'id' | 'canSpawn'>;
   budgetUsd?: number | null;
   approvePlan?: boolean;
@@ -738,6 +794,8 @@ export interface AgentChoice {
   harnessId: string;
   providerId: string;
   model: string;
+  /** Undefined explicitly inherits the installed runtime configuration, including resumed sessions. */
+  effort?: string;
 }
 
 /** One entry of a right-click menu (shown natively by the main process). */
@@ -1252,6 +1310,16 @@ export interface AlchemistApi {
   ensureOrg(agent: AgentChoice, starters: Record<string, StarterAgent>): Promise<BotConfig[]>;
   /** Brings the organization to a staff template: adds who's missing, sets teams, models and permissions, drops copies. `apply: false` only says what it would do. */
   renewStaff(agent: AgentChoice, starters: Record<string, StarterAgent>, instructions: string, apply: boolean): Promise<RosterChange>;
+  portableOrg(cwd: string, agent: AgentChoice, apply: boolean, revision?: string): Promise<PortableOrgPreview>;
+  portableOrgState(cwd: string): Promise<PortableOrgState>;
+  rollbackPortableOrg(cwd: string, changeId: string, revision: string): Promise<PortableOrgState>;
+  runtimeConnections(): Promise<ConnectionState>;
+  saveRuntimeConnections(config: ConnectionConfig, revision: string): Promise<ConnectionState>;
+  retryDashboardSync(): Promise<ConnectionState>;
+  storeDashboardGrant(token: string | null, revision: string): Promise<void>;
+  orgQueue(): Promise<OrgQueueSnapshot>;
+  resumeOrgJob(jobId: string): Promise<void>;
+  cancelOrgJob(jobId: string): Promise<void>;
   botTeams(): Promise<BotTeam[]>;
   startTeam(request: StartTeamRequest): Promise<BotTeam>;
   /** Gives the chosen organization agent a task using its own saved runtime and permissions. */
@@ -1448,6 +1516,16 @@ export const Channels = {
   seedOrgGroups: 'bots:seedOrgGroups',
   ensureOrg: 'bots:ensureOrg',
   renewStaff: 'bots:renewStaff',
+  portableOrg: 'org:portable',
+  portableOrgState: 'org:portable-state',
+  rollbackPortableOrg: 'org:portable-rollback',
+  runtimeConnections: 'runtime:connections',
+  saveRuntimeConnections: 'runtime:connections-save',
+  retryDashboardSync: 'runtime:dashboard-retry',
+  storeDashboardGrant: 'runtime:dashboard-grant',
+  orgQueue: 'org:queue',
+  resumeOrgJob: 'org:queue:resume',
+  cancelOrgJob: 'org:queue:cancel',
   botTeams: 'bots:teams',
   startTeam: 'bots:startTeam',
   startAgentTask: 'bots:startAgentTask',
