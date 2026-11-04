@@ -170,7 +170,7 @@ export function TitleBar() {
   const allScope = useStore((s) => s.agentsScope !== 'project');
   const narrow = useViewport((v) => v.narrow);
   const drawer = useViewport((v) => v.drawer);
-  const sideHidden = useLayout((l) => l.sideHidden);
+  const sideHidden = useLayout((l) => mode === 'bots' ? l.orgSideHidden : l.sideHidden);
   const splitSideHidden = useLayout((l) => l.splitSideHidden);
   const agentLabel = t(splitSideHidden ? 'layout.showAgent' : 'layout.hideAgent');
   const browserOpen = useLayout((l) => l.browserOpen);
@@ -216,7 +216,7 @@ export function TitleBar() {
       {/* Always in the same place (kept invisible in modes without a sidebar, so nothing shifts). */}
       <button
         className={`icon-btn side-toggle ${WITH_SIDEBAR.has(mode) ? '' : 'off'}`}
-        onClick={toggleSidebar}
+        onClick={() => toggleSidebar(mode === 'bots')}
         title={`${sideLabel} (${keys('⌘B')})`}
         aria-label={sideLabel}
         aria-expanded={sideShown}

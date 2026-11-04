@@ -92,7 +92,7 @@ const state = {
   runs: {},
 };
 // The sidebar folded (the office then has its own project menu); SSR reads the stores' first state.
-const memory = new Map<string, string>([['alchemist.layout', JSON.stringify({ sideHidden: true })]]);
+const memory = new Map<string, string>([['alchemist.layout', JSON.stringify({ orgSideHidden: true })]]);
 vi.stubGlobal('localStorage', { getItem: (k: string) => memory.get(k) ?? null, setItem: (k: string, v: string) => void memory.set(k, v) });
 vi.mock('../src/renderer/src/store', () => {
   const useStore = Object.assign((pick: (s: unknown) => unknown) => pick(state), { getState: () => state, setState: () => {} });

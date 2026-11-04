@@ -1873,4 +1873,7 @@ export const ja: Messages = {
   "org.office.noMatches": "この表示にエージェントはいません",
   "org.office.noMatchesHint": "フィルターを変更して最近のタスクを表示します。",
   "org.office.directTask": "このエージェントで直接タスクを開始します。",
+  "org.navigation": "組織のナビゲーション",
+  "org.navigation.open": "{section}を開く",
+  "org.navigation.noTasks": "これらの依頼にはタスクがありません。",
 };

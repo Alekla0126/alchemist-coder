@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Automation, AutomationRun, AutomationState, AutomationTrigger, Autonomy, BotConfig, FlowEdge, FlowNode, FlowNodeKind } from '@shared/api';
 import { openAssignment, showOnChart } from '../actions/org';
+import { closeDrawer } from '../layout';
 import { duration, money, relativeTime } from '../format';
 import { layoutFlow, NODE_H, NODE_W } from '../flow-layout';
 import { useOpenProjects, useStore, useT } from '../store';
@@ -41,7 +42,10 @@ function stateOf(s: AutomationState, t: T, locale: string): { tone: 'run' | 'wai
   return { tone: 'on', text: triggerText(s.automation.trigger, t) };
 }
 
-const openAutomation = (id: string) => useStore.setState({ activeAutomationId: id, activeTeamId: null, activeMemberId: null, activeBotId: null });
+const openAutomation = (id: string) => {
+  useStore.setState({ orgPage: 'work', activeAutomationId: id, activeTeamId: null, activeMemberId: null, activeBotId: null });
+  closeDrawer();
+};
 
 /** The organization sidebar's automations: what each one is doing, and a way to make a new one. */
 export function AutomationList() {

@@ -24,6 +24,10 @@ import { ROSTER, ROSTER_DEPARTMENTS, rosterOf, tierModels } from '../org-roster'
 import { AutomationList, AutomationView, NewAutomationDialog } from './Automations';
 import { PermissionCard } from './LiveRun';
 import { QuestionForm } from './QuestionForm';
+import { closeDrawer, openOrgNavigation, toggleSidebar, useViewport, type OrgSection } from '../layout';
+import { organizationTasks } from '../org-navigation';
+import { botState } from '../org-model';
+import { openMember } from '../actions/org';
 
 type T = ReturnType<typeof useT>;
 const MODES: PermissionMode[] = ['default', 'acceptEdits', 'plan', 'bypassPermissions'];
@@ -386,11 +390,11 @@ function rowKeys(e: React.KeyboardEvent<HTMLElement>, open: () => void) {
     open();
     return;
   }
-  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+  if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return;
   e.preventDefault();
-  const rows = [...(e.currentTarget.closest('.org-side')?.querySelectorAll<HTMLElement>('[data-row]') ?? [])];
+  const rows = [...(e.currentTarget.closest('.org-side')?.querySelectorAll<HTMLElement>('[data-row]') ?? [])].filter((row) => !row.closest('[hidden]'));
   const i = rows.indexOf(e.currentTarget);
-  rows[i + (e.key === 'ArrowDown' ? 1 : -1)]?.focus();
+  rows[e.key === 'Home' ? 0 : e.key === 'End' ? rows.length - 1 : i + (e.key === 'ArrowDown' ? 1 : -1)]?.focus();
 }
 
 /** One agent in the organization's list: its state, what it needs or is doing, and its model. */
@@ -399,7 +403,7 @@ function MemberRow({ member, depth, teams, compact, focus }: { member: BotConfig
   const configs = useStore((s) => s.botConfigs);
   const teamLead = !member.proposed && member.kind !== 'coordinator' && !member.leadId;
   const onTeamOf = member.leadId ? configs.find((c) => c.id === member.leadId) : undefined;
-  const selected = useStore((s) => s.activeMemberId === member.id && !s.activeTeamId);
+  const selected = useStore((s) => !s.activeTeamId && (s.activeMemberId === member.id || (s.orgPage === 'settings' && s.orgSettingsMemberId === member.id)));
   const unsaved = useStore((s) => !!s.orgDrafts[member.id]);
   const a = activityOf(member, teams);
   const doing = a.doing ? doingText(a.doing, t) : null;
@@ -407,7 +411,7 @@ function MemberRow({ member, depth, teams, compact, focus }: { member: BotConfig
   const orgAutopilot = useStore((s) => s.orgSettings?.autopilot === true);
   const role = aboutOf(member).slice(0, 90);
   const scope = member.projects?.length ? `${folderName(member.projects[0]!)}${member.projects.length > 1 ? ` +${member.projects.length - 1}` : ''}` : '';
-  const select = () => useStore.setState({ orgPage: 'work', activeMemberId: member.id, activeTeamId: null, activeBotId: null });
+  const select = () => openMember(member);
   const need = a.needs[0];
   const status = t(`org.status.${a.status}`);
   return (
@@ -547,7 +551,34 @@ function OrgName() {
   );
 }
 
-/** The left column, one scroll: the organization chart (coordinator, agents, proposed ones) and its assignments. */
+/** Every section keeps its heading in sight; long rosters and history scroll independently. */
+function NavigationSection({ section, title, count, action, children }: { section: OrgSection; title: string; count: number; action?: React.ReactNode; children: React.ReactNode }) {
+  const [expanded, setExpanded] = useState(true);
+  const requested = useViewport((v) => v.orgSection);
+  useEffect(() => { if (requested === section) setExpanded(true); }, [requested, section]);
+  return <section className={`org-nav-section ${expanded ? 'expanded' : ''}`} aria-labelledby={`org-nav-${section}`}>
+    <div className="sec arena-sec">
+      <button id={`org-nav-${section}`} className="org-section-toggle" aria-expanded={expanded} aria-controls={`org-nav-${section}-list`} onClick={() => setExpanded(!expanded)}>
+        <Icon name={expanded ? 'chevronDown' : 'chevronRight'} size={12} /><span>{title}</span><small>{count}</small>
+      </button>
+      {action}
+    </div>
+    <div id={`org-nav-${section}-list`} className="org-nav-scroll" hidden={!expanded}>{children}</div>
+  </section>;
+}
+
+/** Named destinations remain on the left when the full sidebar is folded or floats. */
+export function OrgNavigationRail() {
+  const t = useT();
+  return <nav className="org-navigation-rail" aria-label={t('org.navigation')}>
+    {(['agents', 'tasks', 'assignments'] as const).map((section) => <button key={section} onClick={() => openOrgNavigation(section)} aria-controls={`org-nav-${section}-list`} aria-label={t('org.navigation.open', { section: t(section === 'agents' ? 'org.agents' : section === 'tasks' ? 'arena.tasks' : 'bots.teams') })}>
+      <Icon name={section === 'agents' ? 'agents' : section === 'tasks' ? 'board' : 'bots'} size={18} />
+      <span>{t(section === 'agents' ? 'org.agents' : section === 'tasks' ? 'arena.tasks' : 'bots.teams')}</span>
+    </button>)}
+  </nav>;
+}
+
+/** Stable organization navigation, shared by work, assignment detail and configuration. */
 export function OrgSidebar() {
   const t = useT();
   const locale = useStore((s) => s.locale);
@@ -557,6 +588,15 @@ export function OrgSidebar() {
   const orgProject = useStore((s) => s.orgProject);
   const orgName = useStore((s) => s.orgSettings?.name);
   const activeTeamId = useStore((s) => s.activeTeamId);
+  const activeBotId = useStore((s) => s.activeBotId);
+  const activeMemberId = useStore((s) => s.activeMemberId);
+  const activeAutomationId = useStore((s) => s.activeAutomationId);
+  const orgPage = useStore((s) => s.orgPage);
+  const narrow = useViewport((v) => v.narrow);
+  const drawer = useViewport((v) => v.drawer);
+  useEffect(() => {
+    document.querySelector<HTMLElement>('.org-side [aria-selected="true"], .org-side [aria-current="true"]')?.scrollIntoView({ block: 'nearest' });
+  }, [activeTeamId, activeBotId, activeMemberId, orgPage]);
   const open = useOpenProjects();
   const [loaded, setLoaded] = useState(false);
   const ensuring = useRef(false);
@@ -585,7 +625,8 @@ export function OrgSidebar() {
   // The organization you look at (one business, client or side project) only chooses what shows here.
   const group = useStore((s) => groupOf(s.orgSettings, s.orgGroup));
   const coordinator = configs.find((c) => c.kind === 'coordinator');
-  const members = configs.filter((c) => c.kind !== 'coordinator' && (!orgProject || inProject(c, orgProject)) && memberInGroup(c, group));
+  const settingsMemberId = useStore((s) => s.orgSettingsMemberId);
+  const members = configs.filter((c) => c.kind !== 'coordinator' && (((!orgProject || inProject(c, orgProject)) && memberInGroup(c, group)) || c.id === activeMemberId || (orgPage === 'settings' && c.id === settingsMemberId)));
   const kept = members.filter((c) => !c.proposed);
   const proposed = members.filter((c) => c.proposed);
   const compact = members.length > COMPACT_AT;
@@ -596,6 +637,8 @@ export function OrgSidebar() {
   const current = onOffice ? officeTeamId : activeTeamId;
   // An assignment open from elsewhere (e.g. from "needs you") still shows in the list.
   const elsewhere = allTeams.filter((x) => x.id === current && !teams.includes(x));
+  const shownTeams = [...teams, ...elsewhere];
+  const tasks = organizationTasks(shownTeams);
   const projectName = orgProject ? (open.find((p) => p.cwd === orgProject)?.name ?? folderName(orgProject)) : '';
   const inGroup = open.filter((p) => folderInGroup(p.cwd, group));
   // Both filters on and no assignment left: say so, with the way back to the organization's projects.
@@ -617,7 +660,11 @@ export function OrgSidebar() {
     showOnChart();
     setTimeout(() => document.getElementById('org-inbox')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 60);
   };
-  const openTeam = (team: BotTeam) => (onOffice ? useStore.setState({ officeTeamId: team.id }) : useStore.setState({ orgPage: 'work', activeTeamId: team.id, activeBotId: team.bots[0]?.id ?? null, activeMemberId: null }));
+  const openTeam = (team: BotTeam) => {
+    if (onOffice) useStore.setState({ officeTeamId: team.id });
+    else openAssignment(team);
+    closeDrawer();
+  };
   const teamMenu = (team: BotTeam) =>
     contextMenu(
       () => [...(teamActive(team) ? [{ id: 'stop', label: t('bots.stopTeam') }] : []), { id: 'delete', label: t('bots.deleteTeam') }],
@@ -631,12 +678,14 @@ export function OrgSidebar() {
       },
     );
   return (
-    <aside className="side bots-list org-side">
+    <aside className="side bots-list org-side" aria-label={t('org.navigation')} role={narrow && drawer ? 'dialog' : undefined} aria-modal={narrow && drawer ? true : undefined}>
       <div className="org-top">
         <div className="org-top-row">
           <span className="org-name">{orgNameOf(orgName, t)}</span>
+          <button className="icon-btn org-nav-close" aria-label={t('layout.hideSidebar')} onClick={() => toggleSidebar(true)}><Icon name="close" size={14} /></button>
           <OrgGroupPicker />
-          <button className="btn-ghost small org-config-entry" onClick={() => openOrgSettings()}><Icon name="settings" size={14} /> {t('org.config.title')}</button>
+          <button className="btn-ghost small org-home-entry" aria-current={orgPage === 'work' && !activeTeamId && !activeMemberId && !activeAutomationId ? 'page' : undefined} onClick={() => showOnChart()}><Icon name="bots" size={14} /> {t('org.config.back')}</button>
+          <button className="btn-ghost small org-config-entry" aria-current={orgPage === 'settings' ? 'page' : undefined} onClick={() => openOrgSettings()}><Icon name="settings" size={14} /> {t('org.config.short')}</button>
         </div>
         {/* On the office it says so on the floor, once. */}
         {group && !group.projects.length && !onOffice && <OrgGroupEmpty group={group} />}
@@ -653,14 +702,6 @@ export function OrgSidebar() {
           </select>
         )}
       </div>
-      <div className="sec arena-sec">
-        <span>{t('org.agents')}</span>
-        {coordinator && (
-          <button className="new-btn" onClick={() => useStore.setState({ botConfigDialog: true })}>
-            + {t('org.addAgent')}
-          </button>
-        )}
-      </div>
       {inbox.length > 0 && (
         <button className={`org-callout ${urgent ? '' : 'calm'}`} onClick={showInbox}>
           {urgent > 0 && <span className="org-dot st-waiting" aria-hidden />}
@@ -669,6 +710,7 @@ export function OrgSidebar() {
         </button>
       )}
       {activeTeam && <p className="org-focus-caption">{t('org.focusCaption', { title: activeTeam.title || activeTeam.goal })}</p>}
+      <NavigationSection section="agents" title={t('org.agents')} count={members.length + (coordinator ? 1 : 0)} action={coordinator && <button className="new-btn" onClick={() => useStore.setState({ botConfigDialog: true })}>+ {t('org.addAgent')}</button>}>
       <div className="tree org-chart" role="tree" aria-label={t('org.agents')}>
         {coordinator ? <MemberRow member={coordinator} depth={0} teams={teams} compact={compact} focus={focusOf(coordinator)} /> : <p className="empty">{t('org.setup')}</p>}
         {/* Each lead with its team right under it. */}
@@ -687,12 +729,20 @@ export function OrgSidebar() {
           <MemberRow key={m.id} member={m} depth={1} teams={teams} compact={compact} focus={focusOf(m)} />
         ))}
       </div>
-      <div className="sec arena-sec">
-        <span>{t('bots.teams')}</span>
-        <button className="new-btn" onClick={() => showOnChart()}>
-          + {t('bots.newTeam')}
-        </button>
-      </div>
+      </NavigationSection>
+      <NavigationSection section="tasks" title={t('arena.tasks')} count={tasks.length}>
+        <div className="tree org-task-list" role="list" aria-label={t('arena.tasks')}>
+          {!tasks.length && <p className="empty">{t('org.navigation.noTasks')}</p>}
+          {tasks.map(({ team, bot }) => <div key={`${team.id}/${bot.id}`} role="listitem">
+            <button className={`org-task-row ${activeTeamId === team.id && activeBotId === bot.id ? 'sel' : ''}`} data-row aria-current={activeTeamId === team.id && activeBotId === bot.id} onClick={() => openAssignment(team, bot.id)} onKeyDown={(e) => rowKeys(e, () => openAssignment(team, bot.id))} title={`${bot.task}\n${bot.name} · ${team.title || team.goal}`}>
+              <span className="org-task-title">{bot.task}</span>
+              <span className="org-task-owner">{bot.name} · {team.title || team.goal}</span>
+              <span className={`team-state ts-${botState(team, bot)}`}>{t(`bots.status.${botState(team, bot)}`)}</span>
+            </button>
+          </div>)}
+        </div>
+      </NavigationSection>
+      <NavigationSection section="assignments" title={t('bots.teams')} count={shownTeams.length} action={<button className="new-btn" onClick={() => showOnChart()}>+ {t('bots.newTeam')}</button>}>
       <div className="tree bots-teams" role="list">
         {filteredEmpty ? (
           <div className="org-filter-empty" role="status">
@@ -704,7 +754,7 @@ export function OrgSidebar() {
         ) : (
           teams.length === 0 && !elsewhere.length && <p className="empty">{orgProject ? t('org.noAssignmentsIn', { project: projectName }) : t('bots.noTeams')}</p>
         )}
-        {[...teams, ...elsewhere].map((team) => (
+        {shownTeams.map((team) => (
           <div
             key={team.id}
             role="listitem"
@@ -734,7 +784,8 @@ export function OrgSidebar() {
           </div>
         ))}
       </div>
-      <AutomationList />
+      </NavigationSection>
+      <div className="org-nav-automations"><AutomationList /></div>
     </aside>
   );
 }

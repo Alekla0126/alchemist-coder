@@ -111,6 +111,8 @@ jobs:
           cap session --select="$SESSION:main"
           cap code --project="$PROJECT" --mode=code --open-file="$WS${SEP}README.md"
           cap terminal --project="$PROJECT" --mode=terminal
+          cap organization --project="$PROJECT" --mode=bots --bots-view=office --office-demo
+          cap organization-narrow --project="$PROJECT" --mode=bots --bots-view=office --office-demo --size=860x700 --drawer
           cap settings --settings=about
           cap shortcuts --settings=shortcuts
           if [ "$RUNNER_OS" = Linux ]; then

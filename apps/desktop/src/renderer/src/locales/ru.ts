@@ -2069,4 +2069,7 @@ export const ru: Messages = {
   "org.office.noMatches": "В этом виде нет агентов",
   "org.office.noMatchesHint": "Смените фильтр для просмотра недавних заданий.",
   "org.office.directTask": "Запускает задание напрямую с этим агентом.",
+  "org.navigation": "Навигация по организации",
+  "org.navigation.open": "Открыть: {section}",
+  "org.navigation.noTasks": "В этих поручениях нет задач.",
 };

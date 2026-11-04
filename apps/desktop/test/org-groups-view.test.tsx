@@ -189,3 +189,20 @@ describe('organization configuration is separate from its working views', () => 
     expect(html).not.toContain('class="om-editor"');
   });
 });
+
+describe('persistent organization navigation', () => {
+  it('keeps named sections and actual task owners alongside settings with the selected assignment visible across filters', () => {
+    state.orgPage = 'settings';
+    const html = side();
+    expect(html).toContain('aria-label="Organization navigation"');
+    for (const section of ['agents', 'tasks', 'assignments']) expect(html).toContain(`id="org-nav-${section}"`);
+    expect(html).toContain('task of b2');
+    expect(html).toContain('b2 · Coder work');
+    state.orgPage = 'work';
+    state.orgGroup = 'mobile';
+    state.activeTeamId = 'VPN work';
+    expect(side()).toContain('VPN work');
+    state.activeTeamId = null;
+    state.orgGroup = '';
+  });
+});

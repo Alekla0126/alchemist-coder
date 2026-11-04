@@ -1872,4 +1872,7 @@ export const en = {
   "org.office.noMatches": "No agents in this view",
   "org.office.noMatchesHint": "Change the filter to see recent assignments.",
   "org.office.directTask": "Starts a task directly with this agent.",
+  "org.navigation": "Organization navigation",
+  "org.navigation.open": "Open {section}",
+  "org.navigation.noTasks": "No tasks in these assignments.",
 };

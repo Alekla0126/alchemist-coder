@@ -1873,4 +1873,7 @@ export const hi: Messages = {
   "org.office.noMatches": "इस दृश्य में कोई एजेंट नहीं है",
   "org.office.noMatchesHint": "हाल के कार्य देखने के लिए फ़िल्टर बदलें।",
   "org.office.directTask": "सीधे इस एजेंट के साथ कार्य शुरू करता है।",
+  "org.navigation": "संगठन नेविगेशन",
+  "org.navigation.open": "{section} खोलें",
+  "org.navigation.noTasks": "इन असाइनमेंट में कोई कार्य नहीं है।",
 };

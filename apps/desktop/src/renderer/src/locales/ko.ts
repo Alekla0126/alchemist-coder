@@ -1873,4 +1873,7 @@ export const ko: Messages = {
   "org.office.noMatches": "이 보기에 에이전트가 없습니다",
   "org.office.noMatchesHint": "필터를 바꿔 최근 작업을 확인하세요.",
   "org.office.directTask": "이 에이전트로 작업을 직접 시작합니다.",
+  "org.navigation": "조직 탐색",
+  "org.navigation.open": "{section} 열기",
+  "org.navigation.noTasks": "이 의뢰에는 작업이 없습니다.",
 };

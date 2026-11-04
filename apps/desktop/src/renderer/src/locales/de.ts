@@ -1873,4 +1873,7 @@ export const de: Messages = {
   "org.office.noMatches": "Keine Agenten in dieser Ansicht",
   "org.office.noMatchesHint": "Filter ändern, um kürzliche Aufträge zu sehen.",
   "org.office.directTask": "Startet einen Auftrag direkt mit diesem Agenten.",
+  "org.navigation": "Organisationsnavigation",
+  "org.navigation.open": "{section} öffnen",
+  "org.navigation.noTasks": "Keine Aufgaben in diesen Aufträgen.",
 };
