@@ -4,6 +4,7 @@ import { canMove } from '../org-model';
 import { isDemo } from '../org-office';
 import { useAvatarPicker } from '../components/AvatarPicker';
 import { useStore } from '../store';
+import { closeDrawer } from '../layout';
 import { confirmAction, openMenu, promptText, toast } from '../ui';
 
 const t = (key: MessageKey, vars?: Record<string, string | number>) => translate(useStore.getState().locale, key, vars);
@@ -21,16 +22,28 @@ export function deleteConfig(id: string) {
 }
 
 /** Opens an agent's profile. */
-export const openMember = (member: BotConfig) => useStore.setState({ orgPage: 'work', activeMemberId: member.id, activeTeamId: null, activeBotId: null });
+export const openMember = (member: BotConfig) => {
+  useStore.setState({ orgPage: 'work', activeMemberId: member.id, activeTeamId: null, activeBotId: null, activeAutomationId: null });
+  closeDrawer();
+};
 
 /** Configuration never changes the selected working view or its focused assignment. */
-export const openOrgSettings = (memberId: string | null = null) => useStore.setState({ orgPage: 'settings', orgSettingsMemberId: memberId, activeTeamId: null, activeBotId: null, activeMemberId: null, activeAutomationId: null });
+export const openOrgSettings = (memberId: string | null = null) => {
+  useStore.setState({ orgPage: 'settings', orgSettingsMemberId: memberId, activeTeamId: null, activeBotId: null, activeMemberId: null, activeAutomationId: null });
+  closeDrawer();
+};
 
 /** Opens an assignment, on one of its agents (the coordinator when none is given). */
-export const openAssignment = (team: BotTeam, botId?: string | null) => useStore.setState({ orgPage: 'work', activeTeamId: team.id, activeBotId: botId ?? team.bots[0]?.id ?? null, activeMemberId: null });
+export const openAssignment = (team: BotTeam, botId?: string | null) => {
+  useStore.setState({ orgPage: 'work', activeTeamId: team.id, activeBotId: botId ?? team.bots[0]?.id ?? null, activeMemberId: null, activeAutomationId: null, officeTeamId: team.id, orgFocusTeamId: team.id });
+  closeDrawer();
+};
 
 /** Back to the organization's chart; with an id (or null) it also changes which assignment shows on it. */
-export const showOnChart = (teamId?: string | null) => useStore.setState({ orgPage: 'work', activeTeamId: null, activeBotId: null, activeMemberId: null, activeAutomationId: null, ...(teamId === undefined ? {} : { orgFocusTeamId: teamId }) });
+export const showOnChart = (teamId?: string | null) => {
+  useStore.setState({ orgPage: 'work', activeTeamId: null, activeBotId: null, activeMemberId: null, activeAutomationId: null, ...(teamId === undefined ? {} : { orgFocusTeamId: teamId }) });
+  closeDrawer();
+};
 
 /** Starts writing an assignment for one agent ("Ask Tester to …"), on the chart's message box. */
 export function giveTask(member: BotConfig) {

@@ -12,6 +12,8 @@ interface Layout {
   /** The conversation opened next to the board. */
   peek: number;
   sideHidden: boolean;
+  /** Organization navigation has its own preference; folding conversations never hides it. */
+  orgSideHidden: boolean;
   /** The office's departments column, folded away (its own button). */
   deptsHidden: boolean;
   /** The agent column of the split view, folded away. */
@@ -35,6 +37,7 @@ function load(): Layout {
       splitTerm: clamp(Number(raw.splitTerm) || LIMITS.splitTerm[2], LIMITS.splitTerm),
       peek: clamp(Number(raw.peek) || LIMITS.peek[2], LIMITS.peek),
       sideHidden: raw.sideHidden === true,
+      orgSideHidden: raw.orgSideHidden === true,
       deptsHidden: raw.deptsHidden === true,
       splitSideHidden: raw.splitSideHidden === true,
       // 620 was the old fixed default, saved without being dragged: it's "auto" now.
@@ -42,7 +45,7 @@ function load(): Layout {
       browserOpen: raw.browserOpen === true,
     };
   } catch {
-    return { side: LIMITS.side[2], splitSide: LIMITS.splitSide[2], splitTerm: LIMITS.splitTerm[2], peek: LIMITS.peek[2], sideHidden: false, deptsHidden: false, splitSideHidden: false, browser: LIMITS.browser[2], browserOpen: false };
+    return { side: LIMITS.side[2], splitSide: LIMITS.splitSide[2], splitTerm: LIMITS.splitTerm[2], peek: LIMITS.peek[2], sideHidden: false, orgSideHidden: false, deptsHidden: false, splitSideHidden: false, browser: LIMITS.browser[2], browserOpen: false };
   }
 }
 
@@ -57,7 +60,7 @@ const RAIL = 56;
 const MIN_CENTER = 420;
 
 function apply(l: Layout) {
-  if (typeof document === 'undefined') return; // tests
+  if (typeof document === 'undefined' || typeof window === 'undefined') return; // tests
   const width = window.innerWidth;
   const side = Math.max(LIMITS.side[0], Math.min(l.side, width - RAIL - MIN_CENTER));
   const splitSide = Math.max(LIMITS.splitSide[0], Math.min(l.splitSide, width - RAIL - (l.sideHidden ? 0 : side) - MIN_CENTER));
@@ -93,7 +96,8 @@ export const MID = 1180;
 const isMid = () => typeof window !== 'undefined' && window.innerWidth <= MID;
 
 /** The window's size class (`mid`: at most MID wide), and whether the floating sidebar is open (it starts closed). */
-export const useViewport = create<{ narrow: boolean; mid: boolean; drawer: boolean }>(() => ({ narrow: isNarrow(), mid: isMid(), drawer: false }));
+export type OrgSection = 'agents' | 'tasks' | 'assignments';
+export const useViewport = create<{ narrow: boolean; mid: boolean; drawer: boolean; orgSection: OrgSection | null }>(() => ({ narrow: isNarrow(), mid: isMid(), drawer: false, orgSection: null }));
 if (typeof window !== 'undefined')
   window.addEventListener('resize', () => {
     const narrow = isNarrow();
@@ -102,15 +106,23 @@ if (typeof window !== 'undefined')
   });
 
 /** ⌘B and the title bar button: hide or show the sidebar column, or open and close the floating one (the office's too). */
-export const toggleSidebar = () => {
-  if (useViewport.getState().narrow) useViewport.setState((v) => ({ drawer: !v.drawer }));
+export const toggleSidebar = (organization = false) => {
+  useViewport.setState({ orgSection: null });
+  if (useViewport.getState().narrow) useViewport.setState((v) => ({ drawer: !v.drawer, orgSection: null }));
+  else if (organization) useLayout.setState((l) => ({ orgSideHidden: !l.orgSideHidden }));
   else useLayout.setState((l) => ({ sideHidden: !l.sideHidden }));
+};
+/** A named section stays reachable even with the full navigation folded or on a narrow window. */
+export const openOrgNavigation = (section: OrgSection) => {
+  useViewport.setState({ orgSection: section, ...(useViewport.getState().narrow ? { drawer: true } : {}) });
+  useLayout.setState({ orgSideHidden: false });
+  requestAnimationFrame(() => document.getElementById(`org-nav-${section}`)?.focus());
 };
 /** The office's departments column: its own button and the tab on the edge fold and unfold it. */
 export const toggleDepts = () => useLayout.setState((l) => ({ deptsHidden: !l.deptsHidden }));
 /** ⌘⌥B and the title bar button in split view: fold or unfold the agent column. */
 export const toggleSplitSide = () => useLayout.setState((l) => ({ splitSideHidden: !l.splitSideHidden }));
-export const closeDrawer = () => useViewport.getState().drawer && useViewport.setState({ drawer: false });
+export const closeDrawer = () => useViewport.getState().drawer && useViewport.setState({ drawer: false, orgSection: null });
 
 /** The title bar button: show or hide the built-in browser next to the conversation. */
 export const toggleBrowser = () => useLayout.setState((l) => ({ browserOpen: !l.browserOpen }));

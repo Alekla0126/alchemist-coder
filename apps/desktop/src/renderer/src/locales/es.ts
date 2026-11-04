@@ -1873,4 +1873,7 @@ export const es: Messages = {
   "org.office.noMatches": "No hay agentes en esta vista",
   "org.office.noMatchesHint": "Cambia el filtro para ver los encargos recientes.",
   "org.office.directTask": "Inicia un encargo directamente con este agente.",
+  "org.navigation": "Navegación de la organización",
+  "org.navigation.open": "Abrir {section}",
+  "org.navigation.noTasks": "No hay tareas en estos encargos.",
 };

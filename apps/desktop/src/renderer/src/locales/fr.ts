@@ -1873,4 +1873,7 @@ export const fr: Messages = {
   "org.office.noMatches": "Aucun agent dans cette vue",
   "org.office.noMatchesHint": "Changez le filtre pour voir les missions récentes.",
   "org.office.directTask": "Lance une mission directement avec cet agent.",
+  "org.navigation": "Navigation de l’organisation",
+  "org.navigation.open": "Ouvrir {section}",
+  "org.navigation.noTasks": "Aucune tâche dans ces missions.",
 };

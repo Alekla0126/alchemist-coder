@@ -1123,7 +1123,7 @@ function runAppCommand(command: string) {
   }
   switch (command) {
     case 'toggle-sidebar':
-      toggleSidebar();
+      toggleSidebar(s.settings.mode === 'bots');
       return;
     case 'toggle-agent-panel':
       if (s.settings.mode === 'split') toggleSplitSide();

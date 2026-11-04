@@ -1873,4 +1873,7 @@ export const zhCN: Messages = {
   "org.office.noMatches": "此视图中没有智能体",
   "org.office.noMatchesHint": "更改筛选条件以查看最近的任务。",
   "org.office.directTask": "直接用此智能体启动任务。",
+  "org.navigation": "组织导航",
+  "org.navigation.open": "打开{section}",
+  "org.navigation.noTasks": "这些委派中暂无任务。",
 };

@@ -2,7 +2,7 @@ import { whileVisible } from './ui';
 import { lazy, Suspense, useEffect, useRef } from 'react';
 import { AgentPanel } from './components/AgentPanel';
 import { ArenaList, ArenaView } from './components/Arena';
-import { OrgSidebar, OrgView } from './components/Org';
+import { OrgNavigationRail, OrgSidebar, OrgView } from './components/Org';
 import { MarketingView } from './components/Marketing';
 import { HistoryView } from './components/HistoryView';
 import { ProjectPicker } from './components/ProjectPicker';
@@ -47,7 +47,7 @@ export function App() {
   const settingsOpen = useStore((s) => s.settingsOpen);
   const paletteOpen = useStore((s) => s.paletteOpen);
   const t = useT();
-  const sideHiddenPref = useLayout((l) => l.sideHidden);
+  const sideHiddenPref = useLayout((l) => mode === 'bots' ? l.orgSideHidden : l.sideHidden);
   const splitSideHidden = useLayout((l) => l.splitSideHidden);
   const browserOpen = useLayout((l) => l.browserOpen);
   const welcomeOpen = useWelcome((w) => w.open);
@@ -56,11 +56,11 @@ export function App() {
   const drawer = useViewport((v) => v.drawer);
   // A narrow window has no sidebar column: the sidebar floats over the page while it's open.
   const orgConfiguration = useStore((s) => s.settings.mode === 'bots' && s.orgPage === 'settings' && !s.activeTeamId && !s.activeMemberId && !s.activeAutomationId);
-  const sideHidden = narrow || sideHiddenPref || orgConfiguration;
+  const sideHidden = narrow || sideHiddenPref;
   // The organization's office: the sidebar stays beside it, with its departments as a column of its own.
   const orgOffice = useStore((s) => s.orgPage === 'work' && s.orgOffice && !s.activeTeamId && !s.activeMemberId && !s.activeAutomationId);
   const onOffice = mode === 'bots' && orgOffice;
-  const selectionKey = useStore((s) => `${s.selection?.sessionId ?? ''}|${s.composeProjectId ?? ''}`);
+  const selectionKey = useStore((s) => s.settings.mode === 'bots' ? `${s.orgPage}|${s.activeTeamId}|${s.activeBotId}|${s.activeMemberId}|${s.activeAutomationId}|${s.officeTeamId}|${!!s.botConfigDialog}|${s.automationDialog}` : `${s.selection?.sessionId ?? ''}|${s.composeProjectId ?? ''}`);
 
   useEffect(() => {
     void init();
@@ -115,23 +115,36 @@ export function App() {
   useEffect(() => {
     if (!narrow || !drawer) return;
     const back = document.activeElement as HTMLElement | null;
-    requestAnimationFrame(() => document.querySelector<HTMLElement>('.body.narrow > aside.side button, .body.narrow > aside.side input')?.focus());
+    const frame = requestAnimationFrame(() => {
+      const section = useViewport.getState().orgSection;
+      (section ? document.getElementById(`org-nav-${section}`) : document.querySelector<HTMLElement>('.body.narrow > aside.side button, .body.narrow > aside.side input'))?.focus();
+    });
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      e.preventDefault();
-      closeDrawer();
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeDrawer();
+      } else if (e.key === 'Tab') {
+        const side = document.querySelector('.body.narrow > aside.side');
+        const stops = [...(side?.querySelectorAll<HTMLElement>('button:not(:disabled), input, select, textarea, [tabindex="0"]') ?? [])].filter((el) => el.offsetParent !== null);
+        const next = e.shiftKey ? stops.at(-1) : stops[0];
+        if (!side?.contains(document.activeElement) || document.activeElement === (e.shiftKey ? stops[0] : stops.at(-1))) {
+          e.preventDefault();
+          next?.focus();
+        }
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => {
+      cancelAnimationFrame(frame);
       window.removeEventListener('keydown', onKey);
-      (back?.isConnected ? back : document.querySelector<HTMLElement>('.side-toggle'))?.focus();
+      (back?.isConnected && back.offsetParent !== null ? back : document.querySelector<HTMLElement>('.side-toggle'))?.focus();
     };
   }, [narrow, drawer]);
 
   // Picking a conversation (or another mode) in the floating sidebar puts it away.
   useEffect(() => {
     closeDrawer();
-  }, [selectionKey, mode]);
+  }, [selectionKey, mode, settingsOpen, paletteOpen, pickerOpen, newProjectOpen, avatarOpen]);
 
   // "Running" ages out after a quiet period, so poll while something runs.
   useEffect(() => {
@@ -158,9 +171,9 @@ export function App() {
       <TitleBar />
       <div className={`body mode-${mode} ${narrow ? 'narrow' : sideHidden ? 'side-hidden' : ''} ${narrow && drawer ? 'drawer-open' : ''} ${onOffice ? 'org-office' : ''} ${orgConfiguration ? 'org-configuration' : ''}`}>
         <ProjectRail />
-        {!orgConfiguration && narrow && drawer && <div className="drawer-scrim" onClick={closeDrawer} aria-hidden />}
+        {narrow && drawer && <div className="drawer-scrim" onClick={closeDrawer} aria-hidden />}
         {/* A folded sidebar leaves a thin edge: click it to bring the sidebar back. */}
-        {!orgConfiguration && !narrow && sideHiddenPref && WITH_SIDEBAR.has(mode) && <button className="side-edge" onClick={toggleSidebar} title={t('layout.showSidebar')} aria-label={t('layout.showSidebar')} />}
+        {mode !== 'bots' && !narrow && sideHiddenPref && WITH_SIDEBAR.has(mode) && <button className="side-edge" onClick={() => toggleSidebar()} title={t('layout.showSidebar')} aria-label={t('layout.showSidebar')} />}
         {mode === 'history' ? (
           <HistoryView />
         ) : mode === 'board' ? (
@@ -177,7 +190,8 @@ export function App() {
           </main>
         ) : mode === 'bots' ? (
           <>
-            {!orgConfiguration && <OrgSidebar />}
+            <OrgNavigationRail />
+            <OrgSidebar />
             <main className="center center-bots">
               <PanelBoundary label="Organization">
                 <OrgView />

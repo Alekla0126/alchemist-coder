@@ -366,7 +366,7 @@ function ProjectFilter() {
   const group = useStore((s) => groupOf(s.orgSettings, s.orgGroup));
   // The sidebar beside the office has the same menu: one is enough.
   const narrow = useViewport((v) => v.narrow);
-  const sideHidden = useLayout((l) => l.sideHidden);
+  const sideHidden = useLayout((l) => l.orgSideHidden);
   const sideShown = !narrow && !sideHidden;
   const open = useOpenProjects().filter((p) => folderInGroup(p.cwd, group));
   if (sideShown && open.length > 1) return null;
@@ -414,7 +414,7 @@ export function OrgOffice({ title, views, callout }: { title: string; views: Rea
   const foldedPref = useLayout((l) => l.deptsHidden);
   // A mid-size window with the sidebar beside the office: the departments start folded (the tab brings them back for the visit).
   const midWindow = useViewport((v) => v.mid && !v.narrow);
-  const sideFolded = useLayout((l) => l.sideHidden);
+  const sideFolded = useLayout((l) => l.orgSideHidden);
   const mid = midWindow && !sideFolded;
   const [midOpen, setMidOpen] = useState(false);
   const deptsHidden = mid ? !midOpen : foldedPref;
@@ -487,7 +487,7 @@ export function OrgOffice({ title, views, callout }: { title: string; views: Rea
   const showAutomations = () => {
     // The column they're in has to show: the floating sidebar on a narrow window, the folded one unfolded.
     if (useViewport.getState().narrow) useViewport.setState({ drawer: true });
-    else if (useLayout.getState().sideHidden) useLayout.setState({ sideHidden: false });
+    else if (useLayout.getState().orgSideHidden) useLayout.setState({ orgSideHidden: false });
     requestAnimationFrame(() => document.getElementById('org-automations')?.scrollIntoView({ block: 'start' }));
   };
   return (

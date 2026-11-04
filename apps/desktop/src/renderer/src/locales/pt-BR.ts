@@ -1873,4 +1873,7 @@ export const ptBR: Messages = {
   "org.office.noMatches": "Nenhum agente nesta visualização",
   "org.office.noMatchesHint": "Mude o filtro para ver as tarefas recentes.",
   "org.office.directTask": "Inicia uma tarefa diretamente com este agente.",
+  "org.navigation": "Navegação da organização",
+  "org.navigation.open": "Abrir {section}",
+  "org.navigation.noTasks": "Nenhuma tarefa nestes trabalhos.",
 };

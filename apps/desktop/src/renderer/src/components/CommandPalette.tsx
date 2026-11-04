@@ -51,7 +51,7 @@ export function CommandPalette() {
       ...MODES.map(([m, key]) => ({ id: `mode:${m}`, label: t('palette.goTo', { where: t(`mode.${m}`) }), hint: key, run: () => s.setMode(m) })),
       { id: 'settings', label: t('settings.title'), hint: '⌘,', run: () => useStore.setState({ settingsOpen: true }) },
       { id: 'usage', label: t('usage.title'), run: () => useStore.setState({ settingsOpen: true, settingsSection: 'usage' }) },
-      { id: 'sidebar', label: t('shortcut.sidebar'), hint: '⌘B', run: toggleSidebar },
+      { id: 'sidebar', label: t('shortcut.sidebar'), hint: '⌘B', run: () => toggleSidebar(s.settings.mode === 'bots') },
       ...(s.settings.mode === 'split' ? [{ id: 'agent-panel', label: t('shortcut.agentPanel'), hint: '⌘⌥B', run: toggleSplitSide }] : []),
       ...(['en', 'es'] as const).filter((l) => l !== s.locale).map((l) => ({ id: `lang:${l}`, label: `${t('settings.language')}: ${l === 'en' ? 'English' : 'Español'}`, run: () => s.setLocale(l) })),
       // Only found by typing: there are many.
