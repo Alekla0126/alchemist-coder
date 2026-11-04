@@ -104,6 +104,20 @@ jobs:
           # Each screenshot gets its own profile: on Windows a closing app can still hold the last one's index.
           cap() {
             local name=$1; shift
+            # Project discovery can save settings during first launch. Seed the capture's mode in
+            # its disposable profile so those saves cannot put an Organization/Code shot in Agents.
+            local capture_mode="" capture_arg
+            for capture_arg in "$@"; do
+              case "$capture_arg" in --mode=*) capture_mode="${capture_arg#--mode=}" ;; esac
+            done
+            if [ -n "$capture_mode" ]; then
+              CAPTURE_PROFILE="$PROFILES${SEP}ac-$name" CAPTURE_MODE="$capture_mode" node --input-type=module -e '
+                import { mkdirSync, writeFileSync } from "node:fs";
+                import { join } from "node:path";
+                mkdirSync(process.env.CAPTURE_PROFILE, { recursive: true });
+                writeFileSync(join(process.env.CAPTURE_PROFILE, "settings.json"), JSON.stringify({ mode: process.env.CAPTURE_MODE }));
+              '
+            fi
             limit "${APP[@]}" --capture="$OUT$SEP$name.png" --profile="$PROFILES${SEP}ac-$name" "$@" > "smoke/$name.log" 2>&1 || true
             if [ -f "smoke/$name.png" ]; then echo "ok $name"; else echo "::error::no screenshot for $name"; cat "smoke/$name.log"; FAILED=1; fi
           }
